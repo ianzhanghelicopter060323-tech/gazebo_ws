@@ -13,9 +13,11 @@
 *.db3
 *.mcap
 # *.png
+gazebo仿真操作手册.pdf
 *.log
 *.log.*
 roscore-*.pid
+
 
 # Local Gazebo state
 /.gazebo/
