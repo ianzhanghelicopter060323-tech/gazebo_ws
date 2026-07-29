@@ -12,6 +12,7 @@
 *.bag.active
 *.db3
 *.mcap
+# *.png
 *.log
 *.log.*
 roscore-*.pid
