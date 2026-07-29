@@ -1,0 +1,31 @@
+# 通用代价地图参数（适用于 global_costmap 与 local_costmap）
+
+# 建议优先使用 footprint（更精确），同时保留 robot_radius 可自动回退
+footprint: [[0.12, -0.12], [0.12, 0.12],[-0.12, 0.12], [-0.12, -0.12]]
+# 显式固定当前默认安全边界，避免不同 costmap 版本的隐式默认值造成行为漂移。
+footprint_padding: 0.01
+# robot_radius: 0.20   # 比实际略大一点，提高导航安全性
+
+obstacle_layer:
+  enabled: true
+  combination_method: 1     # 1 表示取最大值
+  track_unknown_space: true
+  obstacle_range: 4.0       # 障碍探测半径（推荐保持 2m）
+  raytrace_range: 4.0       # 清除障碍的射线距离（略小于原来的3.0）
+  observation_sources: laser_scan_sensor
+  laser_scan_sensor:
+    sensor_frame: laser_link
+    data_type: LaserScan
+    topic: scan
+    marking: true
+    clearing: true
+    inf_is_valid: true
+
+inflation_layer:
+  enabled: true
+  cost_scaling_factor: 2.8      # 不改变膨胀半径，仅减缓代价衰减，让规划更早远离锥桶
+  # inflation_radius 由 gazebo_nav.launch 分别写入 global_costmap 和 local_costmap，
+  # 避免公共配置将两个膨胀半径绑定为同一个值。
+
+static_layer:
+  enabled: true

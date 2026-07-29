@@ -1,0 +1,170 @@
+DWAPlannerROS:
+  acc_lim_theta: 4.0
+  acc_lim_trans: 0.1
+  acc_lim_x: 1.0
+  acc_lim_y: 1.0
+  angular_sim_granularity: 0.1
+  controller_frequency: 10.0
+  forward_point_distance: 0.3
+  global_frame_id: map
+  goal_distance_bias: 20.0
+  hdiff_scale: 1.0
+  heading_points: 1
+  latch_xy_goal_tolerance: true
+  max_scaling_factor: 0.2
+  max_vel_theta: 2.0
+  max_vel_trans: 1.0
+  max_vel_x: 0.8
+  max_vel_y: 0.6
+  min_vel_theta: 0.4
+  min_vel_trans: 0.05
+  min_vel_x: -0.8
+  min_vel_y: -0.6
+  occdist_scale: 0.03
+  oscillation_reset_angle: 0.2
+  oscillation_reset_dist: 0.05
+  path_distance_bias: 30.0
+  prune_plan: true
+  publish_cost_grid: false
+  publish_cost_grid_pc: false
+  publish_traj_pc: false
+  restore_defaults: false
+  scaling_speed: 0.8
+  sim_granularity: 0.03
+  sim_time: 1.5
+  stop_time_buffer: 0.1
+  theta_stopped_vel: 0.1
+  trans_stopped_vel: 0.1
+  twirling_scale: 0.0
+  use_dwa: true
+  vth_samples: 20
+  vx_samples: 20
+  vy_samples: 10
+  xy_goal_tolerance: 0.1
+  yaw_goal_tolerance: 0.2
+GlobalPlanner:
+  allow_unknown: true
+  cost_factor: 0.55
+  default_tolerance: 0.2
+  lethal_cost: 253
+  neutral_cost: 50
+  old_navfn_behavior: false
+  orientation_mode: 0
+  orientation_window_size: 1
+  publish_potential: false
+  use_dijkstra: false
+  use_grid_path: true
+  use_quadratic: true
+  visualize_potential: false
+aggressive_reset:
+  reset_distance: 1.84
+base_global_planner: global_planner/GlobalPlanner
+base_local_planner: dwa_local_planner/DWAPlannerROS
+clearing_rotation_allowed: true
+conservative_reset:
+  reset_distance: 3.0
+conservative_reset_dist: 3.0
+controller_frequency: 10.0
+controller_patience: 5.0
+global_costmap:
+  footprint: '[[0.15,-0.15],[0.15,0.15],[-0.15,0.15],[-0.15,-0.15]]'
+  footprint_padding: 0.01
+  global_frame: map
+  height: 10
+  inflation_layer:
+    cost_scaling_factor: 3.5
+    enabled: true
+    inflate_unknown: false
+    inflation_radius: 0.2
+  obstacle_layer:
+    combination_method: 1
+    enabled: true
+    footprint_clearing_enabled: true
+    laser_scan_sensor:
+      clearing: true
+      data_type: LaserScan
+      inf_is_valid: true
+      marking: true
+      sensor_frame: laser_link
+      topic: scan
+    max_obstacle_height: 2.0
+    observation_sources: laser_scan_sensor
+    obstacle_range: 4.0
+    raytrace_range: 4.0
+    track_unknown_space: true
+  origin_x: 0.0
+  origin_y: 0.0
+  plugins:
+  - name: static_layer
+    type: costmap_2d::StaticLayer
+  - name: obstacle_layer
+    type: costmap_2d::ObstacleLayer
+  - name: inflation_layer
+    type: costmap_2d::InflationLayer
+  publish_frequency: 1.0
+  resolution: 0.05
+  robot_base_frame: base_link
+  robot_radius: 0.46
+  rolling_window: false
+  static_layer:
+    enabled: true
+    track_unknown_space: true
+  static_map: true
+  track_unknown_space: true
+  transform_tolerance: 0.3
+  update_frequency: 1.0
+  width: 10
+local_costmap:
+  footprint: '[[0.15,-0.15],[0.15,0.15],[-0.15,0.15],[-0.15,-0.15]]'
+  footprint_padding: 0.01
+  global_frame: odom
+  height: 4
+  inflation_layer:
+    cost_scaling_factor: 3.5
+    enabled: true
+    inflate_unknown: false
+    inflation_radius: 0.15
+  obstacle_layer:
+    combination_method: 1
+    enabled: true
+    footprint_clearing_enabled: true
+    laser_scan_sensor:
+      clearing: true
+      data_type: LaserScan
+      inf_is_valid: true
+      marking: true
+      sensor_frame: laser_link
+      topic: scan
+    max_obstacle_height: 2.0
+    observation_sources: laser_scan_sensor
+    obstacle_range: 4.0
+    raytrace_range: 4.0
+    track_unknown_space: true
+  origin_x: 0.0
+  origin_y: 0.0
+  plugins:
+  - name: obstacle_layer
+    type: costmap_2d::ObstacleLayer
+  - name: inflation_layer
+    type: costmap_2d::InflationLayer
+  publish_frequency: 3.0
+  resolution: 0.04
+  robot_base_frame: base_footprint
+  robot_radius: 0.46
+  rolling_window: true
+  static_layer:
+    enabled: true
+  static_map: false
+  transform_tolerance: 0.3
+  update_frequency: 6.0
+  width: 4
+make_plan_add_unreachable_goal: true
+make_plan_clear_costmap: true
+max_planning_retries: -1
+oscillation_distance: 0.5
+oscillation_timeout: 0.0
+planner_frequency: 0.0
+planner_patience: 5.0
+recovery_behavior_enabled: true
+restore_defaults: false
+shutdown_costmaps: false

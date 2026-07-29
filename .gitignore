@@ -1,0 +1,69 @@
+# ROS / catkin workspace outputs
+/build/
+/devel/
+/install/
+/log/
+/logs/
+/.catkin_tools/
+/.catkin_workspace
+
+# ROS runtime data and recordings
+*.bag
+*.bag.active
+*.db3
+*.mcap
+*.log
+*.log.*
+roscore-*.pid
+
+# Local Gazebo state
+/.gazebo/
+
+# Local tools and editor settings
+/.codex/
+/.vscode/
+/.idea/
+*.code-workspace
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# C / C++ and CMake artifacts
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+
+# Temporary, backup, and patch files
+*~
+*.swp
+*.swo
+*.tmp
+*.temp
+*.bak
+*.backup
+*.backup-*
+*.orig
+*.rej
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+*:Zone.Identifier

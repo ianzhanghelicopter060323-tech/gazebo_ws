@@ -1,0 +1,64 @@
+<launch>
+  <!-- Standalone by default: RobotModel needs robot_description, joint states and TF
+       from the Gazebo/car3 launch. Set start_gazebo:=false only when that launch is
+       already running in another terminal. -->
+  <arg name="start_gazebo" default="true"/>
+  <arg name="gazebo_gui" default="true"/>
+  <arg name="start_rviz" default="true"/>
+  <arg name="rviz_config" default="$(env HOME)/gazebo_ws/src/rviz_default_config.rviz"/>
+  <arg name="map_file" default="$(find gazebo_map)/maps/math_newest.yaml"/>
+  <!-- 全局地图为 0.05 m/格：0.10 m 对应 2 格，降低狭窄通道被单帧误差封死的概率。
+       local 保持不低于当前 footprint 的 0.15 m 内切半径，避免产生无法执行的路径。 -->
+  <arg name="global_inflation_radius" default="0.10"/>
+  <arg name="local_inflation_radius" default="0.15"/>
+
+  <!-- WSLg: force Mesa D3D12 acceleration for Gazebo and RViz. -->
+  <env name="GALLIUM_DRIVER" value="d3d12"/>
+  <env name="MESA_D3D12_DEFAULT_ADAPTER_NAME" value="NVIDIA"/>
+  <env name="LIBGL_ALWAYS_SOFTWARE" value="0"/>
+
+  <include if="$(arg start_gazebo)" file="$(find car3)/launch/gazebo.launch">
+    <arg name="gui" value="$(arg gazebo_gui)"/>
+  </include>
+
+  <node name="map_server"
+      pkg="map_server"
+      type="map_server"
+      args="$(arg map_file)"/>
+
+
+  <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+    <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
+    <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS"/>
+
+    <rosparam file="$(find gazebo_nav)/launch/config/move_base/costmap_common_params.yaml" command="load" ns="global_costmap" />
+    <rosparam file="$(find gazebo_nav)/launch/config/move_base/costmap_common_params.yaml" command="load" ns="local_costmap" />
+    <rosparam file="$(find gazebo_nav)/launch/config/move_base/global_planner_params.yaml" command="load" />
+    <rosparam file="$(find gazebo_nav)/launch/config/move_base/dwa_local_planner_params.yaml" command="load" />
+    <rosparam file="$(find gazebo_nav)/launch/config/move_base/local_costmap_params.yaml" command="load" />
+    <rosparam file="$(find gazebo_nav)/launch/config/move_base/global_costmap_params.yaml" command="load" />
+
+    <param name="controller_frequency" value="10.0"/> <!-- 统一 controller 频率 -->
+    <!-- 避免物理卡住时目标无限保持 ACTIVE：10 秒内位移不足 0.10 m 即进入恢复流程。 -->
+    <param name="oscillation_timeout" value="10.0"/>
+    <param name="oscillation_distance" value="0.10"/>
+
+    <!-- 公共配置加载到两个顶层命名空间后，分别覆盖各自膨胀层半径。 -->
+    <param name="global_costmap/inflation_layer/inflation_radius"
+           value="$(arg global_inflation_radius)" />
+    <param name="local_costmap/inflation_layer/inflation_radius"
+           value="$(arg local_inflation_radius)" />
+
+  </node>
+  
+  <include file="$(find gazebo_nav)/launch/config/amcl/amcl_omni.launch" > </include>
+
+  <node if="$(arg start_rviz)"
+        name="rviz"
+        pkg="rviz"
+        type="rviz"
+        required="false"
+        args="--disable-anti-aliasing -d $(arg rviz_config)"/>
+  
+  
+</launch>

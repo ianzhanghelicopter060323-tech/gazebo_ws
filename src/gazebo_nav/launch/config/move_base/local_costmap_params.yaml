@@ -1,0 +1,22 @@
+local_costmap:
+  global_frame: odom
+  robot_base_frame: base_footprint
+
+  update_frequency: 10.0         # 与 DWA 控制频率一致，缩短锥桶观测到避障决策的延迟
+  publish_frequency: 3.0         # 增加发布频率，方便rviz和其他节点使用
+
+  static_map: false
+  rolling_window: true
+
+  # DWA 最远评分点约为 1.5 m 预测位移 + 0.3 m 前向偏移；
+  # 使用 4 m 窗口，保证候选轨迹留在局部地图内。
+  width: 4.0
+  height: 4.0
+  resolution: 0.04
+
+  transform_tolerance: 0.3      # 缩短容忍时间，减少因TF延迟导致的问题
+
+  plugins:
+    # - {name: static_layer,    type: "costmap_2d::StaticLayer"} # 本地一般不启用静态层
+    - {name: obstacle_layer,  type: "costmap_2d::ObstacleLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
