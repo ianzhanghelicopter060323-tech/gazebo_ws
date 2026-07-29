@@ -1,0 +1,22 @@
+# Mission orchestration parameters. No track coordinates belong in this file.
+pipeline_stop_after: ARRIVED_PICKUP_STAGING
+goal_source: development
+
+task:
+  remember_completed_results: 20
+
+navigation:
+  action_name: /move_base
+  server_wait_timeout: 10.0
+  goal_timeout: 60.0
+  max_retries: 1
+
+localization:
+  amcl_topic: /amcl_pose
+  map_frame: map
+  base_frame: base_footprint
+  wait_timeout: 10.0
+  max_pose_age: 1.0
+  max_xy_variance: 0.05
+  max_yaw_variance: 0.10
+  require_tf: true

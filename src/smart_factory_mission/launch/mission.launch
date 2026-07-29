@@ -1,0 +1,17 @@
+<launch>
+  <arg name="action_name" default="/sim_task/execute"/>
+  <arg name="mission_config"
+       default="$(find smart_factory_mission)/config/mission.yaml"/>
+  <arg name="goal_config"
+       default="$(find smart_factory_mission)/config/pickup_staging_dev.yaml"/>
+
+  <node name="smart_factory_mission"
+        pkg="smart_factory_mission"
+        type="mission_node.py"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(arg mission_config)"/>
+    <rosparam command="load" file="$(arg goal_config)"/>
+    <param name="action_name" value="$(arg action_name)"/>
+  </node>
+</launch>

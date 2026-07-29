@@ -1,0 +1,13 @@
+system:
+  mode: nav_to_pickup_stage
+  use_sim_time: true
+
+features:
+  enable_bridge: false
+  enable_perception: false
+  enable_manipulation: false
+  enable_rviz: true
+
+mission:
+  pipeline_stop_after: ARRIVED_PICKUP_STAGING
+  goal_source: development

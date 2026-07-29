@@ -1,0 +1,4 @@
+<launch>
+  <!-- Reserved for the complete perception, pick, transport and place pipeline. -->
+  <!-- Do not use this launch file until those stages are implemented. -->
+</launch>

@@ -1,0 +1,11 @@
+<launch>
+  <arg name="start_gazebo" default="true"/>
+  <arg name="gazebo_gui" default="true"/>
+  <arg name="start_rviz" default="true"/>
+
+  <include file="$(find gazebo_nav)/launch/gazebo_nav.launch">
+    <arg name="start_gazebo" value="$(arg start_gazebo)"/>
+    <arg name="gazebo_gui" value="$(arg gazebo_gui)"/>
+    <arg name="start_rviz" value="$(arg start_rviz)"/>
+  </include>
+</launch>

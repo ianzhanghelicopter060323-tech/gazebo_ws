@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>smart_factory_mission</name>
+  <version>0.1.0</version>
+  <description>Mission state machine for the smart factory simulation.</description>
+
+  <maintainer email="ianichinose@todo.todo">ianichinose</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>actionlib</depend>
+  <depend>actionlib_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>move_base_msgs</depend>
+  <depend>rospy</depend>
+  <depend>smart_factory_interfaces</depend>
+  <depend>tf2_ros</depend>
+</package>

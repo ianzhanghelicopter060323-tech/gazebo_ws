@@ -1,0 +1,20 @@
+<launch>
+  <arg name="start_gazebo" default="true"/>
+  <arg name="gazebo_gui" default="true"/>
+  <arg name="start_rviz" default="true"/>
+  <arg name="mission_config"
+       default="$(find smart_factory_mission)/config/mission.yaml"/>
+  <arg name="goal_config"
+       default="$(find smart_factory_mission)/config/pickup_staging_dev.yaml"/>
+
+  <include file="$(find smart_factory_bringup)/launch/simulation.launch">
+    <arg name="start_gazebo" value="$(arg start_gazebo)"/>
+    <arg name="gazebo_gui" value="$(arg gazebo_gui)"/>
+    <arg name="start_rviz" value="$(arg start_rviz)"/>
+  </include>
+
+  <include file="$(find smart_factory_mission)/launch/mission.launch">
+    <arg name="mission_config" value="$(arg mission_config)"/>
+    <arg name="goal_config" value="$(arg goal_config)"/>
+  </include>
+</launch>

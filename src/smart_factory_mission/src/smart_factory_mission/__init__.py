@@ -1,0 +1,1 @@
+"""Smart factory mission package."""

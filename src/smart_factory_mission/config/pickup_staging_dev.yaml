@@ -1,0 +1,16 @@
+# DEVELOPMENT-ONLY pickup staging pose.
+#
+# Keep configured=false until a safe pose has been measured in RViz.
+# To capture a pose:
+#   1. Run: rostopic echo /move_base_simple/goal
+#   2. Send a successful "2D Nav Goal" in RViz.
+#   3. Copy position.x, position.y and convert/record yaw below.
+#
+# This fixed development pose must be replaced by a runtime perception-derived
+# goal before the competition. It must never be treated as a cube coordinate.
+pickup_staging:
+  configured: false
+  frame_id: map
+  # x: TODO_MEASURE_IN_RVIZ
+  # y: TODO_MEASURE_IN_RVIZ
+  # yaw: TODO_MEASURE_IN_RVIZ

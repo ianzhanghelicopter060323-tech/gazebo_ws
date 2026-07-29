@@ -1,0 +1,32 @@
+# External task goal. The vehicle sends the task identity and target class,
+# never a Gazebo/world coordinate.
+uint8 FOOD=0
+uint8 DAILY=1
+uint8 ELECTRONICS=2
+
+string task_id
+uint8 target_class
+---
+# Final result. The first milestone stops at ARRIVED_PICKUP_STAGING.
+uint8 STAGE_NONE=0
+uint8 STAGE_ARRIVED_PICKUP_STAGING=6
+uint8 STAGE_TASK_COMPLETED=20
+
+bool success
+uint8 completed_stage
+uint8 error_code
+string message
+---
+# Long-running task feedback.
+uint8 STAGE_IDLE=0
+uint8 STAGE_ACCEPT_TASK=1
+uint8 STAGE_VALIDATE_TASK=2
+uint8 STAGE_CHECK_LOCALIZATION=3
+uint8 STAGE_GET_PICKUP_STAGING_GOAL=4
+uint8 STAGE_NAVIGATE_TO_PICKUP_STAGING=5
+uint8 STAGE_ARRIVED_PICKUP_STAGING=6
+uint8 STAGE_TASK_FAILED=250
+
+uint8 current_stage
+uint8 retry_count
+string detail
