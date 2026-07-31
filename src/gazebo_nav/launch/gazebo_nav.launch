@@ -7,10 +7,15 @@
   <arg name="start_rviz" default="true"/>
   <arg name="rviz_config" default="$(env HOME)/gazebo_ws/src/rviz_default_config.rviz"/>
   <arg name="map_file" default="$(find gazebo_map)/maps/math_newest.yaml"/>
-  <!-- 全局地图为 0.05 m/格：0.10 m 对应 2 格，降低狭窄通道被单帧误差封死的概率。
-       local 保持不低于当前 footprint 的 0.15 m 内切半径，避免产生无法执行的路径。 -->
+  <!-- move_base 的启动基线仍使用 global=0.10/local=0.15；待动态服务就绪后，
+       Profile manager 会用普通导航 Profile 覆盖 local 的运行时参数。 -->
   <arg name="global_inflation_radius" default="0.10"/>
   <arg name="local_inflation_radius" default="0.15"/>
+  <!-- Apply the relaxed automatic-navigation profile after move_base starts. -->
+  <arg name="start_navigation_profile_manager" default="true"/>
+  <arg name="apply_initial_navigation_profile" default="true"/>
+  <arg name="initial_navigation_profile"
+       default="automatic_navigation"/>
 
   <!-- WSLg: force Mesa D3D12 acceleration for Gazebo and RViz. -->
   <env name="GALLIUM_DRIVER" value="d3d12"/>
@@ -49,6 +54,26 @@
     <param name="local_costmap/inflation_layer/inflation_radius"
            value="$(arg local_inflation_radius)" />
 
+  </node>
+
+  <node if="$(arg start_navigation_profile_manager)"
+        pkg="gazebo_nav"
+        type="navigation_profile_manager.py"
+        name="navigation_profile_manager"
+        output="screen"
+        required="true">
+    <param name="move_base_namespace" value="/move_base"/>
+    <param name="initial_apply_timeout" value="60.0"/>
+    <param name="apply_initial_profile"
+           value="$(arg apply_initial_navigation_profile)"/>
+    <param name="initial_profile"
+           value="$(arg initial_navigation_profile)"/>
+    <rosparam command="load"
+              file="$(find gazebo_nav)/launch/config/move_base/profiles/automatic_navigation_profile.yaml"
+              ns="profiles/automatic_navigation"/>
+    <rosparam command="load"
+              file="$(find gazebo_nav)/launch/config/move_base/profiles/cone_zone_avoidance_profile.yaml"
+              ns="profiles/cone_zone_avoidance"/>
   </node>
   
   <include file="$(find gazebo_nav)/launch/config/amcl/amcl_omni.launch" > </include>

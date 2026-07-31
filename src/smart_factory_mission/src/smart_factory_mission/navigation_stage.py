@@ -33,6 +33,10 @@ class NavigationStage:
     def wait_for_server(self, timeout):
         return self._client.wait_for_server(rospy.Duration(float(timeout)))
 
+    def cancel_goal(self):
+        """Cancel the active move_base goal before mission-owned motion."""
+        self._client.cancel_goal()
+
     def navigate(
         self,
         target_pose,

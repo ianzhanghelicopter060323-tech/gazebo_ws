@@ -15,6 +15,7 @@
   <depend>move_base_msgs</depend>
   <depend>rospy</depend>
   <depend>smart_factory_interfaces</depend>
+  <depend>std_srvs</depend>
   <depend>tf2_ros</depend>
 
   <exec_depend>gazebo_nav</exec_depend>

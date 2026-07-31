@@ -8,6 +8,7 @@ find_package(catkin REQUIRED COMPONENTS
   move_base_msgs
   rospy
   smart_factory_interfaces
+  std_srvs
   tf2_ros
 )
 
@@ -21,7 +22,8 @@ catkin_package(
     move_base_msgs
     rospy
     smart_factory_interfaces
-  tf2_ros
+    std_srvs
+    tf2_ros
 )
 
 if(CATKIN_ENABLE_TESTING)

@@ -1,11 +1,13 @@
 # DEVELOPMENT-ONLY pickup staging route.
 #
-# The 13 active poses below were captured from manual move_base goals and are sent
-# sequentially. An intermediate waypoint advances when the localized base enters
-# the configured pass radius; only the final waypoint requires move_base
-# GoalStatus.SUCCEEDED and therefore exact final position/orientation alignment.
+# The 10 active poses below were captured from manual move_base goals and are sent
+# sequentially. An intermediate waypoint normally advances when the localized
+# base enters the configured pass radius; selected points may additionally gate
+# on yaw. Only the final waypoint requires move_base GoalStatus.SUCCEEDED and
+# therefore exact final position/orientation alignment.
 # yaw is calculated from each recorded planar quaternion with
 # yaw = 2 * atan2(orientation.z, orientation.w).
+# Coordinates are restored from commit 06fe330; original seq 5 remains omitted.
 #
 # This fixed development route must be replaced by runtime perception-derived
 # goals before the competition. The final pose is a staging pose, not a cube
@@ -14,64 +16,46 @@ pickup_staging:
   configured: true
   frame_id: map
   waypoints:
-    # ===== 路段 A：起点区折线（seq 1-2）=====
-    # seq 1：起点区第一个转向点（临时沿用提交 06fe330）
+    # seq 1
     - x: 1.1737096309661865
       y: -0.03697460517287254
       yaw: -1.5160239934921265
-    # seq 2：折线下侧转向点（临时沿用提交 06fe330）
-    - x: 1.39999520778656
+    # seq 2
+    - x: 1.29999520778656 
       y: -0.5630028247833252
       yaw: 0.22031517326831818
+    # seq 3
+    - x: 1.647245168685913
+      y: -0.22807437181472778
+      yaw: 1.1073591709136963
+    # seq 4
+    - x: 2.4329891204833984
+      y: 0.011333435773849487
+      yaw: -0.21532586216926575
 
-    # ===== 路段 B：上侧横向通道（seq 3-5）=====
-    # seq 3：回到上侧通道入口（采用本轮新记录）
-    - x: 1.708100438117981
-      y: -0.019375979900360107
-      yaw: 0.037766993045807
-    # seq 4：上侧通道中段（采用本轮新记录）
-    - x: 2.3257651329040527
-      y: -0.007089436054229736
-      yaw: 0.004276106599718
-    # seq 5：右侧下行通道入口
-    - x: 2.657639980316162
-      y: -0.09753460437059402
-      yaw: -1.573318362236023
+    # seq 5 (temporarily omitted, matching commit 06fe330)
 
-    # ===== 路段 C：右侧下行与下侧长直道（seq 6-8）=====
-    # seq 6：右下转向点
-    - x: 2.6213173866271973
-      y: -1.013062834739685
-      yaw: -3.068085432052612
-    # seq 7：下侧长直道入口
-    - x: 2.3700571060180664
-      y: -1.0275450944900513
-      yaw: -3.115916728973389
-    # seq 8：下侧长直道出口（原始记录的 header.seq 重新从 4 计数）
-    - x: 0.6069910526275635
-      y: -0.9939683079719543
-      yaw: 1.591210246086121
-
-    # ===== 路段 D：中部连接通道（seq 8.5-9.5）=====
-    # seq 8.5：新增过渡点，引导机器人先向上进入中部通道
-    - x: 0.5901756882667542
-      y: -0.5148432850837708
-      yaw: 3.116235494613647
-    # seq 9：中部通道第一段
-    - x: 0.29406872391700745
-      y: -0.5063384771347046
-      yaw: -3.091084957122803
-    # seq 9.5：新增过渡点，避免直接斜切至 seq 10
-    - x: 0.008272141218185425
-      y: -0.5394411087036133
-      yaw: -3.125930786132812
-
-    # ===== 路段 E：终点进场（seq 10-11）=====
-    # seq 10：最终横向通道入口
+    # seq 6
+    - x: 2.6042375564575195
+      y: -0.7144633531570435
+      yaw: -1.5462896823883057
+    # seq 7
+    - x: 2.3608851432800293
+      y: -0.9849849343299866
+      yaw: 3.1162102222442627
+    # seq 8
+    - x: 0.6804397106170654
+      y: -0.9007962942123413
+      yaw: 1.7933788299560547
+    # seq 9
+    - x: 0.3635689914226532
+      y: -0.5111467838287354
+      yaw: -3.0022990703582764
+    # seq 10
     - x: -0.6146833300590515
       y: -0.9945734739303589
       yaw: 3.137913465499878
-    # seq 11：最终停靠点，要求位置与航向同时满足容差
+    # seq 11
     - x: -1.4413442611694336
       y: -0.9414602518081665
       yaw: 1.5996251106262207
