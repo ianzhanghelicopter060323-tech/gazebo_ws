@@ -30,12 +30,12 @@ def main():
     parser = argparse.ArgumentParser(
         description='Send a navigation-only smart-factory task.'
     )
-    parser.add_argument('--task-id', default='nav_demo_001')
+    parser.add_argument('--task-id', default='nav_demo_001') # 指令运行时设置测试任务id
     parser.add_argument(
         '--target-class',
         choices=sorted(TARGET_CLASSES),
         default='food',
-    )
+    ) # 指令运行时设定要拿取物品的id
     args = parser.parse_args(rospy.myargv(argv=sys.argv)[1:])
 
     rospy.init_node('send_navigation_task', anonymous=True)

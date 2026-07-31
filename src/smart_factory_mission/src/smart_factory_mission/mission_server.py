@@ -1,6 +1,7 @@
 """ExecuteTask Action server for the navigation-to-pickup milestone."""
 
 from collections import OrderedDict
+import math
 import time
 
 import actionlib
@@ -47,6 +48,21 @@ class MissionServer:
         self._max_retries = int(
             rospy.get_param("~navigation/max_retries", 1)
         )
+
+        """
+        =================================================
+        进入中间点半径0.20之内视为到达，修改导航目标到下一个点
+        =================================================
+        """
+        self._intermediate_pass_radius = float(
+            rospy.get_param(
+                "~navigation/intermediate_pass_radius", 0.20
+            )
+        )
+        if self._intermediate_pass_radius < 0.0:
+            raise ValueError(
+                "navigation/intermediate_pass_radius must not be negative"
+            )
 
         """ 初始化定位参数 """
         self._map_frame = rospy.get_param("~localization/map_frame", "map")
@@ -303,6 +319,42 @@ class MissionServer:
             rospy.sleep(0.1)
         return False
 
+    """
+    =======================================
+    导航中间点，不要求位姿精准，只需要坐标准确
+               不检查朝向、不停车
+    =======================================
+    """
+    def _intermediate_waypoint_is_passed(self, waypoint):
+        """Return whether the localized base is inside a waypoint pass radius."""
+        if self._intermediate_pass_radius <= 0.0:
+            return False
+
+        waypoint_frame = waypoint.header.frame_id or self._map_frame
+        try:
+            transform = self._tf_buffer.lookup_transform(
+                waypoint_frame,
+                self._base_frame,
+                rospy.Time(0),
+                rospy.Duration(0.05),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as exc:
+            rospy.logwarn_throttle(
+                2.0,
+                "cannot evaluate intermediate waypoint distance in %s: %s",
+                waypoint_frame,
+                exc,
+            )
+            return False
+
+        dx = waypoint.pose.position.x - transform.transform.translation.x
+        dy = waypoint.pose.position.y - transform.transform.translation.y
+        return math.hypot(dx, dy) <= self._intermediate_pass_radius
+
 
     """
     ==============
@@ -442,6 +494,7 @@ class MissionServer:
             context.current_waypoint_index = waypoint_index
             context.retry_count = 0
             waypoint_number = waypoint_index + 1
+            is_final_waypoint = waypoint_number == waypoint_count
 
             while context.retry_count <= self._max_retries:
                 """
@@ -456,10 +509,18 @@ class MissionServer:
                 )
 
                 """
-                NavigationStage只依据move_base Action状态和超时返回。
+                最终点只依据move_base Action状态和超时返回；中间点进入
+                通过半径后立即发送下一点，不要求停车或满足目标朝向。
                 planner、DWA临时输出的失败日志不会在这里触发TASK_FAILED；
                 只要Action仍为活动状态，就继续等待其重新规划。
                 """
+                pass_condition = None
+                if not is_final_waypoint:
+                    pass_condition = (
+                        lambda waypoint=waypoint:
+                        self._intermediate_waypoint_is_passed(waypoint)
+                    )
+
                 outcome, message = self._navigation.navigate(
                     waypoint,
                     self._server.is_preempt_requested,
@@ -469,13 +530,27 @@ class MissionServer:
                             waypoint_number, waypoint_count
                         ),
                     ),
+                    pass_condition=pass_condition,
                 )
 
-                if outcome == NavigationOutcome.SUCCEEDED:
+                if outcome in (
+                    NavigationOutcome.SUCCEEDED,
+                    NavigationOutcome.PASSED,
+                ):
+                    waypoint_status = (
+                        "goal reached"
+                        if outcome == NavigationOutcome.SUCCEEDED
+                        else "passed within {:.2f} m; advancing without "
+                        "final orientation alignment".format(
+                            self._intermediate_pass_radius
+                        )
+                    )
                     self._publish_state(
                         context,
-                        "waypoint {}/{} goal reached".format(
-                            waypoint_number, waypoint_count
+                        "waypoint {}/{} {}".format(
+                            waypoint_number,
+                            waypoint_count,
+                            waypoint_status,
                         ),
                     )
                     break

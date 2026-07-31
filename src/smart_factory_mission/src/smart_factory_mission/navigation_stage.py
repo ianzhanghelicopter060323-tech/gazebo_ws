@@ -13,6 +13,7 @@ class NavigationOutcome:
     TIMEOUT = 1
     ABORTED = 2
     PREEMPTED = 3
+    PASSED = 4
 
 
 class NavigationStage:
@@ -32,7 +33,13 @@ class NavigationStage:
     def wait_for_server(self, timeout):
         return self._client.wait_for_server(rospy.Duration(float(timeout)))
 
-    def navigate(self, target_pose, preempt_requested, heartbeat):
+    def navigate(
+        self,
+        target_pose,
+        preempt_requested,
+        heartbeat,
+        pass_condition=None,
+    ):
         goal = MoveBaseGoal()
         goal.target_pose = target_pose
         goal.target_pose.header.stamp = rospy.Time.now()
@@ -45,9 +52,20 @@ class NavigationStage:
                 return NavigationOutcome.PREEMPTED, "task was preempted"
 
             state = self._client.get_state()
+            if state == GoalStatus.SUCCEEDED:
+                return NavigationOutcome.SUCCEEDED, "move_base reached the goal"
+
+            # Intermediate waypoints constrain the route but are not stopping
+            # poses. Once the robot enters their pass radius, leave the current
+            # goal active until the caller immediately sends the next one. The
+            # new MoveBaseGoal then preempts it without an intentional stop gap.
+            if pass_condition is not None and pass_condition():
+                return (
+                    NavigationOutcome.PASSED,
+                    "robot entered the intermediate waypoint pass radius",
+                )
+
             if state in self.TERMINAL_STATES:
-                if state == GoalStatus.SUCCEEDED:
-                    return NavigationOutcome.SUCCEEDED, "move_base reached the goal"
                 return (
                     NavigationOutcome.ABORTED,
                     "move_base finished with state {}".format(state),

@@ -10,6 +10,9 @@ navigation:
   server_wait_timeout: 10.0
   goal_timeout: 60.0
   max_retries: 1
+  # Intermediate route points advance on position alone. The final point still
+  # requires move_base SUCCEEDED, including its configured position/yaw tolerances.
+  intermediate_pass_radius: 0.20
 
 localization:
   amcl_topic: /amcl_pose
