@@ -1,16 +1,57 @@
-# DEVELOPMENT-ONLY pickup staging pose.
+# DEVELOPMENT-ONLY pickup staging route.
 #
-# Keep configured=false until a safe pose has been measured in RViz.
-# To capture a pose:
-#   1. Run: rostopic echo /move_base_simple/goal
-#   2. Send a successful "2D Nav Goal" in RViz.
-#   3. Copy position.x, position.y and convert/record yaw below.
+# The 10 active poses below were captured from manual move_base goals and are sent
+# sequentially. Intermediate planner/DWA warnings do not advance the route;
+# a waypoint advances only after move_base reports GoalStatus.SUCCEEDED.
+# Original seq5 is temporarily omitted: original seq4 connects to original seq6.
 #
-# This fixed development pose must be replaced by a runtime perception-derived
-# goal before the competition. It must never be treated as a cube coordinate.
+# This fixed development route must be replaced by runtime perception-derived
+# goals before the competition. The final pose is a staging pose, not a cube
+# coordinate.
 pickup_staging:
-  configured: false
+  configured: true
   frame_id: map
-  # x: TODO_MEASURE_IN_RVIZ
-  # y: TODO_MEASURE_IN_RVIZ
-  # yaw: TODO_MEASURE_IN_RVIZ
+  waypoints:
+    # seq 1
+    - x: 1.1737096309661865
+      y: -0.03697460517287254
+      yaw: -1.5160239934921265
+    # seq 2
+    - x: 1.39999520778656
+      y: -0.5630028247833252
+      yaw: 0.22031517326831818
+    # seq 3
+    - x: 1.647245168685913
+      y: -0.22807437181472778
+      yaw: 1.1073591709136963
+    # seq 4
+    - x: 2.4329891204833984
+      y: 0.011333435773849487
+      yaw: -0.21532586216926575
+
+    # seq 5 (暂时缺省)
+
+    # seq 6
+    - x: 2.6042375564575195
+      y: -0.7144633531570435
+      yaw: -1.5462896823883057
+    # seq 7
+    - x: 2.3608851432800293
+      y: -0.9849849343299866
+      yaw: 3.1162102222442627
+    # seq 8
+    - x: 0.6804397106170654
+      y: -0.9007962942123413
+      yaw: 1.7933788299560547
+    # seq 9
+    - x: 0.3635689914226532
+      y: -0.5111467838287354
+      yaw: -3.0022990703582764
+    # seq 10
+    - x: -0.6146833300590515
+      y: -0.9945734739303589
+      yaw: 3.137913465499878
+    # seq 11
+    - x: -1.4413442611694336
+      y: -0.9414602518081665
+      yaw: 1.5996251106262207

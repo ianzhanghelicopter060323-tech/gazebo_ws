@@ -16,7 +16,11 @@ localization:
   map_frame: map
   base_frame: base_footprint
   wait_timeout: 10.0
+  # AMCL may keep the last pose stamp while a localized robot is stationary.
+  # A stale pose is accepted only while the live map-to-base TF remains fresh.
   max_pose_age: 1.0
+  max_tf_age: 1.0
+  allow_stale_pose_with_fresh_tf: true
   max_xy_variance: 0.05
   max_yaw_variance: 0.10
   require_tf: true
