@@ -55,9 +55,9 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <mesh filename="package://car3/meshes/wheel_lf_link.STL" />
+        <cylinder radius="0.0489" length="0.052" />
       </geometry>
     </collision>
   </link>
@@ -84,9 +84,9 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <mesh filename="package://car3/meshes/wheel_rf_link.STL" />
+        <cylinder radius="0.0489" length="0.052" />
       </geometry>
     </collision>
   </link>
@@ -113,9 +113,9 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <mesh filename="package://car3/meshes/wheel_lb_link.STL" />
+        <cylinder radius="0.0489" length="0.052" />
       </geometry>
     </collision>
   </link>
@@ -142,9 +142,9 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <mesh filename="package://car3/meshes/wheel_rb_link.STL" />
+        <cylinder radius="0.0489" length="0.052" />
       </geometry>
     </collision>
   </link>
