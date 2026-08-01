@@ -3,6 +3,7 @@
 
 import argparse
 import sys
+import time
 
 import actionlib
 import rospy
@@ -44,6 +45,18 @@ def main():
         '/sim_task/execute',
     )
     server_wait_timeout = float(rospy.get_param('~server_wait_timeout', 10.0))
+
+    # With /use_sim_time, a newly started client initially sees time zero until
+    # its first /clock message.  Starting an actionlib timeout before that first
+    # message can make the deadline appear to expire instantly when Gazebo is
+    # already far into simulated time (especially in fast headless runs).
+    clock_deadline = time.monotonic() + server_wait_timeout
+    while (
+        rospy.get_param('/use_sim_time', False)
+        and rospy.Time.now() == rospy.Time()
+        and time.monotonic() < clock_deadline
+    ):
+        time.sleep(0.05)
 
     client = actionlib.SimpleActionClient(action_name, ExecuteTaskAction)
     rospy.loginfo('waiting for action server %s', action_name)

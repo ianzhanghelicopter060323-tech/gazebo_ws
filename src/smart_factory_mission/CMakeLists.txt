@@ -6,8 +6,10 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
   geometry_msgs
   move_base_msgs
+  nav_msgs
   rospy
   smart_factory_interfaces
+  std_msgs
   std_srvs
   tf2_ros
 )
@@ -20,8 +22,10 @@ catkin_package(
     actionlib_msgs
     geometry_msgs
     move_base_msgs
+    nav_msgs
     rospy
     smart_factory_interfaces
+    std_msgs
     std_srvs
     tf2_ros
 )

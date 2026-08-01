@@ -37,6 +37,20 @@ class NavigationStage:
         """Cancel the active move_base goal before mission-owned motion."""
         self._client.cancel_goal()
 
+    def send_or_replace_goal(self, target_pose):
+        """Send a goal directly; SimpleActionClient preempts its prior goal.
+
+        Deliberately do not cancel first.  A separate cancel would create a
+        command gap between consecutive moving lookahead goals.
+        """
+        goal = MoveBaseGoal()
+        goal.target_pose = target_pose
+        goal.target_pose.header.stamp = rospy.Time.now()
+        self._client.send_goal(goal)
+
+    def get_state(self):
+        return self._client.get_state()
+
     def navigate(
         self,
         target_pose,
@@ -44,10 +58,7 @@ class NavigationStage:
         heartbeat,
         pass_condition=None,
     ):
-        goal = MoveBaseGoal()
-        goal.target_pose = target_pose
-        goal.target_pose.header.stamp = rospy.Time.now()
-        self._client.send_goal(goal)
+        self.send_or_replace_goal(target_pose)
 
         deadline = time.monotonic() + self._goal_timeout
         while not rospy.is_shutdown():

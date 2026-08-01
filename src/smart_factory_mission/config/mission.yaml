@@ -10,6 +10,35 @@ navigation:
   server_wait_timeout: 10.0
   goal_timeout: 60.0
   max_retries: 1
+  # Keep legacy_waypoints available as a rollback. The fitted mode publishes a
+  # latched reference Path, tracks monotonic arc progress, and replaces a moving
+  # lookahead MoveBaseGoal without inserting an explicit cancel/stop gap.
+  route_execution_mode: fitted_path_lookahead
+  path_tracking:
+    path_topic: /sim_task/reference_path
+    tracking_goal_topic: /sim_task/tracking_goal
+    progress_topic: /sim_task/path_progress
+    control_frequency: 20.0
+    acquire_radius: 0.20
+    # Must remain well above DWA's 0.10 m xy_goal_tolerance; otherwise a sharp
+    # bend can make the moving target look already reached and stall progress.
+    lookahead_min: 0.20
+    lookahead_max: 0.50
+    lookahead_curvature_gain: 0.45
+    projection_window: 1.0
+    goal_update_distance: 0.12
+    goal_update_period: 0.8
+    cross_track_warn: 0.08
+    cross_track_abort: 0.25
+    progress_timeout: 15.0
+    progress_epsilon: 0.05
+    final_phase_distance: 0.30
+    route_timeout: 240.0
+    # Original seq 20 -> 21 is a checked straight corridor. Once progress enters
+    # this segment, the moving goal jumps to seq 21 instead of following every
+    # fitted sample along the straight.
+    direct_segments:
+      - [20, 21]
   # Intermediate route points normally advance on position alone. Selected route
   # waypoint numbers cancel their active move_base goal after entering the pass
   # radius, rotate in place to their configured yaw, and then advance. The final

@@ -1,13 +1,14 @@
 # DEVELOPMENT-ONLY pickup staging route.
 #
-# The 10 active poses below were captured from manual move_base goals and are sent
+# The active poses below were captured from manual move_base goals and are sent
 # sequentially. An intermediate waypoint normally advances when the localized
 # base enters the configured pass radius; selected points may additionally gate
 # on yaw. Only the final waypoint requires move_base GoalStatus.SUCCEEDED and
 # therefore exact final position/orientation alignment.
 # yaw is calculated from each recorded planar quaternion with
 # yaw = 2 * atan2(orientation.z, orientation.w).
-# Coordinates are restored from commit 06fe330; original seq 5 remains omitted.
+# Coordinates follow the record order in docs/navi_pos.md. The fourth record is
+# treated as seq 4 even though its captured header repeats seq 1.
 #
 # This fixed development route must be replaced by runtime perception-derived
 # goals before the competition. The final pose is a staging pose, not a cube
@@ -17,45 +18,141 @@ pickup_staging:
   frame_id: map
   waypoints:
     # seq 1
-    - x: 1.1737096309661865
-      y: -0.03697460517287254
-      yaw: -1.5160239934921265
+    - x: 0.9069627523422241
+      y: 0.006324544548988342
+      yaw: -0.025351181626319885
     # seq 2
-    - x: 1.29999520778656 
-      y: -0.5630028247833252
-      yaw: 0.22031517326831818
+    #- x: 1.0217628479003906
+    #  y: 0.07854776084423065
+    #  yaw: -0.34669366478919983
     # seq 3
-    - x: 1.647245168685913
-      y: -0.22807437181472778
-      yaw: 1.1073591709136963
-    # seq 4
-    - x: 2.4329891204833984
-      y: 0.011333435773849487
-      yaw: -0.21532586216926575
-
-    # seq 5 (temporarily omitted, matching commit 06fe330)
-
+    - x: 1.1513876914978027
+      y: -0.08713756501674652
+      yaw: -1.0079600811004639
+    # seq 4 (source header repeats seq 1)
+    #- x: 1.1962604522705078
+    #  y: -0.13771581649780273
+    #  yaw: -1.6639446020126343
+    # seq 5
+    - x: 1.2026703357696533
+      y: -0.28135257959365845
+      yaw: -1.5980843305587769
     # seq 6
-    - x: 2.6042375564575195
-      y: -0.7144633531570435
-      yaw: -1.5462896823883057
+    - x: 1.198300838470459
+      y: -0.40627628564834595
+      yaw: -1.2871537208557129
     # seq 7
-    - x: 2.3608851432800293
-      y: -0.9849849343299866
-      yaw: 3.1162102222442627
+    #- x: 1.1378079652786255
+    #  y: -0.531162440776825
+    #  yaw: -0.050348203629255295
     # seq 8
-    - x: 0.6804397106170654
-      y: -0.9007962942123413
-      yaw: 1.7933788299560547
+    #- x: 1.237373948097229
+    #  y: -0.5337331295013428
+    #  yaw: 0.16758532822132111
     # seq 9
-    - x: 0.3635689914226532
-      y: -0.5111467838287354
-      yaw: -3.0022990703582764
+    - x: 1.4104515314102173
+      y: -0.5313190221786499
+      yaw: 0.013734286651015283
     # seq 10
-    - x: -0.6146833300590515
-      y: -0.9945734739303589
-      yaw: 3.137913465499878
+    - x: 1.6098499298095703
+      y: -0.4797421395778656
+      yaw: 0.9213719964027404
     # seq 11
-    - x: -1.4413442611694336
-      y: -0.9414602518081665
-      yaw: 1.5996251106262207
+    - x: 1.7031140327453613
+      y: -0.3353423476219177
+      yaw: 1.5357884168624878
+    # seq 12
+    - x: 1.616410255432129
+      y: -0.09910142421722412
+      yaw: 1.1904590129852295
+    # seq 13
+    - x: 1.6999197006225586
+      y: 0.04712587594985962
+      yaw: 0.03262258321046829
+    # seq 14
+    - x: 1.9525374174118042
+      y: 0.024871543049812317
+      yaw: -0.0356578454375267
+    # seq 15
+    - x: 2.3500587940216064
+      y: -0.007677830755710602
+      yaw: 0.020619681105017662
+    # seq 16
+    - x: 2.585000000000000
+      y: -0.115000000000000
+      yaw: -1.4098430871963501
+    # seq 17
+    - x: 2.590000000000000
+      y: -0.240000000000000
+      yaw: -1.5845879316329956
+    # seq 18
+    - x: 2.590000000000000
+      y: -0.6809606552124023
+      yaw: -1.6079150438308716
+    # seq 19
+    #- x: 2.5989997386932373
+    #  y: -0.9227846264839172
+    #  yaw: -2.376223087310791
+    # seq 20
+    # Start the 20 -> 21 straight section before the chassis turns alongside
+    # the lower wall.  The captured y=-0.9729 pose allowed the nose to reach
+    # Wall_154 while the base was still rotating out of the vertical aisle.
+    - x: 2.5100831985473633
+      y: -0.9000000000000000
+      yaw: 3.1389708518981934
+    # seq 21
+    - x: 1.0242657661437988
+      y: -1.0265377759933472
+      yaw: 3.1310317516326904
+    # seq 22
+    - x: 0.7925417423248291
+      y: -1.024207353591919
+      yaw: 2.759993314743042
+    # seq 23
+    - x: 0.6656163334846497
+      y: -0.9078620672225952
+      yaw: 1.7913811206817627
+    # seq 24
+    - x: 0.5863471031188965
+      y: -0.7147330045700073
+      yaw: 1.8590172529220581
+    # seq 25
+    - x: 0.5888758897781372
+      y: -0.5474739074707031
+      yaw: 2.9282889366149902
+    # seq 26
+    #- x: 0.5421633720397949
+    #  y: -0.48145240545272827
+    #  yaw: -3.0803327560424805
+    # seq 27
+    - x: 0.49556970596313477
+      y: -0.44749149680137634
+      yaw: 3.1260967254638672
+    # seq 28
+    - x: 0.36521705985069275
+      y: -0.4739532768726349
+      yaw: 3.126121759414673
+    # seq 29
+    - x: 0.21443931758403778
+      y: -0.5545162558555603
+      yaw: -3.0383501052856445
+    # seq 30
+    #- x: -0.0017423927783966064
+    #  y: -0.4698103666305542
+    #  yaw: -2.4728527069091797
+    # seq 31
+    #- x: -0.2933903932571411
+    #  y: -0.916366457939148
+    #  yaw: -2.945608377456665
+    # seq 32
+    #- x: -0.4535484313964844
+    #  y: -0.9963718056678772
+    #  yaw: -3.1409149169921875
+    # seq 33
+    - x: -0.410312294960022
+      y: -0.9695332050323486
+      yaw: -3.1115407943725586
+    # seq 34
+    - x: -1.4833954572677612
+      y: -0.9247531890869141
+      yaw: 1.6074262857437132

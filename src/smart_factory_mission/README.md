@@ -8,11 +8,10 @@ The current milestone implements:
 2. Validate the target class.
 3. Check `move_base`, AMCL pose, and `map -> base_footprint` TF.
 4. Load a development-only pickup staging pose.
-5. Send standard `MoveBaseGoal` messages along the configured route. Intermediate
-   points normally advance on position alone when the robot enters
-   `navigation/intermediate_pass_radius`. Waypoint numbers listed in
-   `navigation/heading_constrained_waypoints` cancel the current move_base goal
-   and rotate in place until `navigation/intermediate_yaw_tolerance` is met.
+5. In `fitted_path_lookahead` mode, publish the offline-fitted reference as a
+   latched `nav_msgs/Path`, project localization onto monotonic path progress,
+   and replace curvature-adaptive moving `MoveBaseGoal` targets at a bounded
+   rate. `legacy_waypoints` remains available as a configuration rollback.
 6. Require the final `MoveBaseGoal` to return `SUCCEEDED`, preserving the DWA
    position and orientation tolerances, then return `ARRIVED_PICKUP_STAGING`.
 
