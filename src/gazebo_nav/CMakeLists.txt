@@ -8,11 +8,8 @@ project(gazebo_nav)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  dynamic_reconfigure
   roscpp
   rospy
-  std_msgs
-  std_srvs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -105,7 +102,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-  CATKIN_DEPENDS dynamic_reconfigure roscpp rospy std_msgs std_srvs
+  CATKIN_DEPENDS roscpp rospy
 )
 
 ###########
@@ -155,13 +152,6 @@ include_directories(
 
 # all install targets should use catkin DESTINATION variables
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
-
-## Mark executable scripts (Python etc.) for installation
-## in contrast to setup.py, you can choose the destination
-catkin_install_python(
-  PROGRAMS scripts/navigation_profile_manager.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
 
 install(
   DIRECTORY launch

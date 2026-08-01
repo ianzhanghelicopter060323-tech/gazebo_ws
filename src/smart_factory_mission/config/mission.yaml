@@ -71,17 +71,6 @@ navigation:
   heading_alignment_min_angular_speed: 0.40
   heading_alignment_max_angular_speed: 0.45
   cmd_vel_topic: /cmd_vel
-  # This route stops above the random-cone region, so waypoint-driven switching
-  # remains disabled. The automatic profile is applied by gazebo_nav at launch;
-  # enable this block when a later route contains cone-zone waypoints. Bounds
-  # are one-based and inclusive.
-  profile_switching:
-    enabled: false
-    cone_zone_start_waypoint: 0
-    cone_zone_end_waypoint: 0
-    service_wait_timeout: 3.0
-    automatic_service: /navigation_profile_manager/use_automatic_navigation
-    cone_service: /navigation_profile_manager/use_cone_zone_avoidance
 
 localization:
   amcl_topic: /amcl_pose

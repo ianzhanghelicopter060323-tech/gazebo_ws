@@ -10,10 +10,6 @@
        default="$(find gazebo_map)/maps/math_newest.yaml"/>
   <arg name="global_inflation_radius" default="0.10"/>
   <arg name="local_inflation_radius" default="0.15"/>
-  <arg name="start_navigation_profile_manager" default="true"/>
-  <arg name="apply_initial_navigation_profile" default="true"/>
-  <arg name="initial_navigation_profile"
-       default="automatic_navigation"/>
 
   <!-- WSLg/Mesa D3D12 hardware rendering, consistent with gazebo_nav.launch. -->
   <env name="GALLIUM_DRIVER" value="d3d12"/>
@@ -39,12 +35,6 @@
          value="$(arg global_inflation_radius)"/>
     <arg name="local_inflation_radius"
          value="$(arg local_inflation_radius)"/>
-    <arg name="start_navigation_profile_manager"
-         value="$(arg start_navigation_profile_manager)"/>
-    <arg name="apply_initial_navigation_profile"
-         value="$(arg apply_initial_navigation_profile)"/>
-    <arg name="initial_navigation_profile"
-         value="$(arg initial_navigation_profile)"/>
   </include>
 
   <node name="smart_factory_mission"

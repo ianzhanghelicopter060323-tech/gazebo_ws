@@ -10,7 +10,6 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   smart_factory_interfaces
   std_msgs
-  std_srvs
   tf2_ros
 )
 
@@ -26,7 +25,6 @@ catkin_package(
     rospy
     smart_factory_interfaces
     std_msgs
-    std_srvs
     tf2_ros
 )
 

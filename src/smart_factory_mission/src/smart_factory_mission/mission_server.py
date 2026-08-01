@@ -29,9 +29,6 @@ from smart_factory_mission.navigation_stage import (
     NavigationOutcome,
     NavigationStage,
 )
-from smart_factory_mission.navigation_profile_switcher import (
-    NavigationProfileSwitcher,
-)
 from smart_factory_mission.path_tracker import (
     FittedPath,
     PathConfigError,
@@ -159,9 +156,6 @@ class MissionServer:
             )
         self._cmd_vel_topic = rospy.get_param(
             "~navigation/cmd_vel_topic", "/cmd_vel"
-        )
-        self._navigation_profile_switcher = (
-            NavigationProfileSwitcher.from_ros_params()
         )
         self._route_execution_mode = rospy.get_param(
             "~navigation/route_execution_mode", "legacy_waypoints"
@@ -1236,18 +1230,6 @@ class MissionServer:
             context.task_id,
             waypoint_count,
         )
-        profile_route_is_valid, profile_message = (
-            self._navigation_profile_switcher.validate_route(waypoint_count)
-        )
-        if not profile_route_is_valid:
-            self._abort(
-                context,
-                state_machine,
-                error_codes.INTERNAL_ERROR,
-                profile_message,
-            )
-            return
-
         if self._route_execution_mode == "fitted_path_lookahead":
             rospy.loginfo(
                 "task=%s executing offline fitted path with moving lookahead",
@@ -1266,22 +1248,6 @@ class MissionServer:
             requires_intermediate_heading = (
                 waypoint_number in self._heading_constrained_waypoints
             )
-            profile_switched, profile_message = (
-                self._navigation_profile_switcher.switch_for_waypoint(
-                    waypoint_number
-                )
-            )
-            if not profile_switched:
-                self._abort(
-                    context,
-                    state_machine,
-                    error_codes.INTERNAL_ERROR,
-                    profile_message,
-                )
-                return
-            if profile_message:
-                rospy.loginfo("task=%s: %s", context.task_id, profile_message)
-
             while context.retry_count <= self._max_retries:
                 """
                 状态机：5 导航
