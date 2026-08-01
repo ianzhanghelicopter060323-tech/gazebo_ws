@@ -34,11 +34,27 @@ navigation:
     progress_epsilon: 0.05
     final_phase_distance: 0.30
     route_timeout: 240.0
-    # Original seq 20 -> 21 is a checked straight corridor. Once progress enters
-    # this segment, the moving goal jumps to seq 21 instead of following every
-    # fitted sample along the straight.
+    # Follow the fitted curve through seq 20 -> 21, then run seq 21 -> 22 as a
+    # checked straight section by jumping the moving target to the seq 22
+    # anchor once path progress enters that segment.
     direct_segments:
-      - [20, 21]
+      - [21, 22]
+    # Each lock blends toward its straight-section direction before the full-lock
+    # anchor, holds that yaw after the anchor, then releases over the final 0.12 m.
+    # Position targets continue following the fitted/direct path unchanged.
+    heading_locks:
+      - start_seq: 16
+        full_lock_seq: 17
+        end_seq: 20
+        direction_start_seq: 17
+        direction_end_seq: 18
+        release_distance: 0.12
+      - start_seq: 20
+        full_lock_seq: 21
+        end_seq: 22
+        direction_start_seq: 21
+        direction_end_seq: 22
+        release_distance: 0.12
   # Intermediate route points normally advance on position alone. Selected route
   # waypoint numbers cancel their active move_base goal after entering the pass
   # radius, rotate in place to their configured yaw, and then advance. The final

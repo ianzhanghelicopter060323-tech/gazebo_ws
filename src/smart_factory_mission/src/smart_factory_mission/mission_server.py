@@ -349,6 +349,40 @@ class MissionServer:
                     "each direct segment must contain two positive seq integers"
                 )
             self._direct_segments.append(tuple(segment))
+        raw_heading_locks = rospy.get_param(namespace + "heading_locks", [])
+        if not isinstance(raw_heading_locks, list):
+            raise ValueError("navigation/path_tracking/heading_locks must be a list")
+        self._heading_locks = []
+        lock_keys = (
+            "start_seq",
+            "full_lock_seq",
+            "end_seq",
+            "direction_start_seq",
+            "direction_end_seq",
+        )
+        for lock in raw_heading_locks:
+            if not isinstance(lock, dict):
+                raise ValueError("each heading lock must be a mapping")
+            sequences = [lock.get(key) for key in lock_keys]
+            if any(
+                isinstance(value, bool)
+                or not isinstance(value, int)
+                or value <= 0
+                for value in sequences
+            ):
+                raise ValueError(
+                    "heading lock seq fields must be positive integers"
+                )
+            release_distance = lock.get("release_distance")
+            if isinstance(release_distance, bool) or not isinstance(
+                release_distance, (int, float)
+            ):
+                raise ValueError(
+                    "heading lock release_distance must be numeric"
+                )
+            self._heading_locks.append(
+                tuple(sequences) + (float(release_distance),)
+            )
 
         positive = {
             "control_frequency": self._path_control_frequency,
@@ -821,6 +855,7 @@ class MissionServer:
                 self._lookahead_curvature_gain,
                 self._projection_window,
                 self._direct_segments,
+                self._heading_locks,
             )
         except PathConfigError as exc:
             self._abort(

@@ -1,20 +1,21 @@
 DWAPlannerROS:
   # 机器人物理参数
-  acc_lim_x: 1.0           # x方向加速度
-  acc_lim_y: 1.0           # y方向加速度，麦伦轮需要非零
-  acc_lim_theta: 5.0       # 提高终点旋转起始命令，克服仿真底盘静摩擦
+  # 平移速度和加速度相对 automatic_navigation 旧值提高约 10%。
+  acc_lim_x: 1.1
+  acc_lim_y: 1.1
+  acc_lim_theta: 6.0
 
-  max_vel_x: 0.8           # x最大速度
-  min_vel_x: -0.8          # 恢复全向底盘倒退能力，保证窄路通过性
-  max_vel_y: 0.6           # 恢复麦克纳姆横移能力
-  min_vel_y: -0.6
+  max_vel_x: 0.88
+  min_vel_x: -0.88
+  max_vel_y: 0.66
+  min_vel_y: -0.66
 
-  max_vel_trans: 1.0       # 平移速度上限（可根据机器人能力调整）
+  max_vel_trans: 1.10
   min_vel_trans: 0.05
 
-  # 参考真实环境降低旋转速度，减少终点旋转时的超调；DWA 的最小角速度必须为非负值
-  max_vel_theta: 0.6       # 允许旋转命令超过底盘静摩擦阈值
-  min_vel_theta: 0.4       # 仿真实测低于约 0.3 rad/s 时车体几乎不响应
+  # 提高方向修正速度，同时保留接近目标朝向时的细调能力。
+  max_vel_theta: 1.0
+  min_vel_theta: 0.30
 
   trans_stopped_vel: 0.1
   theta_stopped_vel: 0.10
@@ -30,17 +31,18 @@ DWAPlannerROS:
   sim_granularity: 0.025
   vx_samples: 20           # x方向采样点数
   vy_samples: 10           # y方向采样点数，麦伦轮必需
-  vth_samples: 40          # 增加角速度采样，提升低速旋转轨迹的可选性
+  vth_samples: 60          # 增加角速度采样，提升旋转轨迹的可选性
   controller_frequency: 10.0
 
   # 轨迹评分参数
-  path_distance_bias: 26.0
-  goal_distance_bias: 20.0
-  occdist_scale: 0.04
-  forward_point_distance: 0.3
-  stop_time_buffer: 0.15
+  path_distance_bias: 32.0
+  goal_distance_bias: 18.0
+  occdist_scale: 0.08
+  forward_point_distance: 0.20
+  stop_time_buffer: 0.20
   scaling_speed: 0.65
   max_scaling_factor: 0.2
+  twirling_scale: 0.0
   publish_cost_grid: false
 
   # 振荡预防参数
@@ -52,6 +54,3 @@ DWAPlannerROS:
 
   publish_traj_pc: false
   publish_cost_grid_pc: false
-
-  hdiff_scale: 1.0
-  heading_points: 1

@@ -37,6 +37,43 @@ class TrackingTarget:
     target: PathPoint
 
 
+@dataclass(frozen=True)
+class HeadingLock:
+    start_s: float
+    full_lock_s: float
+    release_start_s: float
+    end_s: float
+    yaw: float
+
+    def weight(self, progress_s):
+        if progress_s <= self.start_s or progress_s >= self.end_s:
+            return 0.0
+        if progress_s < self.full_lock_s:
+            fraction = (progress_s - self.start_s) / (
+                self.full_lock_s - self.start_s
+            )
+            return _smoothstep(fraction)
+        if progress_s <= self.release_start_s:
+            return 1.0
+        fraction = (progress_s - self.release_start_s) / (
+            self.end_s - self.release_start_s
+        )
+        return 1.0 - _smoothstep(fraction)
+
+
+def _smoothstep(value):
+    value = max(0.0, min(1.0, float(value)))
+    return value * value * (3.0 - 2.0 * value)
+
+
+def _angle_lerp(start, end, fraction):
+    delta = math.atan2(math.sin(end - start), math.cos(end - start))
+    return math.atan2(
+        math.sin(start + fraction * delta),
+        math.cos(start + fraction * delta),
+    )
+
+
 def _finite_float(value, label):
     try:
         result = float(value)
@@ -62,10 +99,11 @@ def _positive_seq(value, label):
 class FittedPath:
     """Validated polyline with arc-length interpolation and seq landmarks."""
 
-    def __init__(self, frame_id, points, anchor_s, final_goal):
+    def __init__(self, frame_id, points, anchor_s, anchor_xy, final_goal):
         self.frame_id = frame_id
         self.points = tuple(points)
         self.anchor_s = dict(anchor_s)
+        self.anchor_xy = dict(anchor_xy)
         self.final_goal = tuple(final_goal)
         self._arc = tuple(point.s for point in self.points)
         self.total_length = self._arc[-1]
@@ -107,6 +145,7 @@ class FittedPath:
             raise PathConfigError("fitted path must start at s=0")
 
         anchor_s = {}
+        anchor_xy = {}
         raw_anchors = config.get("anchors")
         if not isinstance(raw_anchors, list) or len(raw_anchors) < 2:
             raise PathConfigError("fitted path must contain seq anchors")
@@ -115,11 +154,14 @@ class FittedPath:
                 raise PathConfigError("fitted path anchor must be a mapping")
             sequence = _positive_seq(raw.get("seq"), "anchor seq")
             arc = _finite_float(raw.get("s"), "anchor s")
+            anchor_x = _finite_float(raw.get("x"), "anchor x")
+            anchor_y = _finite_float(raw.get("y"), "anchor y")
             if sequence in anchor_s:
                 raise PathConfigError("duplicate fitted path anchor seq {}".format(sequence))
             if arc < -1.0e-6 or arc > points[-1].s + 1.0e-6:
                 raise PathConfigError("anchor seq {} lies outside the path".format(sequence))
             anchor_s[sequence] = max(0.0, min(points[-1].s, arc))
+            anchor_xy[sequence] = (anchor_x, anchor_y)
 
         raw_final = config.get("final_goal")
         if not isinstance(raw_final, dict):
@@ -129,7 +171,7 @@ class FittedPath:
             _finite_float(raw_final.get("y"), "final_goal y"),
             _finite_float(raw_final.get("yaw"), "final_goal yaw"),
         )
-        return cls(frame_id.strip(), points, anchor_s, final_goal)
+        return cls(frame_id.strip(), points, anchor_s, anchor_xy, final_goal)
 
     def interpolate(self, arc):
         arc = max(0.0, min(self.total_length, float(arc)))
@@ -229,6 +271,7 @@ class PathTracker:
         curvature_gain,
         projection_window,
         direct_segments=(),
+        heading_locks=(),
     ):
         self.path = path
         self.lookahead_min = float(lookahead_min)
@@ -252,6 +295,62 @@ class PathTracker:
             if end_s <= start_s:
                 raise PathConfigError("direct segment end must follow its start")
             self.direct_segments.append((start_s, end_s, start, end))
+        self.heading_locks = []
+        for lock in heading_locks:
+            if not isinstance(lock, (tuple, list)) or len(lock) != 6:
+                raise PathConfigError(
+                    "heading lock must contain start, full-lock, end, "
+                    "direction-start, direction-end seq and release distance"
+                )
+            (
+                start_seq,
+                full_lock_seq,
+                end_seq,
+                direction_start_seq,
+                direction_end_seq,
+                release_distance,
+            ) = lock
+            required = (
+                start_seq,
+                full_lock_seq,
+                end_seq,
+                direction_start_seq,
+                direction_end_seq,
+            )
+            if any(sequence not in path.anchor_s for sequence in required):
+                raise PathConfigError(
+                    "heading lock references a seq with no fitted-path anchor"
+                )
+            start_s = path.anchor_s[start_seq]
+            full_lock_s = path.anchor_s[full_lock_seq]
+            end_s = path.anchor_s[end_seq]
+            try:
+                release_distance = float(release_distance)
+            except (TypeError, ValueError):
+                raise PathConfigError("heading lock release distance must be numeric")
+            if not math.isfinite(release_distance) or release_distance <= 0.0:
+                raise PathConfigError("heading lock release distance must be positive")
+            release_start_s = end_s - release_distance
+            if not start_s < full_lock_s <= release_start_s < end_s:
+                raise PathConfigError(
+                    "heading lock must complete after its start and before "
+                    "its release interval"
+                )
+            direction_start = path.anchor_xy[direction_start_seq]
+            direction_end = path.anchor_xy[direction_end_seq]
+            direction_x = direction_end[0] - direction_start[0]
+            direction_y = direction_end[1] - direction_start[1]
+            if math.hypot(direction_x, direction_y) <= 1.0e-6:
+                raise PathConfigError("heading lock direction anchors coincide")
+            self.heading_locks.append(
+                HeadingLock(
+                    start_s=start_s,
+                    full_lock_s=full_lock_s,
+                    release_start_s=release_start_s,
+                    end_s=end_s,
+                    yaw=math.atan2(direction_y, direction_x),
+                )
+            )
         self.progress_s = 0.0
 
     def update(self, x, y):
@@ -275,9 +374,24 @@ class PathTracker:
             if start_s <= self.progress_s < end_s:
                 target_s = max(target_s, end_s)
                 break
+        target = self.path.interpolate(target_s)
+        for lock in self.heading_locks:
+            lock_weight = lock.weight(self.progress_s)
+            if lock_weight <= 0.0:
+                continue
+            target = PathPoint(
+                s=target.s,
+                x=target.x,
+                y=target.y,
+                yaw=_angle_lerp(target.yaw, lock.yaw, lock_weight),
+                curvature=target.curvature,
+                source_seq_start=target.source_seq_start,
+                source_seq_end=target.source_seq_end,
+            )
+            break
         return TrackingTarget(
             progress_s=self.progress_s,
             cross_track_error=projection.cross_track_error,
             lookahead=lookahead,
-            target=self.path.interpolate(target_s),
+            target=target,
         )
