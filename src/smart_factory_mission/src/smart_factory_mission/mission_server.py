@@ -660,6 +660,11 @@ class MissionServer:
             pose.pose.position.y - localized[1],
         ) <= radius
 
+    """
+    ===========
+    发布拟合路径
+    ===========
+    """
     def _publish_fitted_reference_path(self):
         message = NavigationPath()
         message.header.frame_id = self._fitted_path.frame_id

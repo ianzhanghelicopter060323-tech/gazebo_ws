@@ -12,6 +12,7 @@ Panels:
         - /PoseArray1
         - /GlobalCostMap1
         - /LocalCostMap1
+        - /DWAPath1
       Splitter Ratio: 0.5
     Tree Height: 696
   - Class: rviz/Selection
@@ -365,7 +366,7 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /move_base/GlobalPlanner/plan
+      Topic: /sim_task/reference_path
       Unreliable: false
       Value: true
     - Alpha: 1
@@ -405,6 +406,30 @@ Visualization Manager:
       Unreliable: false
       Use Timestamp: false
       Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 255; 0; 0
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.029999999329447746
+      Name: DWAPath
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Queue Size: 10
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic: /move_base/DWAPlannerROS/local_plan
+      Unreliable: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -433,7 +458,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 2.3853073120117188
+      Distance: 3.4404916763305664
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -441,17 +466,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.33798810839653015
-        Y: -0.10826677083969116
-        Z: -0.13791273534297943
+        X: 1.735244870185852
+        Y: -0.1137695461511612
+        Z: -0.13160599768161774
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5547963380813599
+      Pitch: 1.519796371459961
       Target Frame: base_footprint
-      Yaw: 1.5453990697860718
+      Yaw: 1.5003993511199951
     Saved: ~
 Window Geometry:
   Displays:
