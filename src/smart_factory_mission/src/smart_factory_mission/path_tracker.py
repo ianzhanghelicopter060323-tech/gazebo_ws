@@ -202,6 +202,11 @@ class FittedPath:
             source_seq_end=first.source_seq_end,
         )
 
+    """
+    ===============================
+    机器人向参考路径做投影的投影点计算
+    ===============================
+    """
     def project(self, x, y, minimum_s=0.0, forward_window=None):
         """Project onto a forward-only section of the sampled polyline."""
         minimum_s = max(0.0, min(self.total_length, float(minimum_s)))
@@ -213,22 +218,29 @@ class FittedPath:
         for index, (first, second) in enumerate(zip(self.points, self.points[1:])):
             if second.s < minimum_s or first.s > maximum_s:
                 continue
+
             dx = second.x - first.x
             dy = second.y - first.y
             length_squared = dx * dx + dy * dy
+
             if length_squared <= 1.0e-12:
                 continue
+
             fraction = ((x - first.x) * dx + (y - first.y) * dy) / length_squared
             lower = max(0.0, (minimum_s - first.s) / (second.s - first.s))
             upper = min(1.0, (maximum_s - first.s) / (second.s - first.s))
             fraction = max(lower, min(upper, fraction))
+
             projected_x = first.x + fraction * dx
             projected_y = first.y + fraction * dy
-            distance = math.hypot(x - projected_x, y - projected_y)
-            arc = first.s + fraction * (second.s - first.s)
+
+            distance = math.hypot(x - projected_x, y - projected_y) # 机器人距离投影点的距离
+
+            arc = first.s + fraction * (second.s - first.s)         # 弧长s计算
             candidate = (distance, -arc, index, arc, projected_x, projected_y)
             if best is None or candidate < best:
                 best = candidate
+            
         if best is None:
             point = self.interpolate(minimum_s)
             return PathProjection(
@@ -240,8 +252,8 @@ class FittedPath:
             )
         return PathProjection(
             s=best[3],
-            x=best[4],
-            y=best[5],
+            x=best[4], # 投影点x
+            y=best[5], # 投影点y
             cross_track_error=best[0],
             segment_index=best[2],
         )
@@ -354,27 +366,36 @@ class PathTracker:
         self.progress_s = 0.0
 
     def update(self, x, y):
+        """按照算法逻辑更新机器人坐标，包括投影、计算前视距离，得到虚拟追踪点并返回这些值"""
+
+        """将机器人位置投影到路径折线上"""
         projection = self.path.project(
             x,
             y,
             minimum_s=self.progress_s,
-            forward_window=self.projection_window,
+            forward_window=self.projection_window, # 在一个窗口内寻找距机器人最近的点
         )
         self.progress_s = max(self.progress_s, projection.s)
         preview_curvature = self.path.maximum_abs_curvature(
             self.progress_s,
             self.progress_s + self.lookahead_max,
         )
+
+        """
+        保证曲率越大，前视距离越小，自适应加强弯道通过能力
+        """
         lookahead = self.lookahead_max / (
             1.0 + self.curvature_gain * preview_curvature
-        )
-        lookahead = max(self.lookahead_min, min(self.lookahead_max, lookahead))
+        ) 
+        lookahead = max(self.lookahead_min, min(self.lookahead_max, lookahead)) # 范围限制
+
+        """计算虚拟追踪点"""
         target_s = min(self.path.total_length, self.progress_s + lookahead)
         for start_s, end_s, _start_seq, _end_seq in self.direct_segments:
             if start_s <= self.progress_s < end_s:
                 target_s = max(target_s, end_s)
                 break
-        target = self.path.interpolate(target_s)
+        target = self.path.interpolate(target_s) # 插值得到虚拟追踪点的x, y, yaw
         for lock in self.heading_locks:
             lock_weight = lock.weight(self.progress_s)
             if lock_weight <= 0.0:

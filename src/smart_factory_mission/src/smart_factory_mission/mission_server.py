@@ -626,6 +626,7 @@ class MissionServer:
         return pose
 
     def _localized_xy(self, frame_id):
+        """实时读取机器人位置"""
         try:
             transform = self._tf_buffer.lookup_transform(
                 frame_id,
@@ -648,7 +649,7 @@ class MissionServer:
         return (
             transform.transform.translation.x,
             transform.transform.translation.y,
-        )
+        ) # 返回机器人在map坐标系中的坐标(x, y)
 
     def _pose_is_within_radius(self, pose, radius):
         frame_id = pose.header.frame_id or self._map_frame
@@ -958,7 +959,7 @@ class MissionServer:
                 )
                 return
 
-            localized = self._localized_xy(self._fitted_path.frame_id)
+            localized = self._localized_xy(self._fitted_path.frame_id) # 循环调用获取机器人定位
             if localized is None:
                 rate.sleep()
                 continue
@@ -1011,6 +1012,8 @@ class MissionServer:
                 break
 
             state = self._navigation.get_state()
+
+            # 虚拟目标更新条件 
             update_due = (
                 last_goal_s is None
                 or tracking.target.s >= last_goal_s + self._goal_update_distance
@@ -1021,13 +1024,14 @@ class MissionServer:
                 or state == GoalStatus.SUCCEEDED
             )
             if update_due:
+                # 将虚拟追踪点转换成ROS位姿
                 target_pose = self._make_pose(
                     self._fitted_path.frame_id,
                     tracking.target.x,
                     tracking.target.y,
                     tracking.target.yaw,
                 )
-                self._navigation.send_or_replace_goal(target_pose)
+                self._navigation.send_or_replace_goal(target_pose) # 虚拟点作为导航目标发送给movebase
                 self._tracking_goal_pub.publish(target_pose)
                 last_goal_s = tracking.target.s
                 last_goal_at = now
