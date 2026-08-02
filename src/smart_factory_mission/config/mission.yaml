@@ -10,10 +10,8 @@ navigation:
   server_wait_timeout: 10.0
   goal_timeout: 60.0
   max_retries: 1
-  # Keep legacy_waypoints available as a rollback. The fitted mode publishes a
-  # latched reference Path, tracks monotonic arc progress, and replaces a moving
-  # lookahead MoveBaseGoal without inserting an explicit cancel/stop gap.
-  route_execution_mode: fitted_path_lookahead
+  # Publish a latched reference Path, track monotonic arc progress, and replace
+  # a moving lookahead MoveBaseGoal without an explicit cancel/stop gap.
   path_tracking:
     path_topic: /sim_task/reference_path
     tracking_goal_topic: /sim_task/tracking_goal
@@ -43,35 +41,20 @@ navigation:
     # anchor, holds that yaw after the anchor, then releases over the final 0.12 m.
     # Position targets continue following the fitted/direct path unchanged.
     heading_locks:
-      - start_seq: 16
+      - start_seq: 160
         full_lock_seq: 17
-        end_seq: 20
+        end_seq: 18
         direction_start_seq: 17
         direction_end_seq: 18
         release_distance: 0.12
+      # Keep the left-facing correction inside the seq 20 -> 21 corner so the
+      # robot remains aligned with the vertical corridor before seq 20.
       - start_seq: 20
         full_lock_seq: 21
         end_seq: 22
         direction_start_seq: 21
         direction_end_seq: 22
         release_distance: 0.12
-  # Intermediate route points normally advance on position alone. Selected route
-  # waypoint numbers cancel their active move_base goal after entering the pass
-  # radius, rotate in place to their configured yaw, and then advance. The final
-  # point remains fully precise.
-  intermediate_pass_radius: 0.20
-  # Temporarily disable the seq 6 -> 7 heading-alignment gate.
-  # heading_constrained_waypoints: [6]
-  heading_constrained_waypoints: []
-  intermediate_yaw_tolerance: 0.25
-  heading_alignment_timeout: 8.0
-  heading_alignment_kp: 1.0
-  # The Gazebo chassis barely responds below about 0.3 rad/s. Keep the in-place
-  # command above static friction while retaining the existing 0.45 rad/s cap.
-  heading_alignment_min_angular_speed: 0.40
-  heading_alignment_max_angular_speed: 0.45
-  cmd_vel_topic: /cmd_vel
-
 localization:
   amcl_topic: /amcl_pose
   map_frame: map
