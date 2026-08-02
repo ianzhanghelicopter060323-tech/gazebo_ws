@@ -7,6 +7,8 @@ class TaskContext:
         self.target_class = target_class
         self.retry_count = 0
         self.current_stage = 0
+        self.pickup_staging_goal = None
         self.pickup_staging_goals = []
+        self.current_waypoint_index = 0
         self.last_error = 0
         self.last_message = ""

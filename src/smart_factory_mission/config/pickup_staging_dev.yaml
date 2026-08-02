@@ -1,9 +1,10 @@
 # DEVELOPMENT-ONLY pickup staging route.
 #
-# The active poses below were captured from manual move_base goals. They are
-# source anchors for the offline-fitted path and are not sent sequentially at
-# runtime. The final pose is still sent once as an exact MoveBaseGoal after path
-# tracking enters its final phase.
+# The active poses below were captured from manual move_base goals and are sent
+# sequentially. An intermediate waypoint normally advances when the localized
+# base enters the configured pass radius; selected points may additionally gate
+# on yaw. Only the final waypoint requires move_base GoalStatus.SUCCEEDED and
+# therefore exact final position/orientation alignment.
 # yaw is calculated from each recorded planar quaternion with
 # yaw = 2 * atan2(orientation.z, orientation.w).
 # Coordinates follow the record order in docs/navi_pos.md. The fourth record is
@@ -74,24 +75,18 @@ pickup_staging:
       yaw: -0.0356578454375267
     # seq 15
     - x: 2.3500587940216064
-      y: 0.024877830755710602
+      y: -0.007677830755710602
       yaw: 0.020619681105017662
-    # seq 16 (replaced by active route seq 160)
-    #- x: 2.5215396308898926
-    #  y: -0.03775260388851166
-    #  yaw: -1.4098430871963501
-    # seq 160: replacement turn-entry anchor before route seq 17.
-    # The source ROS header for this observation reported seq 8; 160 is a
-    # unique route-anchor id so it cannot collide with the historical seq 8.
-    - x: 2.5403561115264893
-      y: -0.058197352290153503
-      yaw: -0.7912766933441162
+    # seq 16
+    - x: 2.5215396308898926
+      y: -0.03775260388851166
+      yaw: -1.4098430871963501
     # seq 17
-    - x: 2.6567458992004395
+    - x: 2.6167458992004395
       y: -0.2064671516418457
       yaw: -1.5845879316329956
     # seq 18
-    - x: 2.656718292236328
+    - x: 2.616718292236328
       y: -0.6809606552124023
       yaw: -1.6079150438308716
     # seq 19
@@ -104,8 +99,8 @@ pickup_staging:
       y: -0.93530017888259888
       yaw: 3.1183266639709473
     # seq 21
-    - x: 2.401951103210449
-      y: -1.059335470199585
+    - x: 2.371951103210449
+      y: -1.039335470199585
       yaw: -3.104994773864746
     # seq 22
     - x: 0.7925417423248291
@@ -148,9 +143,9 @@ pickup_staging:
     #  y: -0.916366457939148
     #  yaw: -2.945608377456665
     # seq 32
-    - x: -0.1535484313964844
-      y: -0.9695332050323486
-      yaw: -3.1115407943725586
+    #- x: -0.4535484313964844
+    #  y: -0.9963718056678772
+    #  yaw: -3.1409149169921875
     # seq 33
     - x: -0.410312294960022
       y: -0.9695332050323486

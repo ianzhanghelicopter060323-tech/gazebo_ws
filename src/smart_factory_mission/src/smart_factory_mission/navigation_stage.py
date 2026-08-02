@@ -13,7 +13,7 @@ class NavigationOutcome:
     TIMEOUT = 1
     ABORTED = 2
     PREEMPTED = 3
-    CONDITION_MET = 4
+    PASSED = 4
 
 
 class NavigationStage:
@@ -56,7 +56,7 @@ class NavigationStage:
         target_pose,
         preempt_requested,
         heartbeat,
-        completion_condition=None,
+        pass_condition=None,
     ):
         self.send_or_replace_goal(target_pose)
 
@@ -70,10 +70,14 @@ class NavigationStage:
             if state == GoalStatus.SUCCEEDED:
                 return NavigationOutcome.SUCCEEDED, "move_base reached the goal"
 
-            if completion_condition is not None and completion_condition():
+            # Intermediate waypoints constrain the route but are not stopping
+            # poses. Once the robot enters their pass radius, leave the current
+            # goal active until the caller immediately sends the next one. The
+            # new MoveBaseGoal then preempts it without an intentional stop gap.
+            if pass_condition is not None and pass_condition():
                 return (
-                    NavigationOutcome.CONDITION_MET,
-                    "navigation completion condition was met",
+                    NavigationOutcome.PASSED,
+                    "robot entered the intermediate waypoint pass radius",
                 )
 
             if state in self.TERMINAL_STATES:
