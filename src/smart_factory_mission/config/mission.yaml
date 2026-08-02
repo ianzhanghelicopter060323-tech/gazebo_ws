@@ -34,11 +34,14 @@ navigation:
     progress_epsilon: 0.05
     final_phase_distance: 0.30
     route_timeout: 240.0
-    # Follow the fitted curve through seq 20 -> 21, then run seq 21 -> 22 as a
-    # checked straight section by jumping the moving target to the seq 22
-    # anchor once path progress enters that segment.
+    # Export seq 21 -> 22 as an exact reference-path line. At runtime, also
+    # jump the moving target to the seq 22 anchor once progress enters it.
     direct_segments:
       - [21, 22]
+    # Offline fitting only: keep the seq 20 -> 21 approach from dipping below
+    # the lower of its measured anchors before the exact seq 21 -> 22 line.
+    fit_y_floor_segments:
+      - [20, 21]
     # Each lock blends toward its straight-section direction before the full-lock
     # anchor, holds that yaw after the anchor, then releases over the final 0.12 m.
     # Position targets continue following the fitted/direct path unchanged.

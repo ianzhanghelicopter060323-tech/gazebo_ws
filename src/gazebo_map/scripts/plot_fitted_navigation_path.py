@@ -4,7 +4,9 @@
 The implementation intentionally has no SciPy dependency.  It first applies a
 small, chord-length-aware second-difference regularization to the active route
 anchors, then interpolates the adjusted anchors with a parametric natural cubic
-spline.  The resulting curve is sampled more densely where curvature is high.
+spline.  Mission direct segments are exported as true line segments, and
+route-specific y floors prevent a spline from dipping below a measured safe
+corridor.  The resulting curve is sampled more densely where curvature is high.
 """
 
 import argparse
@@ -122,6 +124,47 @@ def read_documented_route(path, active_sequences):
     return [by_sequence[sequence] for sequence in active_sequences]
 
 
+def read_fit_constraints(path, active_sequences):
+    """Read reference-path geometry constraints from mission configuration."""
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    tracking = data.get("navigation", {}).get("path_tracking", {})
+    raw_linear = tracking.get("direct_segments", [])
+    raw_y_floors = tracking.get("fit_y_floor_segments", [])
+    sequence_indices = {
+        sequence: index for index, sequence in enumerate(active_sequences)
+    }
+
+    def validated_segments(raw_segments, label):
+        if not isinstance(raw_segments, list):
+            raise ValueError("{} must be a list".format(label))
+        result = []
+        for raw in raw_segments:
+            if not isinstance(raw, (list, tuple)) or len(raw) != 2:
+                raise ValueError(
+                    "{} entries must contain start and end seq".format(label)
+                )
+            start, end = raw
+            if start not in sequence_indices or end not in sequence_indices:
+                raise ValueError(
+                    "{} segment {} -> {} has no active route anchor".format(
+                        label, start, end
+                    )
+                )
+            if sequence_indices[end] != sequence_indices[start] + 1:
+                raise ValueError(
+                    "{} segment {} -> {} must join adjacent active anchors".format(
+                        label, start, end
+                    )
+                )
+            result.append((int(start), int(end)))
+        return result
+
+    return (
+        validated_segments(raw_linear, "direct_segments"),
+        validated_segments(raw_y_floors, "fit_y_floor_segments"),
+    )
+
+
 def chord_parameter(points):
     lengths = np.linalg.norm(np.diff(points, axis=0), axis=1)
     if np.any(lengths <= 0.0):
@@ -129,7 +172,7 @@ def chord_parameter(points):
     return np.concatenate(([0.0], np.cumsum(lengths)))
 
 
-def regularized_anchors(points, parameter, smoothing_lambda):
+def regularized_anchors(points, parameter, smoothing_lambda, fixed_indices=()):
     """Smooth anchors with a nonuniform second-derivative penalty.
 
     The first and last anchors remain exact.  Every interior active point stays
@@ -147,13 +190,16 @@ def regularized_anchors(points, parameter, smoothing_lambda):
         penalty[row, index + 1] = common / h_next
 
     normal = np.eye(count) + smoothing_lambda * (penalty.T @ penalty)
-    fixed = [0, count - 1]
-    free = list(range(1, count - 1))
+    fixed = sorted(set([0, count - 1] + list(fixed_indices)))
+    if any(index < 0 or index >= count for index in fixed):
+        raise ValueError("fixed anchor index is outside the active route")
+    free = [index for index in range(count) if index not in fixed]
     anchors = points.copy()
-    anchors[free] = np.linalg.solve(
-        normal[np.ix_(free, free)],
-        points[free] - normal[np.ix_(free, fixed)] @ points[fixed],
-    )
+    if free:
+        anchors[free] = np.linalg.solve(
+            normal[np.ix_(free, free)],
+            points[free] - normal[np.ix_(free, fixed)] @ points[fixed],
+        )
     anchors[fixed] = points[fixed]
     return anchors
 
@@ -227,13 +273,77 @@ class NaturalCubicPath:
         return position, first, second
 
 
+class ConstrainedPath:
+    """Apply exact linear segments and lower-y corridor limits to a spline."""
+
+    def __init__(
+        self,
+        base_curve,
+        parameter,
+        anchors,
+        sequences,
+        linear_segments=(),
+        y_floor_segments=(),
+    ):
+        self.base_curve = base_curve
+        self.parameter = parameter
+        self.points = anchors
+        sequence_indices = {
+            sequence: index for index, sequence in enumerate(sequences)
+        }
+        self.linear_indices = {
+            sequence_indices[start] for start, _end in linear_segments
+        }
+        self.y_floor_indices = {
+            sequence_indices[start] for start, _end in y_floor_segments
+        }
+
+    def evaluate(self, query):
+        query = np.asarray(query, dtype=float)
+        position, first, second = self.base_curve.evaluate(query)
+        indices = np.searchsorted(self.parameter, query, side="right") - 1
+        indices = np.clip(indices, 0, len(self.points) - 2)
+
+        for index in self.y_floor_indices:
+            mask = indices == index
+            if not np.any(mask):
+                continue
+            floor_y = min(self.points[index, 1], self.points[index + 1, 1])
+            limited = mask & (position[:, 1] < floor_y)
+            position[limited, 1] = floor_y
+            first[limited, 1] = 0.0
+            second[limited, 1] = 0.0
+
+        for index in self.linear_indices:
+            mask = indices == index
+            if not np.any(mask):
+                continue
+            start = self.parameter[index]
+            end = self.parameter[index + 1]
+            interval = end - start
+            fraction = ((query[mask] - start) / interval)[:, None]
+            delta = self.points[index + 1] - self.points[index]
+            position[mask] = self.points[index] + fraction * delta
+            first[mask] = delta / interval
+            second[mask] = 0.0
+
+        return position, first, second
+
+
 def curvature(first, second):
     speed = np.linalg.norm(first, axis=1)
     numerator = first[:, 0] * second[:, 1] - first[:, 1] * second[:, 0]
     return numerator / np.maximum(speed, 1.0e-9) ** 3, speed
 
 
-def adaptive_samples(curve, parameter_end, epsilon, minimum, maximum):
+def adaptive_samples(
+    curve,
+    parameter_end,
+    epsilon,
+    minimum,
+    maximum,
+    required_parameters=(),
+):
     dense_parameter = np.linspace(
         0.0, parameter_end, max(3000, int(parameter_end / 0.002) + 1)
     )
@@ -256,14 +366,12 @@ def adaptive_samples(curve, parameter_end, epsilon, minimum, maximum):
             break
         sample_arc.append(next_arc)
 
-    sample_arc = np.asarray(sample_arc)
-    sample_parameter = np.interp(sample_arc, arc, dense_parameter)
-    samples = np.column_stack(
-        [
-            np.interp(sample_arc, arc, dense_points[:, 0]),
-            np.interp(sample_arc, arc, dense_points[:, 1]),
-        ]
+    required_arc = np.interp(required_parameters, dense_parameter, arc)
+    sample_arc = np.unique(
+        np.concatenate((np.asarray(sample_arc), np.asarray(required_arc)))
     )
+    sample_parameter = np.interp(sample_arc, arc, dense_parameter)
+    samples, _sample_first, _sample_second = curve.evaluate(sample_parameter)
     return (
         dense_parameter,
         dense_points,
@@ -294,6 +402,8 @@ def export_path_config(
     occupied_samples,
     unknown_samples,
     minimum_map_clearance,
+    linear_segments,
+    y_floor_segments,
 ):
     """Write the fitted runtime reference path and original-seq arc markers."""
     _positions, first, second = curve.evaluate(sample_parameter)
@@ -337,11 +447,19 @@ def export_path_config(
             "frame_id": "map",
             "source_route": str(route),
             "generation": {
-                "method": "regularized_natural_cubic_c2",
+                "method": "regularized_natural_cubic_with_constraints",
                 "smoothing_lambda": float(smoothing_lambda),
                 "chord_error": float(chord_error),
                 "min_sample_spacing": float(minimum_spacing),
                 "max_sample_spacing": float(maximum_spacing),
+                "constraints": {
+                    "linear_segments": [
+                        [int(start), int(end)] for start, end in linear_segments
+                    ],
+                    "y_floor_segments": [
+                        [int(start), int(end)] for start, end in y_floor_segments
+                    ],
+                },
                 "map_diagnostics": {
                     "occupied_samples": int(occupied_samples),
                     "unknown_samples": int(unknown_samples),
@@ -622,7 +740,7 @@ def create_figure(
     legend = [
         ("active input points / original seq", (35, 90, 210)),
         ("original active-point polyline", (235, 139, 28)),
-        ("regularized C2 cubic path", (210, 35, 45)),
+        ("constrained fitted path", (210, 35, 45)),
         ("curvature-adaptive path samples", (0, 185, 210)),
         ("0.11 m centerline envelope", (255, 150, 150)),
         ("minimum-clearance location", (220, 0, 180)),
@@ -665,6 +783,15 @@ def main():
         "--map-yaml",
         type=Path,
         default=workspace / "src/gazebo_map/maps/math_newest.yaml",
+    )
+    parser.add_argument(
+        "--mission-config",
+        type=Path,
+        default=workspace / "src/smart_factory_mission/config/mission.yaml",
+        help=(
+            "read direct-segment and fitted y-floor constraints from the "
+            "mission configuration"
+        ),
     )
     parser.add_argument(
         "--route-doc",
@@ -726,10 +853,34 @@ def main():
         source_route = args.route_doc
     else:
         records = route_records
+    sequences = [record[0] for record in records]
+    linear_segments, y_floor_segments = read_fit_constraints(
+        args.mission_config, sequences
+    )
+    sequence_indices = {
+        sequence: index for index, sequence in enumerate(sequences)
+    }
+    fixed_indices = set()
+    for start, end in linear_segments + y_floor_segments:
+        fixed_indices.add(sequence_indices[start])
+        fixed_indices.add(sequence_indices[end])
     points = np.asarray([[record[1], record[2]] for record in records])
     parameter = chord_parameter(points)
-    anchors = regularized_anchors(points, parameter, args.smoothing_lambda)
-    curve = NaturalCubicPath(parameter, anchors)
+    anchors = regularized_anchors(
+        points,
+        parameter,
+        args.smoothing_lambda,
+        fixed_indices=fixed_indices,
+    )
+    base_curve = NaturalCubicPath(parameter, anchors)
+    curve = ConstrainedPath(
+        base_curve,
+        parameter,
+        anchors,
+        sequences,
+        linear_segments=linear_segments,
+        y_floor_segments=y_floor_segments,
+    )
     (
         dense_parameter,
         fitted,
@@ -745,6 +896,7 @@ def main():
         args.chord_error,
         args.min_sample_spacing,
         args.max_sample_spacing,
+        required_parameters=parameter,
     )
 
     metadata = map_metadata(args.map_yaml)
@@ -777,6 +929,8 @@ def main():
             occupied,
             unknown,
             clearance,
+            linear_segments,
+            y_floor_segments,
         )
 
     maximum_curvature = float(np.max(np.abs(fitted_curvature)))
@@ -812,6 +966,7 @@ def main():
     if args.copy_to:
         print(f"copy={args.copy_to / args.output.name}")
     print(f"active_sequences={[record[0] for record in records]}")
+    print(f"linear_segments={linear_segments} y_floor_segments={y_floor_segments}")
     print(f"active_points={len(records)} adaptive_samples={len(samples)}")
     print(
         "max_anchor_shift={:.4f} max_curvature={:.3f} "
