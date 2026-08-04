@@ -20,8 +20,8 @@ DWAPlannerROS:
   theta_stopped_vel: 0.10
 
   # 目标容忍度
-  yaw_goal_tolerance: 0.08 # 0.10 
-  xy_goal_tolerance: 0.08 # 0.10
+  yaw_goal_tolerance: 0.04 # 0.10 
+  xy_goal_tolerance: 0.04 # 0.10
   latch_xy_goal_tolerance: true
 
   # 前向模拟参数

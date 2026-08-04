@@ -71,7 +71,19 @@ scripts to `/usr/bin/python3`, which would bypass the isolated OCR environment.
 Set `OCR_PYTHON=/another/python` to override the launcher when deploying to a
 different computer.
 
-The CLI currently treats one input image as one object ROI. Multi-object
+The CLI tries the native image first. Only when the closed-set keyword result
+is rejected does it retry at 2x and then 4x scale. JSON output reports the
+selected `scale`, the selected result in the top-level fields, and every scale
+under `attempts`. Detection boxes are converted back to original-image pixel
+coordinates. Disable fallback for a one-scale diagnostic run with:
+
+```bash
+rosrun smart_factory_perception ocr_image IMAGE.png \
+  --scale 1 --retry-scales --json
+```
+
+The current classifier accepts only 食品/日用/电子 keywords from the full
+image; unrelated OCR text does not enter the class score. Multi-object spatial
 grouping, RGB-depth synchronization, temporal voting and 3-D localization
 belong to the next ROS integration stage.
 

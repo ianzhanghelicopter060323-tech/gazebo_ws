@@ -19,7 +19,7 @@ class ObjectOcrClassifierTest(unittest.TestCase):
         )
         self.assertEqual(result.label, "FOOD")
         self.assertTrue(result.accepted)
-        self.assertEqual(result.bbox, (10, 10, 40, 45))
+        self.assertEqual(result.bbox, (10, 10, 40, 20))
 
     def test_maps_all_supported_labels(self):
         examples = {
@@ -40,6 +40,34 @@ class ObjectOcrClassifierTest(unittest.TestCase):
     def test_rejects_low_confidence_text(self):
         result = self.classifier.classify([OcrLine("食品物块", 0.20)])
         self.assertEqual(result.label, "unknown")
+
+    def test_unrelated_text_does_not_reduce_keyword_confidence_or_bbox(self):
+        result = self.classifier.classify(
+            [
+                OcrLine("电子", 0.99996, (256, 236, 38, 21)),
+                OcrLine("物块", 0.99998, (256, 251, 37, 20)),
+                OcrLine("电子", 0.99958, (259, 271, 29, 11)),
+                OcrLine("口", 0.5179, (430, 388, 105, 91)),
+            ]
+        )
+
+        self.assertEqual(result.label, "ELECTRONICS")
+        self.assertTrue(result.accepted)
+        self.assertAlmostEqual(result.confidence, 0.99996)
+        self.assertEqual(result.bbox, (256, 236, 38, 46))
+        self.assertIn("口", result.text)
+
+    def test_rejects_two_supported_classes_above_threshold(self):
+        result = self.classifier.classify(
+            [
+                OcrLine("电子", 0.96, (10, 10, 40, 20)),
+                OcrLine("食品", 0.94, (100, 10, 40, 20)),
+            ]
+        )
+
+        self.assertEqual(result.label, "unknown")
+        self.assertFalse(result.accepted)
+        self.assertAlmostEqual(result.confidence, 0.96)
 
 
 if __name__ == "__main__":

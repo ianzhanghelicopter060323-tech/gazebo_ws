@@ -4,6 +4,7 @@
 import argparse
 import datetime as dt
 import importlib.util
+import math
 import os
 from pathlib import Path
 import re
@@ -32,15 +33,15 @@ OUTPUT_PREFIXES = {
     "mid": "mid",
     "far_navi": "far",
 }
-ARM_SCAN_MESSAGE = (
-    "{joint_names: [arm_joint1, arm_joint2, arm_joint3, arm_joint4, arm_joint5], "
-    "points: [{positions: [0.0, 1.5, 1.4, -1.0, 0.0], "
-    "time_from_start: {secs: 3, nsecs: 0}}]}"
-)
+DEFAULT_ARM_SCAN_POSITIONS = (0.0, 1.5, 1.4, -1.0, 0.0)
 
 
 class AutomationError(RuntimeError):
     pass
+
+
+class CleanupError(AutomationError):
+    """The isolated ROS/Gazebo launch could not be fully removed."""
 
 
 def ros_command(arguments):
@@ -69,6 +70,164 @@ def stop_process_group(process, interrupt_timeout=12.0):
             continue
 
 
+def _process_info(pid):
+    """Return (start_ticks, parent_pid, state) for one Linux process."""
+    try:
+        raw = (Path("/proc") / str(pid) / "stat").read_text(encoding="utf-8")
+    except (FileNotFoundError, PermissionError, ProcessLookupError):
+        return None
+    closing = raw.rfind(")")
+    if closing < 0:
+        return None
+    fields = raw[closing + 2 :].split()
+    if len(fields) <= 19:
+        return None
+    try:
+        return fields[19], int(fields[1]), fields[0]
+    except ValueError:
+        return None
+
+
+def _process_identity(pid):
+    info = _process_info(pid)
+    return None if info is None else (int(pid), info[0])
+
+
+def _identity_is_live(identity):
+    pid, start_ticks = identity
+    info = _process_info(pid)
+    return info is not None and info[0] == start_ticks and info[2] != "Z"
+
+
+def _process_command(pid):
+    try:
+        raw = (Path("/proc") / str(pid) / "cmdline").read_bytes()
+    except (FileNotFoundError, PermissionError, ProcessLookupError):
+        return ""
+    return raw.replace(b"\0", b" ").decode("utf-8", errors="replace")
+
+
+def _descendant_identities(root_pid):
+    children = {}
+    identities = {}
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        info = _process_info(pid)
+        if info is None:
+            continue
+        start_ticks, parent_pid, _state = info
+        identities[pid] = (pid, start_ticks)
+        children.setdefault(parent_pid, []).append(pid)
+
+    result = set()
+    pending = [int(root_pid)]
+    while pending:
+        parent = pending.pop()
+        for child in children.get(parent, ()):
+            if child in pending or identities[child] in result:
+                continue
+            result.add(identities[child])
+            pending.append(child)
+    return result
+
+
+def _run_id_process_identities(run_id):
+    if not run_id:
+        return set()
+    marker = "/.ros/log/{}/".format(run_id)
+    result = set()
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if marker not in _process_command(pid):
+            continue
+        identity = _process_identity(pid)
+        if identity is not None:
+            result.add(identity)
+    return result
+
+
+def _wait_for_identities(identities, timeout):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        remaining = {identity for identity in identities if _identity_is_live(identity)}
+        if not remaining:
+            return set()
+        time.sleep(0.1)
+    return {identity for identity in identities if _identity_is_live(identity)}
+
+
+def _signal_identities(identities, sig):
+    for pid, _start_ticks in sorted(identities, reverse=True):
+        if pid == os.getpid() or not _identity_is_live((pid, _start_ticks)):
+            continue
+        try:
+            os.kill(pid, sig)
+        except (PermissionError, ProcessLookupError):
+            continue
+
+
+def read_ros_run_id():
+    return_code, output = run_owned(["rosparam", "get", "/run_id"], timeout=3.0)
+    if return_code != 0 or not output.strip():
+        raise AutomationError("ROS master did not provide /run_id")
+    return output.strip().strip("'\"")
+
+
+def stop_owned_launch(process, run_id):
+    """Stop roslaunch and every process carrying its unique ROS run_id."""
+    if process is None:
+        return
+
+    identities = _descendant_identities(process.pid)
+    root_identity = _process_identity(process.pid)
+    if root_identity is not None:
+        identities.add(root_identity)
+    identities.update(_run_id_process_identities(run_id))
+
+    if process.poll() is None:
+        try:
+            os.killpg(process.pid, signal.SIGINT)
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=12.0)
+        except subprocess.TimeoutExpired:
+            pass
+
+    # roslaunch children create their own sessions. Re-scan by run_id after
+    # graceful shutdown so re-parented controller/Gazebo processes stay owned.
+    identities.update(_descendant_identities(process.pid))
+    identities.update(_run_id_process_identities(run_id))
+    remaining = _wait_for_identities(identities, 0.5)
+    for sig, timeout in ((signal.SIGTERM, 5.0), (signal.SIGKILL, 2.0)):
+        if not remaining:
+            break
+        _signal_identities(remaining, sig)
+        remaining = _wait_for_identities(remaining, timeout)
+
+    if remaining:
+        raise CleanupError(
+            "failed to stop owned ROS processes: {}".format(
+                ", ".join(str(pid) for pid, _start in sorted(remaining))
+            )
+        )
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if not master_is_running(timeout=1.0):
+            return
+        time.sleep(0.2)
+    raise CleanupError(
+        "ROS master remained available after stopping run_id {}".format(
+            run_id or "unknown"
+        )
+    )
+
+
 def run_owned(arguments, timeout, stdout=subprocess.PIPE):
     process = subprocess.Popen(
         ros_command(arguments),
@@ -90,9 +249,9 @@ def run_owned(arguments, timeout, stdout=subprocess.PIPE):
     return process.returncode, output or ""
 
 
-def master_is_running():
+def master_is_running(timeout=3.0):
     try:
-        return run_owned(["rosnode", "list"], timeout=3.0)[0] == 0
+        return run_owned(["rosnode", "list"], timeout=timeout)[0] == 0
     except AutomationError:
         return False
 
@@ -165,6 +324,18 @@ def wait_for_simulation(timeout):
     )
 
 
+def wait_for_capture_health(timeout):
+    """Re-check live simulation and camera state immediately before capture."""
+    wait_for_simulation(timeout)
+    deadline = time.monotonic() + timeout
+    wait_for_ros(
+        "running arm controller",
+        ["rosservice", "call", "/controller_manager/list_controllers", "{}"],
+        deadline,
+        required_text="arm_controller",
+    )
+
+
 def matching_image_count(filename_format):
     matches = INDEX_PATTERN.findall(filename_format)
     if len(matches) != 1:
@@ -173,8 +344,37 @@ def matching_image_count(filename_format):
             "for example mid_auto_%04i.png"
         )
     path = Path(filename_format).expanduser().resolve()
-    pattern = INDEX_PATTERN.sub("*", path.name)
-    return len([candidate for candidate in path.parent.glob(pattern) if candidate.is_file()])
+    placeholder = INDEX_PATTERN.search(path.name)
+    width_match = re.fullmatch(r"%0(\d+)[di]", placeholder.group(0))
+    if width_match is None:
+        index_expression = r"\d+"
+    else:
+        index_expression = r"\d{{{}}}".format(int(width_match.group(1)))
+    filename_pattern = re.compile(
+        "^{}{}{}$".format(
+            re.escape(path.name[: placeholder.start()]),
+            index_expression,
+            re.escape(path.name[placeholder.end() :]),
+        )
+    )
+    if not path.parent.is_dir():
+        return 0
+    return len(
+        [
+            candidate
+            for candidate in path.parent.iterdir()
+            if candidate.is_file() and filename_pattern.fullmatch(candidate.name)
+        ]
+    )
+
+
+def arm_scan_message(positions):
+    values = ", ".join(repr(float(value)) for value in positions)
+    return (
+        "{joint_names: [arm_joint1, arm_joint2, arm_joint3, arm_joint4, arm_joint5], "
+        "points: [{positions: [" + values + "], "
+        "time_from_start: {secs: 3, nsecs: 0}}]}"
+    )
 
 
 def parse_args(argv):
@@ -249,6 +449,14 @@ def parse_args(argv):
         help="do not command the recorded camera scan pose before capture",
     )
     parser.add_argument(
+        "--arm-scan-positions",
+        type=float,
+        nargs=5,
+        default=DEFAULT_ARM_SCAN_POSITIONS,
+        metavar=("J1", "J2", "J3", "J4", "J5"),
+        help="five arm joint positions used for the camera observation pose",
+    )
+    parser.add_argument(
         "--restart-settle",
         type=float,
         default=3.0,
@@ -277,6 +485,8 @@ def validate_args(args):
         raise AutomationError("--count must be positive")
     if args.route_end_seq is not None and args.route_end_seq <= 0:
         raise AutomationError("--route-end-seq must be positive")
+    if not all(math.isfinite(value) for value in args.arm_scan_positions):
+        raise AutomationError("--arm-scan-positions must contain finite values")
     if args.max_attempts < args.count:
         raise AutomationError("--max-attempts must be at least --count")
     for name in (
@@ -392,14 +602,23 @@ def launch_simulation(gui, log_file, goal_config=None, path_config=None):
 
 def capture_one(args, attempt, log_path):
     launch_process = None
+    launch_run_id = None
     with log_path.open("w", encoding="utf-8") as log_file:
         try:
+            if master_is_running():
+                raise CleanupError(
+                    "ROS master is still running before attempt {}; refusing "
+                    "to reuse a stale simulation".format(attempt)
+                )
             launch_process = launch_simulation(
                 args.gui,
                 log_file,
                 goal_config=args.generated_goal_config,
                 path_config=args.generated_path_config,
             )
+            master_deadline = time.monotonic() + args.startup_timeout
+            wait_for_ros("ROS master", ["rosnode", "list"], master_deadline)
+            launch_run_id = read_ros_run_id()
             wait_for_simulation(args.startup_timeout)
             if launch_process.poll() is not None:
                 raise AutomationError("roslaunch exited during startup")
@@ -480,7 +699,7 @@ def capture_one(args, attempt, log_path):
                         "-1",
                         "/arm_controller/command",
                         "trajectory_msgs/JointTrajectory",
-                        ARM_SCAN_MESSAGE,
+                        arm_scan_message(args.arm_scan_positions),
                     ],
                     timeout=10.0,
                 )
@@ -496,6 +715,8 @@ def capture_one(args, attempt, log_path):
 
             print("  navigation succeeded; settling {:.1f}s".format(args.photo_settle))
             time.sleep(args.photo_settle)
+            print("  rechecking Gazebo, controllers, clock, and camera")
+            wait_for_capture_health(min(15.0, args.startup_timeout))
             return_code, capture_output = run_owned(
                 [
                     "rosrun",
@@ -506,6 +727,10 @@ def capture_one(args, attempt, log_path):
                     "10",
                     "--warmup-frames",
                     "8",
+                    "--min-color-fraction",
+                    "0.001",
+                    "--color-delta",
+                    "20",
                 ],
                 timeout=15.0,
             )
@@ -521,7 +746,7 @@ def capture_one(args, attempt, log_path):
             saved_lines = [line.strip() for line in capture_output.splitlines() if line.strip()]
             return saved_lines[-1] if saved_lines else "image saved"
         finally:
-            stop_process_group(launch_process)
+            stop_owned_launch(launch_process, launch_run_id)
 
 
 def main(argv=None):
@@ -584,6 +809,8 @@ def main(argv=None):
                 saved_path = capture_one(args, attempt, log_path)
                 completed = matching_image_count(args.output_format)
                 print("  saved {} ({}/{})".format(saved_path, completed, args.count))
+            except CleanupError:
+                raise
             except AutomationError as exc:
                 print("  attempt failed: {}".format(exc), file=sys.stderr)
             if matching_image_count(args.output_format) < args.count:

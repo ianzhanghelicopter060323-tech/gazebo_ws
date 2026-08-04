@@ -70,6 +70,15 @@ def image_to_opencv(message):
     return image
 
 
+def colored_pixel_fraction(image, color_delta):
+    """Return the fraction of pixels whose BGR channels visibly differ."""
+    if image.ndim != 3 or image.shape[2] < 3:
+        return 0.0
+    channels = image[:, :, :3].astype(np.int16)
+    spread = channels.max(axis=2) - channels.min(axis=2)
+    return float(np.count_nonzero(spread >= color_delta)) / float(spread.size)
+
+
 def receive_image(topic, timeout, warmup_frames):
     """Keep one subscription alive and return a fresh frame after warmup."""
     condition = threading.Condition()
@@ -119,6 +128,21 @@ def parse_args(argv):
         default=5,
         help="discard earlier frames from the new subscription",
     )
+    parser.add_argument(
+        "--min-color-fraction",
+        type=float,
+        default=0.0,
+        help=(
+            "reject near-grayscale frames when fewer than this fraction of "
+            "pixels have visible channel separation; zero disables the check"
+        ),
+    )
+    parser.add_argument(
+        "--color-delta",
+        type=int,
+        default=20,
+        help="minimum max-minus-min BGR channel difference for a colored pixel",
+    )
     return parser.parse_args(argv)
 
 
@@ -130,6 +154,14 @@ def main(argv=None):
     if args.warmup_frames <= 0:
         print("imgsave: --warmup-frames must be positive", file=sys.stderr)
         return 2
+    if not np.isfinite(args.min_color_fraction) or not (
+        0.0 <= args.min_color_fraction <= 1.0
+    ):
+        print("imgsave: --min-color-fraction must be in [0, 1]", file=sys.stderr)
+        return 2
+    if not 0 <= args.color_delta <= 255:
+        print("imgsave: --color-delta must be in [0, 255]", file=sys.stderr)
+        return 2
     try:
         output_path = next_output_path(args.filename_format)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -138,6 +170,14 @@ def main(argv=None):
             args.topic, args.timeout, args.warmup_frames
         )
         image = image_to_opencv(message)
+        color_fraction = colored_pixel_fraction(image, args.color_delta)
+        if color_fraction < args.min_color_fraction:
+            raise RuntimeError(
+                "frame rejected as an empty/invalid scene: colored pixel "
+                "fraction {:.6f} is below {:.6f}".format(
+                    color_fraction, args.min_color_fraction
+                )
+            )
         if not cv2.imwrite(str(output_path), image):
             raise RuntimeError("OpenCV could not write {}".format(output_path))
     except (FileExistsError, RuntimeError, ValueError, rospy.ROSException) as exc:

@@ -34,16 +34,28 @@ python3 script/capture_far_navi_images.py
 data/close_navi_second_try/close_auto_%04i.png
 ```
 
+当前 `capture_far_navi_images.py` 用于第三轮 far_navi 数据集：它会自动生成
+截止到 seq 37 的路径，使用 seq 37 的精确位置和朝向，不发送旧外心点的
+二次导航目标；随后将机械臂移动到文档记录的观察位姿
+`[0.0, 0.0, 0.55, 2.0, 0.0]`。当前会在第三轮目录已有40张的基础上
+继续采集40张：
+
+```text
+data/navi_far_tri_try/far_auto_%04i.png
+```
+
 默认行为：
 
-- 目标总数：40 张；
-- 第二轮 close 使用 seq 35 `(-1.365698, -0.525039, yaw=0.000077)`；mid/far 旧采集入口仍保留原有外心对准行为；
-- 默认图片分别为 `data/close_navi_second_try/close_auto_%04i.png`、`data/mid/mid_auto_%04i.png`、`data/far_navi/far_auto_%04i.png`；
+- far 当前目标总数为 80 张，即在已有40张编号图片后再采40张；
+- 第二轮 close 使用 seq 35；第三轮 far 使用 seq 37；mid 旧采集入口仍保留原有外心对准行为；
+- 默认图片分别为 `data/close_navi_second_try/close_auto_%04i.png`、`data/mid/mid_auto_%04i.png`、`data/navi_far_tri_try/far_auto_%04i.png`；
 - Gazebo：无 GUI，RViz 不启动；
 - 单轮导航失败或抓图失败：关闭该轮仿真并重新随机启动；
+- 每轮退出后会核对并清理本轮 ROS run_id 下的进程；ROS master 未完全退出时立即终止，不复用异常仿真；
+- 拍照前重新检查 Gazebo模型、控制器、`/clock` 和相机新帧；近灰度空场景不会写入数据集；
 - 机械臂扫描姿态只用于数据集脚本，未加入正式任务状态机；如需禁用可传入 `--skip-arm-pose`；
 - 最多启动 80 轮，避免异常状态下无限循环；
-- 已有同格式图片计入 40 张，脚本可以中断后继续；
+- 只统计严格符合 `far_auto_四位数字.png` 的编号图片，`*_fix.png` 等对照图不计数；脚本可以中断后继续；
 - 详细日志：`script/logs/<启动时间>/attempt_NNN.log`。
 
 显示 Gazebo GUI：

@@ -2,9 +2,11 @@ ocr:
   model_dir: models/ocr
   min_text_confidence: 0.45
   class_threshold: 0.70
-  # Start without altering pixels. Scaling/thresholding will be selected from
-  # captured Gazebo camera data instead of being guessed from source textures.
+  # Preserve normal samples at native resolution and enlarge only after the
+  # closed-set keyword classifier rejects the preceding attempt.
   input_scale: 1.0
+  # Retry larger inputs only when the preceding scale has no accepted keyword.
+  retry_scales: [2.0, 4.0]
   vote_window: 5
   vote_minimum: 3
 

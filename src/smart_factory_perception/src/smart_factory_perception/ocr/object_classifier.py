@@ -17,10 +17,11 @@ class ObjectOcrResult:
 
 
 class ObjectOcrClassifier:
-    """Closed-set classifier for 食品/日用/电子物块 labels.
+    """Closed-set classifier using only 食品/日用/电子 keywords.
 
-    The input must contain at most one object. Spatial grouping of multiple
-    objects will be added with the RGB-D ROS detector.
+    OCR lines unrelated to the three task classes remain available in the
+    display text for diagnostics, but never affect class confidence or bbox.
+    Spatial grouping of multiple objects will be added with the RGB-D detector.
     """
 
     ALIASES = {
@@ -51,42 +52,56 @@ class ObjectOcrClassifier:
             line for line in lines if line.confidence >= self.min_text_confidence
         ]
         usable.sort(key=lambda line: self._reading_order(line.bbox))
-        normalized_parts = [self._normalize(line.text) for line in usable]
-        normalized_parts = [part for part in normalized_parts if part]
-        joined = "".join(normalized_parts)
         display_text = " / ".join(line.text for line in usable)
-        base_confidence = min(
-            (line.confidence for line in usable), default=0.0
-        )
 
-        best_label = "unknown"
-        best_score = 0.0
+        candidates = []
         for label, aliases in self.ALIASES.items():
-            score = self._score(joined, aliases, base_confidence)
-            if score > best_score:
-                best_label = label
-                best_score = score
+            matched_lines = [
+                line
+                for line in usable
+                if self._contains_keyword(line.text, aliases["partial"])
+            ]
+            if matched_lines:
+                candidates.append(
+                    (
+                        label,
+                        max(line.confidence for line in matched_lines),
+                        matched_lines,
+                    )
+                )
 
-        accepted = best_score >= self.class_threshold
+        eligible = [
+            candidate
+            for candidate in candidates
+            if candidate[1] >= self.class_threshold
+        ]
+        accepted = len(eligible) == 1
+        if accepted:
+            label, confidence, matched_lines = eligible[0]
+        else:
+            label = "unknown"
+            confidence = max(
+                (candidate[1] for candidate in candidates), default=0.0
+            )
+            selected = eligible if eligible else candidates
+            matched_lines = [
+                line
+                for _label, _score, lines_for_label in selected
+                for line in lines_for_label
+            ]
+
         return ObjectOcrResult(
-            label=best_label if accepted else "unknown",
-            confidence=best_score,
+            label=label,
+            confidence=confidence,
             text=display_text,
-            bbox=union_bbox(usable),
+            bbox=union_bbox(matched_lines),
             accepted=accepted,
         )
 
     @classmethod
-    def _score(cls, text, aliases, confidence):
-        if not text:
-            return 0.0
-        for alias in aliases["full"]:
-            if cls._normalize(alias) in text:
-                return confidence
-        for alias in aliases["partial"]:
-            if cls._normalize(alias) in text:
-                return confidence * 0.82
-        return 0.0
+    def _contains_keyword(cls, text, keywords):
+        normalized = cls._normalize(text)
+        return any(cls._normalize(keyword) in normalized for keyword in keywords)
 
     @staticmethod
     def _normalize(text):
