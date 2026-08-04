@@ -1,0 +1,20 @@
+ocr:
+  model_dir: models/ocr
+  min_text_confidence: 0.45
+  class_threshold: 0.70
+  # Start without altering pixels. Scaling/thresholding will be selected from
+  # captured Gazebo camera data instead of being guessed from source textures.
+  input_scale: 1.0
+  vote_window: 5
+  vote_minimum: 3
+
+classes:
+  FOOD:
+    full: ["食品物块"]
+    partial: ["食品"]
+  DAILY:
+    full: ["日用物块", "日用品物块"]
+    partial: ["日用", "日用品"]
+  ELECTRONICS:
+    full: ["电子物块", "电子产品物块"]
+    partial: ["电子", "电子产品"]

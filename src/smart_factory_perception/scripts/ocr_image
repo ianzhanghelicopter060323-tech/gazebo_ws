@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+package_dir="$(cd "${script_dir}/.." && pwd)"
+workspace_dir="$(cd "${package_dir}/../.." && pwd)"
+ocr_python="${OCR_PYTHON:-${workspace_dir}/.venv/ocr/bin/python}"
+
+if [[ ! -x "${ocr_python}" ]]; then
+  echo "OCR Python is unavailable: ${ocr_python}" >&2
+  echo "Create the workspace-local .venv/ocr environment first." >&2
+  exit 3
+fi
+
+export PYTHONPATH="${package_dir}/src${PYTHONPATH:+:${PYTHONPATH}}"
+exec "${ocr_python}" "${script_dir}/ocr_image.py" "$@"

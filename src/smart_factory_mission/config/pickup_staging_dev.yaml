@@ -154,3 +154,20 @@ pickup_staging:
     - x: -1.4833954572677612
       y: -0.9247531890869141
       yaw: 1.6074262857437132
+    # seq 35: close_navi observation point, facing the region center
+      # close_navi 中心坐标 (-0.860, -0.525)
+    - x: -1.36569836894096
+      y: -0.48503905352630406
+      yaw: 0.00007722691751649312
+
+    # seq 36: mid observation point, facing the region center
+      # mid 中心坐标 (-1.395, 0.080)
+    - x: -1.39569836894096
+      y: -0.35503905352630406
+      yaw: 1.5691910264536908
+
+    # seq 37: far_navi observation point, facing the region center
+      # far_navi 中心坐标 (-2.010, -0.445)
+    - x: -1.65569836894096
+      y: -0.44503905352630406
+      yaw: 3.141482426814858

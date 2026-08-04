@@ -10,6 +10,7 @@ corridor.  The resulting curve is sampled more densely where curvature is high.
 """
 
 import argparse
+import ast
 import math
 import re
 import shutil
@@ -24,6 +25,52 @@ SEQ_PATTERN = re.compile(r"\s*# seq (\d+)")
 X_PATTERN = re.compile(r"\s*- x:\s*([-+0-9.eE]+)")
 Y_PATTERN = re.compile(r"\s*y:\s*([-+0-9.eE]+)")
 YAW_PATTERN = re.compile(r"\s*yaw:\s*([-+0-9.eE]+)")
+
+
+def read_cube_spawn_areas(path):
+    """Read CUBE_AREAS without importing the ROS-dependent spawn script."""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    raw_areas = None
+    for node in tree.body:
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        if any(
+            isinstance(target, ast.Name) and target.id == "CUBE_AREAS"
+            for target in targets
+        ):
+            raw_areas = ast.literal_eval(node.value)
+            break
+    if raw_areas is None:
+        raise ValueError("spawn script does not define CUBE_AREAS")
+    if len(raw_areas) != 3:
+        raise ValueError("CUBE_AREAS must contain exactly three regions")
+
+    areas = []
+    for index, values in enumerate(raw_areas):
+        if not isinstance(values, (tuple, list)) or len(values) != 5:
+            raise ValueError(
+                "CUBE_AREAS entry {} must be (x_min, x_max, y_min, y_max, yaw)".format(
+                    index
+                )
+            )
+        x_min, x_max, y_min, y_max, yaw = [float(value) for value in values]
+        if not all(math.isfinite(value) for value in (x_min, x_max, y_min, y_max, yaw)):
+            raise ValueError("CUBE_AREAS contains a non-finite value")
+        if x_min >= x_max or y_min >= y_max:
+            raise ValueError("CUBE_AREAS contains an invalid rectangle")
+        areas.append([None, x_min, x_max, y_min, y_max, yaw])
+
+    # The observation names describe their spatial relation to the common
+    # circumcenter: the leftmost region is far, the rightmost is close, and the
+    # remaining upper region is mid. This avoids relying on list order.
+    by_center_x = sorted(
+        range(len(areas)), key=lambda i: (areas[i][1] + areas[i][2]) / 2.0
+    )
+    areas[by_center_x[0]][0] = "far_navi"
+    areas[by_center_x[1]][0] = "mid"
+    areas[by_center_x[2]][0] = "close_navi"
+    return [tuple(area) for area in areas]
 
 
 def read_active_route(path):
@@ -584,6 +631,7 @@ def render_view(
     samples,
     clearance_point,
     label_points,
+    spawn_areas,
 ):
     left, top, right, bottom = crop
     nearest = getattr(Image, "Resampling", Image).NEAREST
@@ -604,6 +652,27 @@ def render_view(
     original_pixels = [transform(point) for point in original_points]
     sample_pixels = [transform(point) for point in samples]
 
+    area_colors = {
+        "far_navi": (70, 150, 255),
+        "mid": (255, 190, 30),
+        "close_navi": (55, 190, 115),
+    }
+    area_overlay = Image.new("RGBA", view.size, (0, 0, 0, 0))
+    area_draw = ImageDraw.Draw(area_overlay)
+    area_label_positions = []
+    for label, x_min, x_max, y_min, y_max, _yaw in spawn_areas:
+        x1, y1 = transform((x_min, y_max))
+        x2, y2 = transform((x_max, y_min))
+        color = area_colors[label]
+        area_draw.rectangle(
+            (x1, y1, x2, y2),
+            fill=color + (70,),
+            outline=color + (235,),
+            width=max(2, scale // 2),
+        )
+        area_label_positions.append((label, (x1 + x2) / 2.0, min(y1, y2)))
+    view = Image.alpha_composite(view.convert("RGBA"), area_overlay).convert("RGB")
+
     envelope = Image.new("RGBA", view.size, (0, 0, 0, 0))
     envelope_draw = ImageDraw.Draw(envelope)
     envelope_width = max(2, round(2.0 * 0.11 / resolution * scale))
@@ -615,6 +684,19 @@ def render_view(
     )
     view = Image.alpha_composite(view.convert("RGBA"), envelope).convert("RGB")
     draw = ImageDraw.Draw(view)
+    if label_points:
+        for label, center_x, top_y in area_label_positions:
+            text = "{} spawn".format(label)
+            font = load_font(max(12, scale + 5), bold=True)
+            text_width, text_height = draw.textsize(text, font=font)
+            draw.text(
+                (center_x - text_width / 2.0, top_y - text_height - 5),
+                text,
+                fill=area_colors[label],
+                font=font,
+                stroke_width=2,
+                stroke_fill="white",
+            )
     draw.line(original_pixels, fill=(235, 139, 28), width=max(2, 2 * scale))
     draw.line(fitted_pixels, fill=(210, 35, 45), width=max(3, 2 * scale), joint="curve")
 
@@ -670,6 +752,7 @@ def create_figure(
     samples,
     clearance_point,
     diagnostics,
+    spawn_areas,
 ):
     points = np.asarray([[record[1], record[2]] for record in records])
     sequences = [record[0] for record in records]
@@ -684,13 +767,22 @@ def create_figure(
         samples,
         clearance_point,
         False,
+        spawn_areas,
     )
 
     resolution = metadata["resolution"]
     origin_x, origin_y = metadata["origin"]
     margin = 0.55
-    minimum = np.min(fitted_points, axis=0) - margin
-    maximum = np.max(fitted_points, axis=0) + margin
+    area_corners = np.asarray(
+        [
+            corner
+            for _label, x_min, x_max, y_min, y_max, _yaw in spawn_areas
+            for corner in ((x_min, y_min), (x_max, y_max))
+        ]
+    )
+    crop_points = np.vstack((fitted_points, area_corners))
+    minimum = np.min(crop_points, axis=0) - margin
+    maximum = np.max(crop_points, axis=0) + margin
     left = max(0, int(math.floor((minimum[0] - origin_x) / resolution)))
     right = min(
         map_image.width,
@@ -719,6 +811,7 @@ def create_figure(
         samples,
         clearance_point,
         True,
+        spawn_areas,
     )
 
     margin_px = 24
@@ -744,11 +837,14 @@ def create_figure(
         ("curvature-adaptive path samples", (0, 185, 210)),
         ("0.11 m centerline envelope", (255, 150, 150)),
         ("minimum-clearance location", (220, 0, 180)),
+        ("far_navi cube spawn region", (70, 150, 255)),
+        ("mid cube spawn region", (255, 190, 30)),
+        ("close_navi cube spawn region", (55, 190, 115)),
     ]
     x = margin_px
     y = legend_y
     for index, (label, color) in enumerate(legend):
-        if index == 3:
+        if index and index % 3 == 0:
             x = margin_px
             y += 32
         draw.line((x, y + 9, x + 28, y + 9), fill=color, width=6)
@@ -792,6 +888,12 @@ def main():
             "read direct-segment and fitted y-floor constraints from the "
             "mission configuration"
         ),
+    )
+    parser.add_argument(
+        "--cube-spawn-script",
+        type=Path,
+        default=workspace / "src/car3/scripts/spawn_cubes.py",
+        help="read the three CUBE_AREAS rectangles for plot annotations",
     )
     parser.add_argument(
         "--route-doc",
@@ -854,6 +956,7 @@ def main():
     else:
         records = route_records
     sequences = [record[0] for record in records]
+    spawn_areas = read_cube_spawn_areas(args.cube_spawn_script)
     linear_segments, y_floor_segments = read_fit_constraints(
         args.mission_config, sequences
     )
@@ -950,6 +1053,7 @@ def main():
             len(samples),
             maximum_shift,
         ),
+        spawn_areas,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     figure.save(args.output)
@@ -966,6 +1070,14 @@ def main():
     if args.copy_to:
         print(f"copy={args.copy_to / args.output.name}")
     print(f"active_sequences={[record[0] for record in records]}")
+    print(
+        "cube_spawn_areas={}".format(
+            [
+                (label, x_min, x_max, y_min, y_max)
+                for label, x_min, x_max, y_min, y_max, _yaw in spawn_areas
+            ]
+        )
+    )
     print(f"linear_segments={linear_segments} y_floor_segments={y_floor_segments}")
     print(f"active_points={len(records)} adaptive_samples={len(samples)}")
     print(

@@ -1,0 +1,151 @@
+#!/usr/bin/env python3
+"""Save one ROS image to the next free numbered filename."""
+
+import argparse
+from pathlib import Path
+import re
+import sys
+import threading
+import time
+
+import cv2
+import numpy as np
+import rospy
+from sensor_msgs.msg import Image
+
+
+INDEX_PATTERN = re.compile(r"%(?:0\d+)?[di]")
+SUPPORTED_ENCODINGS = {
+    "bgr8": (3, None),
+    "rgb8": (3, cv2.COLOR_RGB2BGR),
+    "bgra8": (4, cv2.COLOR_BGRA2BGR),
+    "rgba8": (4, cv2.COLOR_RGBA2BGR),
+    "mono8": (1, None),
+}
+
+
+def next_output_path(filename_format):
+    matches = INDEX_PATTERN.findall(filename_format)
+    if len(matches) > 1:
+        raise ValueError("filename format must contain at most one integer placeholder")
+    if not matches:
+        path = Path(filename_format).expanduser()
+        if path.exists():
+            raise FileExistsError("refusing to overwrite existing file: {}".format(path))
+        return path
+
+    for index in range(1000000):
+        try:
+            path = Path(filename_format % index).expanduser()
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid filename format: {}".format(exc))
+        if not path.exists():
+            return path
+    raise RuntimeError("no free filename index below 1000000")
+
+
+def image_to_opencv(message):
+    if message.encoding not in SUPPORTED_ENCODINGS:
+        raise ValueError(
+            "unsupported image encoding {!r}; supported: {}".format(
+                message.encoding, ", ".join(sorted(SUPPORTED_ENCODINGS))
+            )
+        )
+    channels, conversion = SUPPORTED_ENCODINGS[message.encoding]
+    row_bytes = message.width * channels
+    if message.step < row_bytes:
+        raise ValueError("image step is smaller than the encoded row width")
+    expected_size = message.height * message.step
+    pixels = np.frombuffer(message.data, dtype=np.uint8)
+    if pixels.size < expected_size:
+        raise ValueError("image data is shorter than height * step")
+    rows = pixels[:expected_size].reshape(message.height, message.step)
+    packed = rows[:, :row_bytes]
+    if channels == 1:
+        image = packed.reshape(message.height, message.width)
+    else:
+        image = packed.reshape(message.height, message.width, channels)
+    if conversion is not None:
+        image = cv2.cvtColor(image, conversion)
+    return image
+
+
+def receive_image(topic, timeout, warmup_frames):
+    """Keep one subscription alive and return a fresh frame after warmup."""
+    condition = threading.Condition()
+    state = {"count": 0, "message": None}
+
+    def callback(message):
+        with condition:
+            state["count"] += 1
+            state["message"] = message
+            condition.notify_all()
+
+    subscriber = rospy.Subscriber(topic, Image, callback, queue_size=1)
+    deadline = time.monotonic() + timeout
+    try:
+        with condition:
+            while state["count"] < warmup_frames:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0.0:
+                    raise rospy.ROSException(
+                        "timed out waiting for {} frames from {} (received {})".format(
+                            warmup_frames, topic, state["count"]
+                        )
+                    )
+                condition.wait(timeout=remaining)
+            return state["message"]
+    finally:
+        subscriber.unregister()
+
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        description=(
+            "save one frame from a ROS image topic; numbered formats such as "
+            "close_%04i.png automatically use the next free index"
+        )
+    )
+    parser.add_argument("filename_format")
+    parser.add_argument(
+        "--topic", default="/camera/rgb/image_raw", help="ROS image topic"
+    )
+    parser.add_argument(
+        "--timeout", type=float, default=5.0, help="frame wait timeout in seconds"
+    )
+    parser.add_argument(
+        "--warmup-frames",
+        type=int,
+        default=5,
+        help="discard earlier frames from the new subscription",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(rospy.myargv(argv=sys.argv if argv is None else argv)[1:])
+    if not np.isfinite(args.timeout) or args.timeout <= 0.0:
+        print("imgsave: --timeout must be positive", file=sys.stderr)
+        return 2
+    if args.warmup_frames <= 0:
+        print("imgsave: --warmup-frames must be positive", file=sys.stderr)
+        return 2
+    try:
+        output_path = next_output_path(args.filename_format)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        rospy.init_node("imgsave", anonymous=True, disable_signals=True)
+        message = receive_image(
+            args.topic, args.timeout, args.warmup_frames
+        )
+        image = image_to_opencv(message)
+        if not cv2.imwrite(str(output_path), image):
+            raise RuntimeError("OpenCV could not write {}".format(output_path))
+    except (FileExistsError, RuntimeError, ValueError, rospy.ROSException) as exc:
+        print("imgsave: {}".format(exc), file=sys.stderr)
+        return 1
+    print(output_path)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -12,6 +12,7 @@ catkin_install_python(PROGRAMS
   scripts/gripper_mimic.py
   scripts/grasp_attach.py
   scripts/spawn_cubes.py
+  scripts/spawn_calibration_cubes.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

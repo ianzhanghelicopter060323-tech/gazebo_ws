@@ -1,0 +1,39 @@
+# Camera-field-of-view calibration cubes.
+# All x/y values are cube-center coordinates from
+# data/标定方块坐标要求（以方块中心坐标为准）.md.
+calibration_cubes:
+  frame_id: world
+  size: 0.04
+  z: 0.02
+  material: Gazebo/Orange
+  markers:
+    - name: fov_close_1
+      region: close_navi
+      x: -0.95
+      y: -0.69
+      yaw: -1.5708
+    - name: fov_close_2
+      region: close_navi
+      x: -0.95
+      y: -0.36
+      yaw: -1.5708
+    - name: fov_mid_1
+      region: mid
+      x: -1.56
+      y: 0.17
+      yaw: 0.0
+    - name: fov_mid_2
+      region: mid
+      x: -1.23
+      y: 0.17
+      yaw: 0.0
+    - name: fov_far_1
+      region: far_navi
+      x: -1.92
+      y: -0.61
+      yaw: 1.5708
+    - name: fov_far_2
+      region: far_navi
+      x: -1.92
+      y: -0.28
+      yaw: 1.5708

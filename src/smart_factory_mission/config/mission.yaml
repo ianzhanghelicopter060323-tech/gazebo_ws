@@ -88,3 +88,8 @@ localization:
   max_xy_variance: 0.05
   max_yaw_variance: 0.10
   require_tf: true
+  # AMCL may publish its initial pose before the mission subscriber is ready.
+  # Request a no-motion update while waiting so a late manual task cannot miss
+  # the only stationary /amcl_pose sample and be rejected before departure.
+  nomotion_update_service: /request_nomotion_update
+  nomotion_update_period: 1.0

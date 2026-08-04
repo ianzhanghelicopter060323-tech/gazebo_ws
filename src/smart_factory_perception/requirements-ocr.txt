@@ -1,0 +1,10 @@
+# Offline OCR runtime. Keep this environment isolated from the ROS system Python.
+rapidocr==3.9.2
+onnxruntime==1.19.2
+omegaconf==2.3.1
+# OpenCV 5 changes type reporting used by ROS Noetic cv_bridge.
+opencv-python==4.8.1.78
+# Keep the last Python 3.8-compatible NumPy line and avoid NumPy 2 ABI issues.
+numpy==1.24.4
+# Satisfy Ubuntu's inherited launchpadlib metadata in --system-site-packages.
+testresources==2.0.1

@@ -1077,12 +1077,15 @@
           <far>4.0</far>
         </clip>
       </camera>
-      <plugin name="depth_plugin" filename="libgazebo_ros_depth_camera.so">
+      <plugin name="depth_plugin" filename="libgazebo_ros_openni_kinect.so">
         <alwaysOn>true</alwaysOn>
         <updateRate>20</updateRate>
         <cameraName>depth_camera</cameraName>
-        <imageTopicName>depth/image_raw</imageTopicName>
-        <cameraInfoTopicName>depth/camera_info</cameraInfoTopicName>
+        <!-- The RGB-D plugin also exposes its RGB render. Keep that image
+             separate from the 32FC1 depth image below: publishing both on
+             one topic makes image_transport/rqt_image_view unreliable. -->
+        <imageTopicName>rgb/image_raw</imageTopicName>
+        <cameraInfoTopicName>rgb/camera_info</cameraInfoTopicName>
         <depthImageTopicName>depth/image_raw</depthImageTopicName>
         <depthImageCameraInfoTopicName>depth/camera_info</depthImageCameraInfoTopicName>
         <pointCloudTopicName>depth/points</pointCloudTopicName>

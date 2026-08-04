@@ -11,6 +11,7 @@ from geometry_msgs.msg import PoseStamped
 from nav_msgs.msg import Path as NavigationPath
 import rospy
 from std_msgs.msg import Float64
+from std_srvs.srv import Empty
 import tf2_ros
 
 from smart_factory_interfaces.msg import (
@@ -207,6 +208,24 @@ class MissionServer:
         self._require_tf = rospy.get_param(
             "~localization/require_tf", True
         )
+        self._nomotion_update_service = str(
+            rospy.get_param(
+                "~localization/nomotion_update_service",
+                "/request_nomotion_update",
+            )
+        ).strip()
+        self._nomotion_update_period = float(
+            rospy.get_param(
+                "~localization/nomotion_update_period", 1.0
+            )
+        )
+        if not (
+            math.isfinite(self._nomotion_update_period)
+            and self._nomotion_update_period > 0.0
+        ):
+            raise ValueError(
+                "localization/nomotion_update_period must be positive"
+            )
         self._remember_results = int(
             rospy.get_param("~task/remember_completed_results", 20)
         )
@@ -221,6 +240,11 @@ class MissionServer:
         )
 
         self._latest_amcl = None
+        self._nomotion_update = (
+            rospy.ServiceProxy(self._nomotion_update_service, Empty)
+            if self._nomotion_update_service
+            else None
+        )
         self._tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(10.0))
         self._tf_listener = tf2_ros.TransformListener(self._tf_buffer)
         self._completed_results = OrderedDict()
@@ -576,11 +600,27 @@ class MissionServer:
     """
     def _wait_for_localization(self):
         deadline = time.monotonic() + float(self._localization_wait)
+        next_nomotion_update = 0.0
         while not rospy.is_shutdown() and time.monotonic() < deadline:
             if self._server.is_preempt_requested():
                 return False
             if self._pose_is_ready():
                 return True
+            now = time.monotonic()
+            if self._nomotion_update is not None and now >= next_nomotion_update:
+                try:
+                    rospy.wait_for_service(
+                        self._nomotion_update_service, timeout=0.2
+                    )
+                    self._nomotion_update()
+                except (rospy.ROSException, rospy.ServiceException) as exc:
+                    rospy.logwarn_throttle(
+                        2.0,
+                        "cannot request AMCL no-motion update from %s: %s",
+                        self._nomotion_update_service,
+                        exc,
+                    )
+                next_nomotion_update = now + self._nomotion_update_period
             rospy.sleep(0.1)
         return False
 

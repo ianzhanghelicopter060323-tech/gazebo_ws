@@ -10,6 +10,10 @@
        default="$(find gazebo_map)/maps/math_newest.yaml"/>
   <arg name="global_inflation_radius" default="0.10"/>
   <arg name="local_inflation_radius" default="0.15"/>
+  <!-- Camera-FOV calibration only. Set false (or remove this node) for competition. -->
+  <arg name="spawn_calibration_cubes" default="true"/>
+  <arg name="calibration_cubes_config"
+       default="$(find car3)/config/calibration_cubes.yaml"/>
 
   <!-- WSLg/Mesa D3D12 hardware rendering, consistent with gazebo_nav.launch. -->
   <env name="GALLIUM_DRIVER" value="d3d12"/>
@@ -36,6 +40,15 @@
     <arg name="local_inflation_radius"
          value="$(arg local_inflation_radius)"/>
   </include>
+
+  <node if="$(arg spawn_calibration_cubes)"
+        name="spawn_calibration_cubes"
+        pkg="car3"
+        type="spawn_calibration_cubes.py"
+        output="screen"
+        required="false">
+    <param name="config_file" value="$(arg calibration_cubes_config)"/>
+  </node>
 
   <node name="smart_factory_mission"
         pkg="smart_factory_mission"
