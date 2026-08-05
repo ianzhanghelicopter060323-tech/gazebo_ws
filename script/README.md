@@ -8,7 +8,7 @@
 → 额外等待仿真稳定
 → 发布现有导航任务并等待 ARRIVED_PICKUP_STAGING
 → 保持外心坐标不变，用 move_base 对准所选区域的绝对朝向
-→ 将机械臂移动到已记录的相机扫描姿态 `[0.0, 1.5, 1.4, -1.0, 0.0]`
+→ 将机械臂移动到已记录的相机扫描姿态 `[0.0, 0.0, 0.55, 2.0, 0.0]`
 → 等待画面稳定并保存一张 RGB 图片
 → 关闭本轮由脚本启动的全部进程
 → 重新启动，获得下一组随机物块位置
@@ -44,11 +44,18 @@ data/close_navi_second_try/close_auto_%04i.png
 data/navi_far_tri_try/far_auto_%04i.png
 ```
 
+当前 `capture_mid_images.py` 在脚本内独立配置 seq 36 终点
+`(-1.395, -0.355, 1.5691910264536908)`，并使用机械臂观察位姿
+`[0.0, 0.0, 0.55, 2.10, 0.0]`。脚本每次启动时在本次日志目录内
+生成仅到 seq 36 的临时目标配置和拟合路径，不修改工作区中的
+`pickup_staging_dev.yaml` 或 `pickup_staging_fitted_path.yaml`。图片固定保存到
+`data/mid_second_try/mid_auto_%04i.png`。
+
 默认行为：
 
 - far 当前目标总数为 80 张，即在已有40张编号图片后再采40张；
-- 第二轮 close 使用 seq 35；第三轮 far 使用 seq 37；mid 旧采集入口仍保留原有外心对准行为；
-- 默认图片分别为 `data/close_navi_second_try/close_auto_%04i.png`、`data/mid/mid_auto_%04i.png`、`data/navi_far_tri_try/far_auto_%04i.png`；
+- 第二轮 close 使用 seq 35；mid 使用私有 seq 36；第三轮 far 使用 seq 37；三者均不发送旧外心对准目标；
+- 默认图片分别为 `data/close_navi_second_try/close_auto_%04i.png`、`data/mid_second_try/mid_auto_%04i.png`、`data/navi_far_tri_try/far_auto_%04i.png`；
 - Gazebo：无 GUI，RViz 不启动；
 - 单轮导航失败或抓图失败：关闭该轮仿真并重新随机启动；
 - 每轮退出后会核对并清理本轮 ROS run_id 下的进程；ROS master 未完全退出时立即终止，不复用异常仿真；

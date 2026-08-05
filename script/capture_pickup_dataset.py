@@ -33,7 +33,10 @@ OUTPUT_PREFIXES = {
     "mid": "mid",
     "far_navi": "far",
 }
-DEFAULT_ARM_SCAN_POSITIONS = (0.0, 1.5, 1.4, -1.0, 0.0)
+# Camera observation pose recorded in
+# docs/物品抓取坐标和机械臂记录.md.  Do not use the lower grasp pose here:
+# it points the arm-mounted camera at a near-uniform gray surface.
+DEFAULT_ARM_SCAN_POSITIONS = (0.0, 0.0, 0.55, 2.1, 0.0)
 
 
 class AutomationError(RuntimeError):
@@ -433,6 +436,16 @@ def parse_args(argv):
         ),
     )
     parser.add_argument(
+        "--route-end-pose",
+        type=float,
+        nargs=3,
+        metavar=("X", "Y", "YAW"),
+        help=(
+            "use this private x/y/yaw pose for --route-end-seq instead of "
+            "requiring that sequence to be active in the shared route file"
+        ),
+    )
+    parser.add_argument(
         "--skip-view-alignment",
         action="store_true",
         help="use the final route pose directly instead of sending another move_base goal",
@@ -485,6 +498,12 @@ def validate_args(args):
         raise AutomationError("--count must be positive")
     if args.route_end_seq is not None and args.route_end_seq <= 0:
         raise AutomationError("--route-end-seq must be positive")
+    if args.route_end_pose is not None and args.route_end_seq is None:
+        raise AutomationError("--route-end-pose requires --route-end-seq")
+    if args.route_end_pose is not None and not all(
+        math.isfinite(value) for value in args.route_end_pose
+    ):
+        raise AutomationError("--route-end-pose must contain finite values")
     if not all(math.isfinite(value) for value in args.arm_scan_positions):
         raise AutomationError("--arm-scan-positions must contain finite values")
     if args.max_attempts < args.count:
@@ -518,7 +537,7 @@ def validate_args(args):
             raise AutomationError("missing path fitter: {}".format(PATH_FITTER))
 
 
-def prepare_truncated_route(end_sequence, output_dir):
+def prepare_truncated_route(end_sequence, output_dir, end_pose=None):
     """Build isolated mission inputs ending at one explicit route sequence."""
     spec = importlib.util.spec_from_file_location("pickup_path_fitter", PATH_FITTER)
     if spec is None or spec.loader is None:
@@ -526,14 +545,20 @@ def prepare_truncated_route(end_sequence, output_dir):
     fitter = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(fitter)
     records = fitter.read_active_route(DEFAULT_ROUTE)
-    matching_indices = [
-        index for index, record in enumerate(records) if record[0] == end_sequence
-    ]
-    if len(matching_indices) != 1:
-        raise AutomationError(
-            "active route must contain seq {} exactly once".format(end_sequence)
-        )
-    records = records[: matching_indices[0] + 1]
+    if end_pose is None:
+        matching_indices = [
+            index for index, record in enumerate(records) if record[0] == end_sequence
+        ]
+        if len(matching_indices) != 1:
+            raise AutomationError(
+                "active route must contain seq {} exactly once".format(end_sequence)
+            )
+        records = records[: matching_indices[0] + 1]
+    else:
+        # Keep the shared route read-only. This allows a dataset wrapper to use
+        # a disabled observation point as its private terminal waypoint.
+        records = [record for record in records if record[0] < end_sequence]
+        records.append((end_sequence,) + tuple(end_pose))
 
     route_path = output_dir / "pickup_staging_to_seq_{}.yaml".format(end_sequence)
     route_lines = [
@@ -778,7 +803,11 @@ def main(argv=None):
                 args.generated_path_config,
                 preview_path,
                 fitter_output,
-            ) = prepare_truncated_route(args.route_end_seq, log_dir)
+            ) = prepare_truncated_route(
+                args.route_end_seq,
+                log_dir,
+                end_pose=args.route_end_pose,
+            )
             (log_dir / "path_fitter.log").write_text(fitter_output, encoding="utf-8")
             print("generated_goal_config={}".format(args.generated_goal_config))
             print("generated_path_config={}".format(args.generated_path_config))

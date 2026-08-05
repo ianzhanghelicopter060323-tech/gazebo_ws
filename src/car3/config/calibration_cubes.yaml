@@ -20,12 +20,12 @@ calibration_cubes:
     - name: fov_mid_1
       region: mid
       x: -1.56
-      y: 0.17
+      y: -0.01
       yaw: 0.0
     - name: fov_mid_2
       region: mid
       x: -1.23
-      y: 0.17
+      y: -0.01
       yaw: 0.0
     - name: fov_far_1
       region: far_navi

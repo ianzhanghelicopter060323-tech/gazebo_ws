@@ -9,17 +9,17 @@ from capture_pickup_dataset import main
 if __name__ == "__main__":
     sys.exit(
         main(
-            sys.argv[1:]
-            + [
+            [
                 "--view",
                 "close_navi",
                 "--route-end-seq",
                 "35",
                 "--skip-view-alignment",
                 "--count",
-                "40",
+                "80",
                 "--output-format",
-                "/home/ianichinose/gazebo_ws/data/close_navi_second_try/close_auto_%04i.png",
+                "/home/ianichinose/gazebo_ws/data/navi_close_tri_try/close_auto_%04i.png",
             ]
+            + sys.argv[1:]
         )
     )
