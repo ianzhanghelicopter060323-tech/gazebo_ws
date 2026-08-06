@@ -1,0 +1,19 @@
+<launch>
+  <arg name="action_name" default="/smart_factory/navigation"/>
+  <arg name="move_base_action" default="/move_base"/>
+  <arg name="config_file"
+       default="$(find smart_factory_navigation)/config/navigation.yaml"/>
+  <arg name="fitted_path_file"
+       default="$(find smart_factory_navigation)/config/pickup_staging_fitted_path.yaml"/>
+
+  <node pkg="smart_factory_navigation"
+        type="navigation_node.py"
+        name="smart_factory_navigation"
+        output="screen">
+    <param name="action_name" value="$(arg action_name)"/>
+    <rosparam command="load" file="$(arg config_file)"/>
+    <rosparam command="load" file="$(arg fitted_path_file)"/>
+    <!-- Launch arguments override values loaded from the deployment config. -->
+    <param name="navigation/action_name" value="$(arg move_base_action)"/>
+  </node>
+</launch>

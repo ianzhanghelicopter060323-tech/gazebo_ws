@@ -8,7 +8,11 @@
   <license>BSD-3-Clause</license>
 
   <buildtool_depend>catkin</buildtool_depend>
+  <exec_depend>car3</exec_depend>
+  <exec_depend>gazebo_map</exec_depend>
   <exec_depend>gazebo_nav</exec_depend>
   <exec_depend>roslaunch</exec_depend>
   <exec_depend>smart_factory_mission</exec_depend>
+  <exec_depend>smart_factory_navigation</exec_depend>
+  <exec_depend>smart_factory_perception</exec_depend>
 </package>

@@ -26,7 +26,7 @@ class ManipulationStage:
         )
         self._joint_topic = config.get("joint_state_topic", "/joint_states")
         self._ready_topic = config.get("ready_topic", "/grasp_attach/ready")
-        self._state_topic = config.get("state_topic", "/grasp_attach/state")
+        self._state_topic = config.get("state_topic", "/grasp_attach/state") # 只有本话题是GRASPPING才认为抓住，否则认为抓取失败报错
         self._open_position = float(config.get("open_position", 1.5))
         self._open_minimum = float(config.get("open_minimum", 1.4))
         self._closed_position = float(config.get("closed_position", 0.76))

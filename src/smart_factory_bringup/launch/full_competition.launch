@@ -1,4 +1,87 @@
 <launch>
-  <!-- Reserved for the complete perception, pick, transport and place pipeline. -->
-  <!-- Do not use this launch file until those stages are implemented. -->
+  <!-- Unified system entry point. Individual component launches remain reusable.
+       Gazebo ownership is delegated exactly once through simulation.launch. -->
+  <arg name="start_navigation" default="true"/>
+  <arg name="start_gazebo" default="true"/>
+  <arg name="gazebo_gui" default="true"/>
+  <arg name="start_rviz" default="true"/>
+  <arg name="rviz_config"
+       default="$(find gazebo_nav)/config/rviz_default_config.rviz"/>
+  <arg name="map_file"
+       default="$(find gazebo_map)/maps/math_newest.yaml"/>
+  <arg name="global_inflation_radius" default="0.10"/>
+  <arg name="local_inflation_radius" default="0.15"/>
+
+  <arg name="start_navigation_server" default="true"/>
+  <arg name="navigation_action_name"
+       default="/smart_factory/navigation"/>
+  <arg name="navigation_server_wait_timeout" default="10.0"/>
+  <arg name="navigation_config"
+       default="$(find smart_factory_navigation)/config/navigation.yaml"/>
+  <arg name="fitted_path_config"
+       default="$(find smart_factory_navigation)/config/pickup_staging_fitted_path.yaml"/>
+  <arg name="move_base_action" default="/move_base"/>
+
+  <!-- Camera-FOV calibration markers are opt-in and stay hidden in trials. -->
+  <arg name="spawn_calibration_cubes" default="false"/>
+  <arg name="calibration_cubes_config"
+       default="$(find car3)/config/calibration_cubes.yaml"/>
+
+  <arg name="start_perception" default="true"/>
+  <arg name="cube_locator_config"
+       default="$(find smart_factory_perception)/config/cube_locator.yaml"/>
+
+  <arg name="action_name" default="/sim_task/execute"/>
+  <arg name="mission_config"
+       default="$(find smart_factory_mission)/config/mission.yaml"/>
+  <arg name="goal_config"
+       default="$(find smart_factory_mission)/config/pickup_staging_dev.yaml"/>
+
+  <include if="$(arg start_navigation)"
+           file="$(find smart_factory_bringup)/launch/simulation.launch">
+    <arg name="start_gazebo" value="$(arg start_gazebo)"/>
+    <arg name="gazebo_gui" value="$(arg gazebo_gui)"/>
+    <arg name="start_rviz" value="$(arg start_rviz)"/>
+    <arg name="rviz_config" value="$(arg rviz_config)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="global_inflation_radius"
+         value="$(arg global_inflation_radius)"/>
+    <arg name="local_inflation_radius"
+         value="$(arg local_inflation_radius)"/>
+  </include>
+
+  <!-- High-level navigation Action server. It consumes the move_base stack
+       above but never starts Gazebo itself. -->
+  <include if="$(arg start_navigation_server)"
+           file="$(find smart_factory_navigation)/launch/navigation.launch">
+    <arg name="action_name" value="$(arg navigation_action_name)"/>
+    <arg name="move_base_action" value="$(arg move_base_action)"/>
+    <arg name="config_file" value="$(arg navigation_config)"/>
+    <arg name="fitted_path_file" value="$(arg fitted_path_config)"/>
+  </include>
+
+  <!-- Camera-FOV calibration only; controlled by spawn_calibration_cubes. -->
+  <node if="$(arg spawn_calibration_cubes)"
+        name="spawn_calibration_cubes"
+        pkg="car3"
+        type="spawn_calibration_cubes.py"
+        output="screen"
+        required="false">
+    <param name="config_file" value="$(arg calibration_cubes_config)"/>
+  </node>
+
+  <include if="$(arg start_perception)"
+           file="$(find smart_factory_perception)/launch/cube_locator.launch">
+    <arg name="config" value="$(arg cube_locator_config)"/>
+  </include>
+
+  <include file="$(find smart_factory_mission)/launch/mission.launch">
+    <arg name="action_name" value="$(arg action_name)"/>
+    <arg name="navigation_action_name"
+         value="$(arg navigation_action_name)"/>
+    <arg name="navigation_server_wait_timeout"
+         value="$(arg navigation_server_wait_timeout)"/>
+    <arg name="mission_config" value="$(arg mission_config)"/>
+    <arg name="goal_config" value="$(arg goal_config)"/>
+  </include>
 </launch>

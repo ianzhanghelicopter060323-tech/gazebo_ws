@@ -90,11 +90,6 @@ class DevelopmentGoalProvider:
 
         return goals
 
-    def get_pickup_staging_goal(self, context):
-        """Return the final staging pose for callers using the old API."""
-        return self.get_pickup_staging_goals(context)[-1]
-
-
 def create_goal_provider(provider_type):
     if provider_type == "development":
         return DevelopmentGoalProvider()

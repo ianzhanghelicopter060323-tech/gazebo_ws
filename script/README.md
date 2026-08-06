@@ -3,8 +3,8 @@
 脚本按下面的顺序重复运行，直到输出目录中存在 40 张匹配图片：
 
 ```text
-启动全新 Gazebo/导航/任务服务器
-→ 等待机器人、三个随机物块、相机、AMCL 和任务服务器就绪
+启动全新 Gazebo、move_base、Navigate Action Server 和任务服务器
+→ 等待机器人、三个随机物块、相机、AMCL、导航 Action 和任务服务器就绪
 → 额外等待仿真稳定
 → 发布现有导航任务并等待 ARRIVED_PICKUP_STAGING
 → 保持外心坐标不变，用 move_base 对准所选区域的绝对朝向
@@ -48,7 +48,8 @@ data/navi_far_tri_try/far_auto_%04i.png
 `(-1.395, -0.355, 1.5691910264536908)`，并使用机械臂观察位姿
 `[0.0, 0.0, 0.55, 2.10, 0.0]`。脚本每次启动时在本次日志目录内
 生成仅到 seq 36 的临时目标配置和拟合路径，不修改工作区中的
-`pickup_staging_dev.yaml` 或 `pickup_staging_fitted_path.yaml`。图片固定保存到
+`src/smart_factory_mission/config/pickup_staging_dev.yaml` 或
+`src/smart_factory_navigation/config/pickup_staging_fitted_path.yaml`。图片固定保存到
 `data/mid_second_try/mid_auto_%04i.png`。
 
 默认行为：

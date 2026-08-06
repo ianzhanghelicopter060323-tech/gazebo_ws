@@ -3,17 +3,11 @@ project(smart_factory_mission)
 
 find_package(catkin REQUIRED COMPONENTS
   actionlib
-  actionlib_msgs
   geometry_msgs
-  move_base_msgs
-  nav_msgs
   rospy
-  sensor_msgs
   smart_factory_interfaces
-  std_msgs
-  std_srvs
-  tf2_ros
-  trajectory_msgs
+  smart_factory_manipulation
+  smart_factory_navigation
 )
 
 catkin_python_setup()
@@ -21,17 +15,11 @@ catkin_python_setup()
 catkin_package(
   CATKIN_DEPENDS
     actionlib
-    actionlib_msgs
     geometry_msgs
-    move_base_msgs
-    nav_msgs
     rospy
-    sensor_msgs
     smart_factory_interfaces
-    std_msgs
-    std_srvs
-    tf2_ros
-    trajectory_msgs
+    smart_factory_manipulation
+    smart_factory_navigation
 )
 
 if(CATKIN_ENABLE_TESTING)

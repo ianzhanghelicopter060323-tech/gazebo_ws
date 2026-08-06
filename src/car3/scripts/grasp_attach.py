@@ -18,7 +18,8 @@ def _qv_mult(q, v):
 class GraspAttach:
     def __init__(self):
         self.close_threshold = rospy.get_param('~gripper_close_threshold', 0.8)
-        self.open_threshold = rospy.get_param('~gripper_open_threshold', 0.89)
+        self.release_command_threshold = rospy.get_param(
+            '~gripper_release_command_threshold', 1.2)
         self.gripper_link = rospy.get_param('~gripper_link', 'car3::tcp_link')
         self.object_models = rospy.get_param('~object_models', ['cube_0', 'cube_1', 'cube_2'])
         self.current_object = None  
@@ -54,6 +55,8 @@ class GraspAttach:
 
         self.gripper_pub = rospy.Publisher(
             '/gripper_controller/command', Float64, queue_size=1)
+        self.gripper_command_sub = rospy.Subscriber(
+            '/gripper_controller/command', Float64, self._gripper_command_cb)
 
         self.joint_sub = rospy.Subscriber(
             '/joint_states', JointState, self._joint_cb)
@@ -64,7 +67,8 @@ class GraspAttach:
         self._follow_timer = None
 
         rospy.loginfo(f'grasp_attach 就绪 '
-                      f'(close<{self.close_threshold}, open>{self.open_threshold}, '
+                      f'(close<{self.close_threshold}, '
+                      f'release_command>={self.release_command_threshold}, '
                       f'obj=({self.obj_half_x},{self.obj_half_y},{self.obj_half_z}), '
                       f'models={self.object_models}, '
                       f'check={self.check_rate}Hz, follow={self.update_rate}Hz)')
@@ -80,8 +84,24 @@ class GraspAttach:
             return
         if self.state == 'IDLE' and self.r_joint_pos < self.close_threshold:
             self._do_grasp()
-        elif self.state == 'GRASPING' and self.r_joint_pos > self.open_threshold:
-            self._do_release()
+
+    def _gripper_command_cb(self, msg):
+        """Release only in response to an intentional open command.
+
+        Joint feedback can rebound while the arm lifts a cube.  Treating one
+        feedback sample as an open request caused false IDLE transitions even
+        though the commanded gripper remained closed.
+        """
+        command = float(msg.data)
+        if (
+            self.state == 'GRASPING'
+            and command >= self.release_command_threshold
+        ):
+            self._do_release(
+                'open command {:.3f} >= {:.3f}'.format(
+                    command, self.release_command_threshold
+                )
+            )
 
     def _get_gripper_pose(self):
         try:
@@ -187,6 +207,17 @@ class GraspAttach:
         self.grasp_success = True
         self.state = 'GRASPING'
 
+        rospy.loginfo(
+            'grasp_attach attached %s: offset=(%.4f, %.4f, %.4f)m '
+            'distance=%.4fm r_joint=%s',
+            model_name,
+            px,
+            py,
+            pz,
+            dist,
+            'unknown' if self.r_joint_pos is None else '{:.4f}'.format(self.r_joint_pos),
+        )
+
         if self.r_joint_pos is not None:
             self.gripper_pub.publish(Float64(data=self.r_joint_pos))
 
@@ -194,7 +225,8 @@ class GraspAttach:
             self._follow_timer = rospy.Timer(
                 rospy.Duration(1.0 / self.update_rate), self._follow_cb)
 
-    def _do_release(self):
+    def _do_release(self, reason='unspecified'):
+        released_object = self.current_object
         if self._follow_timer is not None:
             self._follow_timer.shutdown()
             self._follow_timer = None
@@ -203,6 +235,12 @@ class GraspAttach:
         self.current_object = None
         self.grasp_success = False
         self.state = 'IDLE'
+        rospy.loginfo(
+            'grasp_attach released %s: reason=%s r_joint=%s',
+            released_object or 'none',
+            reason,
+            'unknown' if self.r_joint_pos is None else '{:.4f}'.format(self.r_joint_pos),
+        )
 
     def _follow_cb(self, event):
         if self.offset_pos is None or self.current_object is None:

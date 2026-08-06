@@ -156,8 +156,8 @@ pickup_staging:
       yaw: 1.6074262857437132
     # seq 35: close_navi observation point, facing the region center
       # close_navi 中心坐标 (-0.860, -0.525)
-    - x: -1.2243
-      y: -0.52503905352630406
+    - x: -1.124
+      y: -0.525
       yaw: 0.00007722691751649312
 
     # seq 36/37 暂时停用；保留坐标，后续需要多点观察时可重新启用。
@@ -169,6 +169,6 @@ pickup_staging:
 
     # seq 37: far_navi observation point, facing the region center
       # far_navi 中心坐标 (-2.010, -0.445)
-    # - x: -1.65569836894096
-    #   y: -0.44503905352630406
+    # - x: -1.72569836894096
+    #   y: -0.445
     #   yaw: 3.141482426814858

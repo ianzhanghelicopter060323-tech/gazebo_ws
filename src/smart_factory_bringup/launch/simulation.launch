@@ -1,11 +1,24 @@
 <launch>
+  <!-- Component launch used once by full_competition.launch. -->
   <arg name="start_gazebo" default="true"/>
   <arg name="gazebo_gui" default="true"/>
   <arg name="start_rviz" default="true"/>
+  <arg name="rviz_config"
+       default="$(find gazebo_nav)/config/rviz_default_config.rviz"/>
+  <arg name="map_file"
+       default="$(find gazebo_map)/maps/math_newest.yaml"/>
+  <arg name="global_inflation_radius" default="0.10"/>
+  <arg name="local_inflation_radius" default="0.15"/>
 
   <include file="$(find gazebo_nav)/launch/gazebo_nav.launch">
     <arg name="start_gazebo" value="$(arg start_gazebo)"/>
     <arg name="gazebo_gui" value="$(arg gazebo_gui)"/>
     <arg name="start_rviz" value="$(arg start_rviz)"/>
+    <arg name="rviz_config" value="$(arg rviz_config)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="global_inflation_radius"
+         value="$(arg global_inflation_radius)"/>
+    <arg name="local_inflation_radius"
+         value="$(arg local_inflation_radius)"/>
   </include>
 </launch>

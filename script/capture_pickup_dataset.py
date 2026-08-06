@@ -36,7 +36,7 @@ OUTPUT_PREFIXES = {
 # Camera observation pose recorded in
 # docs/物品抓取坐标和机械臂记录.md.  Do not use the lower grasp pose here:
 # it points the arm-mounted camera at a near-uniform gray surface.
-DEFAULT_ARM_SCAN_POSITIONS = (0.0, 0.0, 0.55, 2.1, 0.0)
+DEFAULT_ARM_SCAN_POSITIONS = (0.0, 0.0, 0.55, 2.2, 0.0)
 
 
 class AutomationError(RuntimeError):
@@ -603,18 +603,22 @@ def prepare_truncated_route(end_sequence, output_dir, end_pose=None):
     return route_path, path_path, preview_path, fitter_output
 
 
-def launch_simulation(gui, log_file, goal_config=None, path_config=None):
+def launch_simulation(
+    gui, log_file, goal_config=None, fitted_path_config=None
+):
     command = [
         "roslaunch",
-        "smart_factory_mission",
-        "mission.launch",
+        "smart_factory_bringup",
+        "full_competition.launch",
         "gazebo_gui:={}".format("true" if gui else "false"),
         "start_rviz:=false",
     ]
     if goal_config is not None:
         command.append("goal_config:={}".format(goal_config))
-    if path_config is not None:
-        command.append("path_config:={}".format(path_config))
+    if fitted_path_config is not None:
+        command.append(
+            "fitted_path_config:={}".format(fitted_path_config)
+        )
     return subprocess.Popen(
         ros_command(command),
         cwd=str(WORKSPACE),
@@ -639,7 +643,7 @@ def capture_one(args, attempt, log_path):
                 args.gui,
                 log_file,
                 goal_config=args.generated_goal_config,
-                path_config=args.generated_path_config,
+                fitted_path_config=args.generated_path_config,
             )
             master_deadline = time.monotonic() + args.startup_timeout
             wait_for_ros("ROS master", ["rosnode", "list"], master_deadline)

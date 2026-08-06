@@ -33,6 +33,9 @@
 
   <node name="grasp_attach" pkg="car3" type="grasp_attach.py" output="screen">
     <rosparam param="object_models">['cube_0', 'cube_1', 'cube_2']</rosparam>
+    <!-- Release the simulated attachment only after an intentional open
+         command, never from a transient r_joint feedback rebound. -->
+    <param name="gripper_release_command_threshold" value="1.2"/>
   </node>
 
   <node name="fake_joint_calibration" pkg="rostopic" type="rostopic"

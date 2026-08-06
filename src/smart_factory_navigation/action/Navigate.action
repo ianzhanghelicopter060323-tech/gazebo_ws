@@ -1,0 +1,49 @@
+# One server owns localization checks, move_base route execution, and direct
+# base alignment. The command selects which operation the goal requests.
+uint8 EXECUTE_STAGING_ROUTE=1
+uint8 NAVIGATE_POSE=2
+uint8 ALIGN_FOR_GRASP=3
+uint8 WAIT_FOR_LOCALIZATION=4
+uint8 GET_LOCALIZED_POSE=5
+
+uint8 command
+string request_id
+geometry_msgs/PoseStamped[] waypoints
+geometry_msgs/PoseStamped target_pose
+string frame_id
+---
+# Error values intentionally retain the corresponding ExecuteTask values where
+# one exists, so the mission adapter can map them without semantic loss.
+uint8 SUCCESS=0
+uint8 MOVE_BASE_UNAVAILABLE=3
+uint8 LOCALIZATION_NOT_READY=4
+uint8 GOAL_UNAVAILABLE=5
+uint8 NAVIGATION_TIMEOUT=6
+uint8 NAVIGATION_ABORTED=7
+uint8 REQUEST_PREEMPTED=8
+uint8 ALIGNMENT_FAILED=11
+uint8 INVALID_COMMAND=254
+uint8 INTERNAL_ERROR=255
+
+bool success
+uint8 error_code
+string message
+uint32 completed_waypoints
+bool pose_valid
+geometry_msgs/PoseStamped localized_pose
+---
+uint8 PHASE_IDLE=0
+uint8 PHASE_WAIT_LOCALIZATION=1
+uint8 PHASE_ACQUIRE_ROUTE=2
+uint8 PHASE_FOLLOW_ROUTE=3
+uint8 PHASE_FINAL_GOAL=4
+uint8 PHASE_NAVIGATE_POSE=5
+uint8 PHASE_ALIGN_HEADING=6
+uint8 PHASE_ALIGN_FOR_GRASP=7
+
+uint8 phase
+uint32 current_waypoint
+uint32 waypoint_count
+uint32 retry_count
+float64 path_progress
+string detail

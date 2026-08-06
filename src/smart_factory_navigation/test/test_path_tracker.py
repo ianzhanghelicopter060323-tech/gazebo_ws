@@ -3,7 +3,7 @@
 import math
 import unittest
 
-from smart_factory_mission.path_tracker import (
+from smart_factory_navigation.path_tracker import (
     FittedPath,
     PathConfigError,
     PathTracker,

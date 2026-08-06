@@ -1,12 +1,13 @@
 # 讯飞智慧工厂智能车仿真工作空间
 
-本仓库是基于 ROS1 Noetic、Gazebo 和 RViz 的智慧工厂智能车仿真工作空间，包含车辆模型、机械臂与夹爪、地图与导航配置，以及面向竞赛任务的任务接口和导航状态机。
+本仓库是基于 ROS1 Noetic、Gazebo 和 RViz 的智慧工厂智能车仿真工作空间，包含车辆模型、机械臂与夹爪、地图与导航配置，以及面向竞赛任务的总状态机和独立导航 Action 子系统。
 
 当前已实现的开发里程碑为：
 
-> 接收任务 → 检查定位与导航 → 导航至抓取区前置点 → 返回任务结果
+> 接收任务 → 检查定位与导航 → 导航至抓取区 → RGB-D 识别与定位 →
+> 底盘精对齐 → 固定姿态抓取与验证
 
-目标识别、物块抓取、运输、放置和外部车辆通信暂未完成，对应 ROS 包保留为后续扩展入口。
+物块运输、放置和外部车辆通信仍待实现；感知和抓取能力已经进入正式包结构。
 
 ## 仿真与竞赛要求
 
@@ -28,12 +29,13 @@ gazebo_ws/
 │   ├── gazebo_nav/                   # map_server、AMCL、move_base、costmap 和 DWA 配置
 │   ├── roboticsgroup_gazebo_plugins/ # Gazebo 关节模拟插件
 │   ├── smart_factory_interfaces/     # ExecuteTask action 和 TaskState 消息
-│   ├── smart_factory_mission/        # 任务状态机和导航阶段实现
+│   ├── smart_factory_mission/        # 总任务状态机与抓取流程协调
+│   ├── smart_factory_navigation/     # 导航 Action、定位、路线执行与底盘精对齐
 │   ├── smart_factory_bringup/        # 统一启动入口
 │   ├── smart_factory_tests/          # 导航任务测试客户端
 │   ├── smart_factory_bridge/         # 外部任务通信占位包
-│   ├── smart_factory_perception/     # 视觉感知占位包
-│   └── smart_factory_manipulation/   # 机械臂操作占位包
+│   ├── smart_factory_perception/     # OCR、RGB-D 定位与物块查询服务
+│   └── smart_factory_manipulation/   # 机械臂、夹爪和固定抓取能力
 ├── docs/                             # 环境、导航调参和任务链路文档
 ├── build/                            # catkin 构建输出，不提交
 ├── devel/                            # catkin 开发空间，不提交
@@ -61,13 +63,15 @@ catkin_make
 source devel/setup.bash
 ```
 
-启动当前“导航至抓取区前置点”阶段：
+启动当前完整开发流程：
 
 ```bash
-roslaunch smart_factory_bringup nav_to_pickup_stage.launch
+roslaunch smart_factory_bringup full_competition.launch
 ```
 
-该入口默认启动 Gazebo、地图服务器、AMCL、`move_base`、RViz 和任务服务器。等待地图、机器人、激光和 costmap 初始化完成后，在另一个终端发送测试任务：
+该入口默认启动 Gazebo、地图服务器、AMCL、`move_base`、导航 Action
+服务器、RViz、感知和任务服务器。等待地图、机器人、激光和 costmap
+初始化完成后，在另一个终端发送测试任务：
 
 ```bash
 cd /home/ianichinose/gazebo_ws
@@ -85,23 +89,27 @@ rosrun smart_factory_tests send_navigation_task.py \
 
 | 命令 | 用途 |
 | --- | --- |
-| `roslaunch smart_factory_bringup nav_to_pickup_stage.launch` | 启动仿真、导航、RViz 和当前导航任务阶段 |
-| `roslaunch smart_factory_mission mission.launch` | 独立启动完整导航与任务服务器 |
-| `roslaunch smart_factory_mission mission.launch start_navigation:=false` | 已有导航栈运行时，仅启动任务服务器 |
+| `roslaunch smart_factory_bringup full_competition.launch` | 统一启动仿真、导航、RViz、感知和任务服务器 |
+| `roslaunch smart_factory_bringup nav_to_pickup_stage.launch` | 旧入口兼容别名，内部转调完整入口 |
+| `roslaunch smart_factory_navigation navigation.launch` | 单独启动导航 Action 服务器；`move_base` 须已运行 |
+| `roslaunch smart_factory_mission mission.launch` | 仅启动任务服务器；导航 Action 与感知须已运行 |
 | `roslaunch gazebo_nav gazebo_nav.launch` | 单独启动 Gazebo 导航栈 |
 | `roslaunch car3 gazebo.launch` | 仅启动车辆和 Gazebo 场景 |
 | `roslaunch gazebo_map gmapping.launch` | 启动 GMapping 建图 |
 
-同一时间不要同时启动 `mission.launch` 和 `gazebo_nav.launch`，否则会产生重复的 Gazebo、AMCL、`move_base` 或 RViz 节点。需要复用已有导航栈时，使用 `start_navigation:=false`。
+`mission.launch` 已是组件级入口，不再隐式启动 Gazebo、AMCL、`move_base`、
+导航 Action 或 RViz。需要复用已有 Gazebo/`move_base` 栈时，可运行
+`full_competition.launch start_navigation:=false`。
 
 ## 配置与地图
 
 - 导航参数：`src/gazebo_nav/launch/config/`
+- 路线执行与定位参数：`src/smart_factory_navigation/config/navigation.yaml`
+- 拟合路径：`src/smart_factory_navigation/config/pickup_staging_fitted_path.yaml`
 - 当前地图：`src/gazebo_map/maps/math_newest.yaml`
 - 任务参数：`src/smart_factory_mission/config/mission.yaml`
 - 开发路线：`src/smart_factory_mission/config/pickup_staging_dev.yaml`
-- 拟合路径：`src/smart_factory_mission/config/pickup_staging_fitted_path.yaml`
-- RViz 配置：`src/rviz_default_config.rviz`
+- RViz 配置：`src/gazebo_nav/config/rviz_default_config.rviz`
 
 如果需要重新测量路线点，可在 RViz 中使用 `2D Nav Goal`，再查看：
 
@@ -128,7 +136,7 @@ git push -u origin feature/your-task
 ## 后续开发方向
 
 1. `smart_factory_bridge`：接入真实或外部任务来源；
-2. `smart_factory_perception`：实现目标识别、深度定位和 TF 转换；
-3. `smart_factory_manipulation`：实现机械臂预抓取、抓取、运输和放置；
-4. `smart_factory_mission`：将导航阶段扩展为完整比赛状态机；
-5. `smart_factory_bringup/full_competition.launch`：在各阶段完成并验证后启用完整流程。
+2. `smart_factory_perception`：继续提高随机物块识别与定位鲁棒性；
+3. `smart_factory_manipulation`：在现有抓取能力上补充运输与放置；
+4. `smart_factory_mission`：在现有 Action 边界上补充运输与放置状态；
+5. `smart_factory_bringup/full_competition.launch`：持续作为完整流程唯一编排入口。

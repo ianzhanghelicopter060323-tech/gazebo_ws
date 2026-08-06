@@ -4,8 +4,10 @@ import types
 import unittest
 from unittest import mock
 
+from geometry_msgs.msg import PoseStamped
 import rospy
 
+from smart_factory_mission import states
 from smart_factory_mission.pickup_pipeline import CandidateStation, PickupPipeline
 
 
@@ -75,6 +77,52 @@ class PickupSequenceTest(unittest.TestCase):
             [(35, True), (36, True), (37, False)],
         )
         self.assertEqual(navigation, [36, 37])
+
+
+class PickupAlignmentTest(unittest.TestCase):
+    def test_alignment_reuses_initial_map_point_without_second_observation(self):
+        pipeline = PickupPipeline.__new__(PickupPipeline)
+        pipeline._maximum_alignment_iterations = 4
+        pipeline._alignment_tolerance = 0.015
+        pipeline._maximum_alignment_correction = 0.25
+        pipeline._frame_id = "map"
+        pipeline._planner = mock.Mock()
+        goal = PoseStamped()
+        pipeline._planner.goal_from_surface.return_value = goal
+        pipeline._planner.correction_distance.side_effect = [0.10, 0.006]
+        pipeline._observe = mock.Mock()
+
+        station = CandidateStation(35, 0.0, 0.0, 0.0, (0.0,) * 5)
+        response = types.SimpleNamespace(
+            point_map=types.SimpleNamespace(
+                point=types.SimpleNamespace(x=-0.8, y=-0.5)
+            )
+        )
+        navigate = mock.Mock()
+        localized_pose = mock.Mock(
+            side_effect=[(-1.2, -0.5, 0.0), (-1.1, -0.5, 0.0)]
+        )
+
+        with mock.patch("rospy.loginfo"), mock.patch(
+            "rospy.Time.now", return_value=rospy.Time()
+        ):
+            result = pipeline._align(
+                station,
+                response,
+                state_machine=object(),
+                navigate=navigate,
+                localized_pose=localized_pose,
+                preempt=lambda: False,
+            )
+
+        self.assertIs(result, response)
+        navigate.assert_called_once_with(
+            goal,
+            states.ALIGN_FOR_GRASP,
+            "seq35 fixed-standoff correction 1/4: 0.100m",
+        )
+        self.assertEqual(pipeline._planner.correction_distance.call_count, 2)
+        pipeline._observe.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -172,7 +172,7 @@ def read_documented_route(path, active_sequences):
 
 
 def read_fit_constraints(path, active_sequences):
-    """Read reference-path geometry constraints from mission configuration."""
+    """Read reference-path geometry constraints from navigation configuration."""
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     tracking = data.get("navigation", {}).get("path_tracking", {})
     raw_linear = tracking.get("direct_segments", [])
@@ -883,10 +883,11 @@ def main():
     parser.add_argument(
         "--mission-config",
         type=Path,
-        default=workspace / "src/smart_factory_mission/config/mission.yaml",
+        default=workspace
+        / "src/smart_factory_navigation/config/navigation.yaml",
         help=(
             "read direct-segment and fitted y-floor constraints from the "
-            "mission configuration"
+            "navigation configuration"
         ),
     )
     parser.add_argument(
@@ -912,7 +913,7 @@ def main():
         "--path-output",
         type=Path,
         default=workspace
-        / "src/smart_factory_mission/config/pickup_staging_fitted_path.yaml",
+        / "src/smart_factory_navigation/config/pickup_staging_fitted_path.yaml",
     )
     parser.add_argument("--copy-to", type=Path)
     parser.add_argument(

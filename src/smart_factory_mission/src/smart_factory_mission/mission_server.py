@@ -1,39 +1,22 @@
-"""ExecuteTask Action server for the navigation-to-pickup milestone."""
+"""Top-level ExecuteTask Action server and mission orchestrator."""
 
 from collections import OrderedDict
-import math
-import time
 
 import actionlib
-from actionlib_msgs.msg import GoalStatus
-from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
-from geometry_msgs.msg import PoseStamped
-from nav_msgs.msg import Path as NavigationPath
 import rospy
-from std_msgs.msg import Float64
-from std_srvs.srv import Empty
-import tf2_ros
 
 from smart_factory_interfaces.msg import (
     ExecuteTaskAction,
     ExecuteTaskFeedback,
-    ExecuteTaskGoal,
     ExecuteTaskResult,
     TaskState,
 )
+from smart_factory_navigation import error_codes as navigation_error_codes
+from smart_factory_navigation.client import NavigationClient
 from smart_factory_mission import error_codes, states
 from smart_factory_mission.goal_provider import (
     GoalUnavailable,
     create_goal_provider,
-)
-from smart_factory_mission.navigation_stage import (
-    NavigationOutcome,
-    NavigationStage,
-)
-from smart_factory_mission.path_tracker import (
-    FittedPath,
-    PathConfigError,
-    PathTracker,
 )
 from smart_factory_mission.pickup_pipeline import (
     PickupFailure,
@@ -45,197 +28,41 @@ from smart_factory_mission.task_context import TaskContext
 
 
 class MissionServer:
-    """ 0: FOOD; 1: DAILY; 2: ELECTRONICS"""
+    """Coordinate navigation, perception, and manipulation task stages."""
+
     VALID_TARGET_CLASSES = (0, 1, 2)
 
-    def __init__(self):
-        """ 从仿真的节点读导航参数、设定等待时间、超时时间、重试次数 """
-        self._action_name = rospy.get_param("~action_name", "/sim_task/execute")
-        self._move_base_name = rospy.get_param(
-            "~navigation/action_name", "/move_base"
+    def __init__(
+        self,
+        *,
+        action_name=None,
+        remember_results=None,
+        pipeline_stop_after=None,
+        pickup_pipeline=None,
+        goal_provider=None,
+        navigation=None,
+        navigation_wait_timeout=None,
+        state_publisher=None,
+        action_server=None,
+        auto_start=True,
+    ):
+        """Create the ROS server with explicit dependency seams for tests."""
+        self._action_name = (
+            action_name
+            if action_name is not None
+            else rospy.get_param("~action_name", "/sim_task/execute")
         )
-        self._move_base_wait = rospy.get_param(
-            "~navigation/server_wait_timeout", 10.0
-        )
-        self._navigation_timeout = rospy.get_param(
-            "~navigation/goal_timeout", 60.0
-        )
-        self._max_retries = int(
-            rospy.get_param("~navigation/max_retries", 1)
-        )
-
-        """
-        =================================================
-        普通中间点进入0.20 m半径即切换；指定点还需满足航向容差
-        =================================================
-        """
-        self._intermediate_pass_radius = float(
-            rospy.get_param(
-                "~navigation/intermediate_pass_radius", 0.20
-            )
-        )
-        if self._intermediate_pass_radius < 0.0:
-            raise ValueError(
-                "navigation/intermediate_pass_radius must not be negative"
-            )
-
-        self._intermediate_yaw_tolerance = float(
-            rospy.get_param(
-                "~navigation/intermediate_yaw_tolerance", 0.25
-            )
-        )
-        if not (
-            math.isfinite(self._intermediate_yaw_tolerance)
-            and 0.0 < self._intermediate_yaw_tolerance <= math.pi
-        ):
-            raise ValueError(
-                "navigation/intermediate_yaw_tolerance must be in (0, pi]"
-            )
-
-        constrained_waypoints = rospy.get_param(
-            "~navigation/heading_constrained_waypoints", []
-        )
-        if not isinstance(constrained_waypoints, list):
-            raise ValueError(
-                "navigation/heading_constrained_waypoints must be a list"
-            )
-        if any(
-            isinstance(number, bool)
-            or not isinstance(number, int)
-            or number <= 0
-            for number in constrained_waypoints
-        ):
-            raise ValueError(
-                "navigation/heading_constrained_waypoints must contain "
-                "positive waypoint numbers"
-            )
-        self._heading_constrained_waypoints = set(constrained_waypoints)
-        self._heading_alignment_timeout = float(
-            rospy.get_param(
-                "~navigation/heading_alignment_timeout", 8.0
-            )
-        )
-        self._heading_alignment_kp = float(
-            rospy.get_param("~navigation/heading_alignment_kp", 1.0)
-        )
-        self._heading_alignment_max_angular_speed = float(
-            rospy.get_param(
-                "~navigation/heading_alignment_max_angular_speed", 0.45
-            )
-        )
-        self._heading_alignment_min_angular_speed = float(
-            rospy.get_param(
-                "~navigation/heading_alignment_min_angular_speed", 0.40
-            )
-        )
-        if not (
-            math.isfinite(self._heading_alignment_timeout)
-            and self._heading_alignment_timeout > 0.0
-        ):
-            raise ValueError(
-                "navigation/heading_alignment_timeout must be positive"
-            )
-        if not (
-            math.isfinite(self._heading_alignment_kp)
-            and self._heading_alignment_kp > 0.0
-        ):
-            raise ValueError(
-                "navigation/heading_alignment_kp must be positive"
-            )
-        if not (
-            math.isfinite(self._heading_alignment_max_angular_speed)
-            and self._heading_alignment_max_angular_speed > 0.0
-        ):
-            raise ValueError(
-                "navigation/heading_alignment_max_angular_speed must be "
-                "positive"
-            )
-        if not (
-            math.isfinite(self._heading_alignment_min_angular_speed)
-            and self._heading_alignment_min_angular_speed > 0.0
-            and self._heading_alignment_min_angular_speed
-            <= self._heading_alignment_max_angular_speed
-        ):
-            raise ValueError(
-                "navigation/heading_alignment_min_angular_speed must be "
-                "positive and no greater than the maximum"
-            )
-        self._cmd_vel_topic = rospy.get_param(
-            "~navigation/cmd_vel_topic", "/cmd_vel"
-        )
-        self._route_execution_mode = rospy.get_param(
-            "~navigation/route_execution_mode", "legacy_waypoints"
-        )
-        if self._route_execution_mode not in (
-            "legacy_waypoints",
-            "fitted_path_lookahead",
-        ):
-            raise ValueError(
-                "navigation/route_execution_mode must be legacy_waypoints "
-                "or fitted_path_lookahead"
-            )
-        self._fitted_path = None
-        if self._route_execution_mode == "fitted_path_lookahead":
-            try:
-                self._fitted_path = FittedPath.from_config(
-                    rospy.get_param("~fitted_path", {})
-                )
-            except PathConfigError as exc:
-                raise ValueError("invalid fitted path: {}".format(exc))
-        self._load_path_tracking_parameters()
-
-        """ 初始化定位参数 """
-        self._map_frame = rospy.get_param("~localization/map_frame", "map")
-        self._base_frame = rospy.get_param(
-            "~localization/base_frame", "base_footprint"
-        )
-        self._amcl_topic = rospy.get_param(
-            "~localization/amcl_topic", "/amcl_pose"
-        )
-        self._localization_wait = rospy.get_param(
-            "~localization/wait_timeout", 10.0
-        )
-        self._max_pose_age = rospy.get_param(
-            "~localization/max_pose_age", 1.0
-        )
-        self._max_tf_age = rospy.get_param(
-            "~localization/max_tf_age", 1.0
-        )
-        self._allow_stale_pose_with_fresh_tf = rospy.get_param(
-            "~localization/allow_stale_pose_with_fresh_tf", True
-        )
-        self._max_xy_variance = rospy.get_param(
-            "~localization/max_xy_variance", 0.0025  # 依据planner的tolerance修改
-        )
-        self._max_yaw_variance = rospy.get_param(
-            "~localization/max_yaw_variance", 0.0025 # 依据planner的tolerance修改
-        )
-        self._require_tf = rospy.get_param(
-            "~localization/require_tf", True
-        )
-        self._nomotion_update_service = str(
-            rospy.get_param(
-                "~localization/nomotion_update_service",
-                "/request_nomotion_update",
-            )
-        ).strip()
-        self._nomotion_update_period = float(
-            rospy.get_param(
-                "~localization/nomotion_update_period", 1.0
-            )
-        )
-        if not (
-            math.isfinite(self._nomotion_update_period)
-            and self._nomotion_update_period > 0.0
-        ):
-            raise ValueError(
-                "localization/nomotion_update_period must be positive"
-            )
         self._remember_results = int(
-            rospy.get_param("~task/remember_completed_results", 20)
+            remember_results
+            if remember_results is not None
+            else rospy.get_param("~task/remember_completed_results", 20)
         )
         self._pipeline_stop_after = str(
-            rospy.get_param("~pipeline_stop_after", "ARRIVED_PICKUP_STAGING")
+            pipeline_stop_after
+            if pipeline_stop_after is not None
+            else rospy.get_param(
+                "~pipeline_stop_after", "ARRIVED_PICKUP_STAGING"
+            )
         ).strip()
         if self._pipeline_stop_after not in (
             "ARRIVED_PICKUP_STAGING",
@@ -245,264 +72,61 @@ class MissionServer:
                 "pipeline_stop_after must be ARRIVED_PICKUP_STAGING or "
                 "OBJECT_GRASPED"
             )
-        self._pickup_pipeline = PickupPipeline(rospy.get_param("~pickup", {}))
-        self._direct_alignment_tolerance = float(
-            rospy.get_param("~pickup/direct_alignment_tolerance", 0.008)
-        )
-        self._direct_alignment_gain = float(
-            rospy.get_param("~pickup/direct_alignment_gain", 1.0)
-        )
-        self._direct_alignment_max_speed = float(
-            rospy.get_param("~pickup/direct_alignment_max_speed", 0.08)
-        )
-        self._direct_alignment_min_speed = float(
-            rospy.get_param("~pickup/direct_alignment_min_speed", 0.05)
-        )
-        self._direct_alignment_timeout = float(
-            rospy.get_param("~pickup/direct_alignment_timeout", 8.0)
-        )
-        for name, value in (
-            ("direct_alignment_tolerance", self._direct_alignment_tolerance),
-            ("direct_alignment_gain", self._direct_alignment_gain),
-            ("direct_alignment_max_speed", self._direct_alignment_max_speed),
-            ("direct_alignment_min_speed", self._direct_alignment_min_speed),
-            ("direct_alignment_timeout", self._direct_alignment_timeout),
-        ):
-            if not math.isfinite(value) or value <= 0.0:
-                raise ValueError("pickup/{} must be positive".format(name))
-        if self._direct_alignment_min_speed > self._direct_alignment_max_speed:
-            raise ValueError(
-                "pickup/direct_alignment_min_speed must not exceed max speed"
+
+        self._pickup_pipeline = pickup_pipeline
+        if self._pickup_pipeline is None:
+            self._pickup_pipeline = PickupPipeline(
+                rospy.get_param("~pickup", {})
             )
-
-        provider_type = rospy.get_param("~goal_source", "development")
-
-        """ GoalProvider提供取货等待区的 PoseStamped """
-        self._goal_provider = create_goal_provider(provider_type)
-        """ NavigationStage将目标封装为 MoveBaseGoal,发送给 move_base """
-        self._navigation = NavigationStage(
-            self._move_base_name, self._navigation_timeout
-        )
-
-        self._latest_amcl = None
-        self._nomotion_update = (
-            rospy.ServiceProxy(self._nomotion_update_service, Empty)
-            if self._nomotion_update_service
-            else None
-        )
-        self._tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(10.0))
-        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer)
+        self._goal_provider = goal_provider
+        if self._goal_provider is None:
+            provider_type = rospy.get_param("~goal_source", "development")
+            self._goal_provider = create_goal_provider(provider_type)
         self._completed_results = OrderedDict()
 
-        """ 发布/sim_task/state 用于广播任务状态 """
-        self._state_pub = rospy.Publisher(
-            "/sim_task/state", TaskState, queue_size=10, latch=True
+        self._navigation_wait_timeout = float(
+            navigation_wait_timeout
+            if navigation_wait_timeout is not None
+            else rospy.get_param("~navigation_server_wait_timeout", 10.0)
         )
-        self._cmd_vel_pub = rospy.Publisher(
-            self._cmd_vel_topic, Twist, queue_size=1
-        )
-        self._reference_path_pub = rospy.Publisher(
-            self._path_topic, NavigationPath, queue_size=1, latch=True
-        )
-        self._tracking_goal_pub = rospy.Publisher(
-            self._tracking_goal_topic, PoseStamped, queue_size=1
-        )
-        self._path_progress_pub = rospy.Publisher(
-            self._progress_topic, Float64, queue_size=10
-        )
+        if self._navigation_wait_timeout <= 0.0:
+            raise ValueError(
+                "navigation_server_wait_timeout must be positive"
+            )
+        self._navigation = navigation
+        if self._navigation is None:
+            navigation_action_name = rospy.get_param(
+                "~navigation_action_name", "/smart_factory/navigation"
+            )
+            self._navigation = NavigationClient(navigation_action_name)
 
-        """ 订阅AMCL位姿信息 """
-        self._amcl_sub = rospy.Subscriber(
-            self._amcl_topic,
-            PoseWithCovarianceStamped,
-            self._amcl_callback,
-            queue_size=1,
-        )
-
-        """ 创建并启动ACTION服务 """
-        self._server = actionlib.SimpleActionServer(
-            self._action_name,
-            ExecuteTaskAction,
-            execute_cb=self._execute,
-            auto_start=False,
-        )
-        self._server.start()
-
-        """
-        ================
-        发布任务状态：空闲
-        ================
-        state = IDLE
-        detail = "waiting for task"
-        """
-        self._publish_idle()
-        rospy.loginfo("smart factory mission ready on %s", self._action_name)
-
-    def _load_path_tracking_parameters(self):
-        namespace = "~navigation/path_tracking/"
-        self._path_topic = rospy.get_param(
-            namespace + "path_topic", "/sim_task/reference_path"
-        )
-        self._tracking_goal_topic = rospy.get_param(
-            namespace + "tracking_goal_topic", "/sim_task/tracking_goal"
-        )
-        self._progress_topic = rospy.get_param(
-            namespace + "progress_topic", "/sim_task/path_progress"
-        )
-        self._path_control_frequency = float(
-            rospy.get_param(namespace + "control_frequency", 20.0)
-        )
-        self._lookahead_min = float(
-            rospy.get_param(namespace + "lookahead_min", 0.18)
-        )
-        self._lookahead_max = float(
-            rospy.get_param(namespace + "lookahead_max", 0.55)
-        )
-        self._lookahead_curvature_gain = float(
-            rospy.get_param(namespace + "lookahead_curvature_gain", 0.15)
-        )
-        self._projection_window = float(
-            rospy.get_param(namespace + "projection_window", 1.0)
-        )
-        self._path_acquire_radius = float(
-            rospy.get_param(namespace + "acquire_radius", 0.20)
-        )
-        self._goal_update_distance = float(
-            rospy.get_param(namespace + "goal_update_distance", 0.18)
-        )
-        self._goal_update_period = float(
-            rospy.get_param(namespace + "goal_update_period", 1.0)
-        )
-        self._cross_track_warn = float(
-            rospy.get_param(namespace + "cross_track_warn", 0.12)
-        )
-        self._cross_track_abort = float(
-            rospy.get_param(namespace + "cross_track_abort", 0.25)
-        )
-        self._progress_timeout = float(
-            rospy.get_param(namespace + "progress_timeout", 15.0)
-        )
-        self._progress_epsilon = float(
-            rospy.get_param(namespace + "progress_epsilon", 0.05)
-        )
-        self._final_phase_distance = float(
-            rospy.get_param(namespace + "final_phase_distance", 0.30)
-        )
-        self._route_timeout = float(
-            rospy.get_param(namespace + "route_timeout", 240.0)
-        )
-        raw_direct_segments = rospy.get_param(
-            namespace + "direct_segments", []
-        )
-        if not isinstance(raw_direct_segments, list):
-            raise ValueError("navigation/path_tracking/direct_segments must be a list")
-        self._direct_segments = []
-        for segment in raw_direct_segments:
-            if (
-                not isinstance(segment, list)
-                or len(segment) != 2
-                or any(
-                    isinstance(value, bool)
-                    or not isinstance(value, int)
-                    or value <= 0
-                    for value in segment
-                )
-            ):
-                raise ValueError(
-                    "each direct segment must contain two positive seq integers"
-                )
-            self._direct_segments.append(tuple(segment))
-        raw_heading_locks = rospy.get_param(namespace + "heading_locks", [])
-        if not isinstance(raw_heading_locks, list):
-            raise ValueError("navigation/path_tracking/heading_locks must be a list")
-        self._heading_locks = []
-        lock_keys = (
-            "start_seq",
-            "full_lock_seq",
-            "end_seq",
-            "direction_start_seq",
-            "direction_end_seq",
-        )
-        for lock in raw_heading_locks:
-            if not isinstance(lock, dict):
-                raise ValueError("each heading lock must be a mapping")
-            sequences = [lock.get(key) for key in lock_keys]
-            if any(
-                isinstance(value, bool)
-                or not isinstance(value, int)
-                or value <= 0
-                for value in sequences
-            ):
-                raise ValueError(
-                    "heading lock seq fields must be positive integers"
-                )
-            release_distance = lock.get("release_distance")
-            if isinstance(release_distance, bool) or not isinstance(
-                release_distance, (int, float)
-            ):
-                raise ValueError(
-                    "heading lock release_distance must be numeric"
-                )
-            self._heading_locks.append(
-                tuple(sequences) + (float(release_distance),)
+        self._state_publisher = state_publisher
+        if self._state_publisher is None:
+            self._state_publisher = rospy.Publisher(
+                "/sim_task/state", TaskState, queue_size=10, latch=True
+            )
+        self._server = action_server
+        if self._server is None:
+            self._server = actionlib.SimpleActionServer(
+                self._action_name,
+                ExecuteTaskAction,
+                execute_cb=self._execute,
+                auto_start=False,
+            )
+        if auto_start:
+            self._server.start()
+            self._publish_idle()
+            rospy.loginfo(
+                "smart factory mission ready on %s", self._action_name
             )
 
-        positive = {
-            "control_frequency": self._path_control_frequency,
-            "lookahead_min": self._lookahead_min,
-            "lookahead_max": self._lookahead_max,
-            "projection_window": self._projection_window,
-            "acquire_radius": self._path_acquire_radius,
-            "goal_update_distance": self._goal_update_distance,
-            "goal_update_period": self._goal_update_period,
-            "cross_track_warn": self._cross_track_warn,
-            "cross_track_abort": self._cross_track_abort,
-            "progress_timeout": self._progress_timeout,
-            "progress_epsilon": self._progress_epsilon,
-            "final_phase_distance": self._final_phase_distance,
-            "route_timeout": self._route_timeout,
-        }
-        for name, value in positive.items():
-            if not math.isfinite(value) or value <= 0.0:
-                raise ValueError(
-                    "navigation/path_tracking/{} must be positive".format(name)
-                )
-        if self._lookahead_max < self._lookahead_min:
-            raise ValueError("path lookahead_max must be no smaller than lookahead_min")
-        if self._cross_track_abort <= self._cross_track_warn:
-            raise ValueError("cross_track_abort must be greater than cross_track_warn")
-        if (
-            not math.isfinite(self._lookahead_curvature_gain)
-            or self._lookahead_curvature_gain < 0.0
-        ):
-            raise ValueError("lookahead_curvature_gain must not be negative")
-
-
-    def _amcl_callback(self, message):
-        self._latest_amcl = message
-
-    """
-    ================
-    发布任务状态：空闲
-    ================
-    state = IDLE
-    detail = "waiting for task"
-    """
     def _publish_idle(self):
         message = TaskState()
         message.header.stamp = rospy.Time.now()
         message.state = states.IDLE
         message.detail = "waiting for task"
-        self._state_pub.publish(message) # 向/sim_task/state发布TaskState()信息
+        self._state_publisher.publish(message)
 
-
-    """
-    =================================================
-    任务状态转换时：
-        向/sim_task/state发布TaskState()信息
-        向向当前 Action 客户端发布 ExecuteTaskFeedback
-    =================================================
-    """
     def _publish_state(self, context, detail):
         state_message = TaskState()
         state_message.header.stamp = rospy.Time.now()
@@ -510,13 +134,13 @@ class MissionServer:
         state_message.state = context.current_stage
         state_message.retry_count = context.retry_count
         state_message.detail = detail
-        self._state_pub.publish(state_message) # 向/sim_task/state发布TaskState()信息
+        self._state_publisher.publish(state_message)
 
         feedback = ExecuteTaskFeedback()
         feedback.current_stage = context.current_stage
         feedback.retry_count = context.retry_count
         feedback.detail = detail
-        self._server.publish_feedback(feedback) # 向向当前 Action 客户端发布 ExecuteTaskFeedback
+        self._server.publish_feedback(feedback)
         rospy.loginfo(
             "task=%s stage=%s retry=%d: %s",
             context.task_id,
@@ -525,7 +149,8 @@ class MissionServer:
             detail,
         )
 
-    def _make_result(self, success, stage, error_code, message):
+    @staticmethod
+    def _make_result(success, stage, error_code, message):
         result = ExecuteTaskResult()
         result.success = success
         result.completed_stage = stage
@@ -552,344 +177,6 @@ class MissionServer:
         self._server.set_succeeded(result, result.message)
         self._publish_idle()
 
-    """
-    ==================
-    检查AMCL定位是否就绪
-    ==================
-    """
-    def _map_to_base_tf_age(self):
-        try:
-            transform = self._tf_buffer.lookup_transform(
-                self._map_frame,
-                self._base_frame,
-                rospy.Time(0),
-                rospy.Duration(0.1),
-            )
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ):
-            return None
-
-        stamp = transform.header.stamp
-        if stamp == rospy.Time():
-            return None
-        return (rospy.Time.now() - stamp).to_sec()
-
-    def _tf_age_is_ready(self, age):
-        if age is None or age < 0.0:
-            return False
-        if self._max_tf_age > 0.0 and age > self._max_tf_age:
-            return False
-        return True
-
-    def _pose_is_ready(self):
-        # AMCL定位必须就绪
-        if self._latest_amcl is None:
-            return False
-
-        # AMCL位姿必须具有有效时间戳；超过max_pose_age时可由新鲜TF兜底。
-        stamp = self._latest_amcl.header.stamp
-        if stamp == rospy.Time():
-            return False
-        age = (rospy.Time.now() - stamp).to_sec()
-        if age < 0.0:
-            return False
-        pose_is_fresh = (
-            self._max_pose_age <= 0.0 or age <= self._max_pose_age
-        )
-
-        # 方差不能大于允许值
-        covariance = self._latest_amcl.pose.covariance
-        if covariance[0] > self._max_xy_variance:
-            return False
-        if covariance[7] > self._max_xy_variance:
-            return False
-        if covariance[35] > self._max_yaw_variance:
-            return False
-
-        # 静止时AMCL可能不发布新的/amcl_pose，但map->base TF仍会随
-        # odom持续更新。此时以近期有效的TF证明定位链仍然工作，避免为了
-        # 刷新时间戳而重复发布/initialpose。
-        needs_tf = (
-            self._require_tf
-            or (
-                not pose_is_fresh
-                and self._allow_stale_pose_with_fresh_tf
-            )
-        )
-        tf_age = self._map_to_base_tf_age() if needs_tf else None
-        tf_is_fresh = self._tf_age_is_ready(tf_age)
-
-        if self._require_tf and not tf_is_fresh:
-            return False
-
-        if not pose_is_fresh:
-            if not (
-                self._allow_stale_pose_with_fresh_tf
-                and tf_is_fresh
-            ):
-                return False
-            rospy.loginfo(
-                "AMCL pose is %.3fs old; accepting localization because "
-                "%s -> %s TF is %.3fs old",
-                age,
-                self._map_frame,
-                self._base_frame,
-                tf_age,
-            )
-
-        # 一套检查完，全部正常启动则返回True
-        return True
-
-    """
-    ===================
-    连续查询定位是否有效：
-    ===================
-        0.1s间隔连续查询：
-            定位就绪：返回 True
-            等待超时：返回 False
-            客户端取消任务：返回 False
-            ROS 关闭：返回 False
-        则返回True
-    """
-    def _wait_for_localization(self):
-        deadline = time.monotonic() + float(self._localization_wait)
-        next_nomotion_update = 0.0
-        while not rospy.is_shutdown() and time.monotonic() < deadline:
-            if self._server.is_preempt_requested():
-                return False
-            if self._pose_is_ready():
-                return True
-            now = time.monotonic()
-            if self._nomotion_update is not None and now >= next_nomotion_update:
-                try:
-                    rospy.wait_for_service(
-                        self._nomotion_update_service, timeout=0.2
-                    )
-                    self._nomotion_update()
-                except (rospy.ROSException, rospy.ServiceException) as exc:
-                    rospy.logwarn_throttle(
-                        2.0,
-                        "cannot request AMCL no-motion update from %s: %s",
-                        self._nomotion_update_service,
-                        exc,
-                    )
-                next_nomotion_update = now + self._nomotion_update_period
-            rospy.sleep(0.1)
-        return False
-
-    """
-    ========================
-    加入了在6-7转换的朝向控制
-    ========================
-    """
-    @staticmethod
-    def _quaternion_yaw(quaternion):
-        """四元数yaw转换"""
-        return math.atan2(
-            2.0
-            * (
-                quaternion.w * quaternion.z
-                + quaternion.x * quaternion.y
-            ),
-            1.0
-            - 2.0
-            * (
-                quaternion.y * quaternion.y
-                + quaternion.z * quaternion.z
-            ),
-        )
-
-    @staticmethod
-    def _shortest_angular_distance(first, second):
-        """Return the signed shortest rotation from first to second."""
-        return math.atan2(
-            math.sin(second - first),
-            math.cos(second - first),
-        )
-
-    @staticmethod
-    def _make_pose(frame_id, x, y, yaw):
-        pose = PoseStamped()
-        pose.header.frame_id = frame_id
-        pose.header.stamp = rospy.Time.now()
-        pose.pose.position.x = x
-        pose.pose.position.y = y
-        pose.pose.orientation.z = math.sin(yaw / 2.0)
-        pose.pose.orientation.w = math.cos(yaw / 2.0)
-        return pose
-
-    def _localized_pose(self, frame_id):
-        try:
-            transform = self._tf_buffer.lookup_transform(
-                frame_id,
-                self._base_frame,
-                rospy.Time(0),
-                rospy.Duration(0.05),
-            )
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as exc:
-            rospy.logwarn_throttle(
-                2.0,
-                "cannot read localized robot position in %s: %s",
-                frame_id,
-                exc,
-            )
-            return None
-        return (
-            transform.transform.translation.x,
-            transform.transform.translation.y,
-            self._quaternion_yaw(transform.transform.rotation),
-        )
-
-    def _localized_xy(self, frame_id):
-        localized = self._localized_pose(frame_id)
-        return None if localized is None else localized[:2]
-
-    def _pose_is_within_radius(self, pose, radius):
-        frame_id = pose.header.frame_id or self._map_frame
-        localized = self._localized_xy(frame_id)
-        if localized is None:
-            return False
-        return math.hypot(
-            pose.pose.position.x - localized[0],
-            pose.pose.position.y - localized[1],
-        ) <= radius
-
-    """
-    ===========
-    发布拟合路径
-    ===========
-    """
-    def _publish_fitted_reference_path(self):
-        message = NavigationPath()
-        message.header.frame_id = self._fitted_path.frame_id
-        message.header.stamp = rospy.Time.now()
-        for point in self._fitted_path.points:
-            pose = self._make_pose(
-                self._fitted_path.frame_id,
-                point.x,
-                point.y,
-                point.yaw,
-            )
-            pose.header.stamp = message.header.stamp
-            message.poses.append(pose)
-        self._reference_path_pub.publish(message)
-
-    """
-    =======================================
-    普通中间点只检查位置并连续通过；指定点进入半径后
-    停止平移并原地校正航向，再继续下一个导航点
-    =======================================
-    """
-    def _intermediate_waypoint_is_passed(self, waypoint):
-        """Return whether the localized base is inside the pass radius."""
-        if self._intermediate_pass_radius <= 0.0:
-            return False
-        return self._pose_is_within_radius(
-            waypoint, self._intermediate_pass_radius
-        )
-
-    def _intermediate_waypoint_heading_error(self, waypoint):
-        """Return signed target-minus-current yaw, or None without fresh TF."""
-        waypoint_frame = waypoint.header.frame_id or self._map_frame
-        try:
-            transform = self._tf_buffer.lookup_transform(
-                waypoint_frame,
-                self._base_frame,
-                rospy.Time(0),
-                rospy.Duration(0.05),
-            )
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as exc:
-            rospy.logwarn_throttle(
-                2.0,
-                "cannot evaluate intermediate waypoint heading in %s: %s",
-                waypoint_frame,
-                exc,
-            )
-            return None
-
-        current_yaw = self._quaternion_yaw(transform.transform.rotation)
-        target_yaw = self._quaternion_yaw(waypoint.pose.orientation)
-        return self._shortest_angular_distance(current_yaw, target_yaw)
-
-    def _heading_alignment_command(self, yaw_error):
-        command = self._heading_alignment_kp * yaw_error
-        maximum = self._heading_alignment_max_angular_speed
-        command = max(-maximum, min(maximum, command))
-        if command == 0.0:
-            return 0.0
-
-        minimum = self._heading_alignment_min_angular_speed
-        if abs(command) < minimum:
-            return math.copysign(minimum, command)
-        return command
-
-    def _align_intermediate_waypoint_heading(self, waypoint, heartbeat):
-        """Cancel move_base and rotate in place to the waypoint heading."""
-        self._navigation.cancel_goal()
-        rospy.sleep(0.2)
-
-        deadline = rospy.Time.now() + rospy.Duration(
-            self._heading_alignment_timeout
-        )
-        rate = rospy.Rate(10.0)
-        outcome = NavigationOutcome.TIMEOUT
-        message = "intermediate heading alignment timed out"
-
-        try:
-            while not rospy.is_shutdown():
-                if self._server.is_preempt_requested():
-                    outcome = NavigationOutcome.PREEMPTED
-                    message = "task was preempted during heading alignment"
-                    break
-
-                yaw_error = self._intermediate_waypoint_heading_error(
-                    waypoint
-                )
-                if yaw_error is not None:
-                    if abs(yaw_error) <= self._intermediate_yaw_tolerance:
-                        outcome = NavigationOutcome.SUCCEEDED
-                        message = (
-                            "intermediate waypoint heading aligned"
-                        )
-                        break
-
-                    command = Twist()
-                    command.angular.z = self._heading_alignment_command(
-                        yaw_error
-                    )
-                    self._cmd_vel_pub.publish(command)
-
-                heartbeat()
-                if rospy.Time.now() >= deadline:
-                    break
-                rate.sleep()
-        finally:
-            self._cmd_vel_pub.publish(Twist())
-
-        return outcome, message
-
-
-    """
-    ==============
-    处理普通的失败：
-    ==============
-        保存错误码和消息
-        状态转为 TASK_FAILED
-        构造失败结果
-        调用 set_aborted()
-        发布 IDLE
-    """
     def _abort(self, context, state_machine, error_code, message):
         context.last_error = error_code
         context.last_message = message
@@ -900,12 +187,6 @@ class MissionServer:
         self._server.set_aborted(result, message)
         self._publish_idle()
 
-
-    """
-    ===============================
-    用于客户端主动取消任务或 ROS 关闭：
-    ===============================
-    """
     def _preempt(self, context, state_machine, message):
         context.last_error = error_codes.TASK_PREEMPTED
         state_machine.transition(states.TASK_FAILED, message)
@@ -915,325 +196,36 @@ class MissionServer:
             error_codes.TASK_PREEMPTED,
             message,
         )
-        self._server.set_preempted(result, message) # Action 终态为 PREEMPTED，错误码固定为 TASK_PREEMPTED
+        self._server.set_preempted(result, message)
         self._publish_idle()
 
-    def _fitted_path_matches_route(self, goals):
-        if not goals:
-            return False
-        final = goals[-1]
-        expected_x, expected_y, expected_yaw = self._fitted_path.final_goal
-        actual_yaw = self._quaternion_yaw(final.pose.orientation)
+    @staticmethod
+    def _mission_navigation_error(error_code):
+        if error_code in (
+            error_codes.MOVE_BASE_UNAVAILABLE,
+            error_codes.LOCALIZATION_NOT_READY,
+            error_codes.GOAL_UNAVAILABLE,
+            error_codes.NAVIGATION_TIMEOUT,
+            error_codes.NAVIGATION_ABORTED,
+            error_codes.ALIGNMENT_FAILED,
+        ):
+            return error_code
+        return error_codes.INTERNAL_ERROR
+
+    def _navigation_feedback(self, context, feedback):
+        if feedback.current_waypoint > 0:
+            context.current_waypoint_index = feedback.current_waypoint - 1
+        context.retry_count = feedback.retry_count
+        self._publish_state(
+            context,
+            feedback.detail or "navigation request is active",
+        )
+
+    def _navigation_result_preempted(self, result):
         return (
-            math.hypot(
-                final.pose.position.x - expected_x,
-                final.pose.position.y - expected_y,
-            )
-            <= 1.0e-4
-            and abs(
-                self._shortest_angular_distance(actual_yaw, expected_yaw)
-            )
-            <= 1.0e-4
+            result.error_code == navigation_error_codes.REQUEST_PREEMPTED
+            or self._server.is_preempt_requested()
         )
-
-    def _execute_fitted_path(self, context, state_machine):
-        """Follow the offline spline through low-rate moving move_base goals."""
-        if not self._fitted_path_matches_route(context.pickup_staging_goals):
-            self._abort(
-                context,
-                state_machine,
-                error_codes.GOAL_UNAVAILABLE,
-                "fitted path is stale: regenerate it from the active route",
-            )
-            return
-
-        try:
-            tracker = PathTracker(
-                self._fitted_path,
-                self._lookahead_min,
-                self._lookahead_max,
-                self._lookahead_curvature_gain,
-                self._projection_window,
-                self._direct_segments,
-                self._heading_locks,
-            )
-        except PathConfigError as exc:
-            self._abort(
-                context,
-                state_machine,
-                error_codes.GOAL_UNAVAILABLE,
-                "invalid fitted-path tracker configuration: {}".format(exc),
-            )
-            return
-
-        self._publish_fitted_reference_path()
-        first_point = self._fitted_path.points[0]
-        first_pose = self._make_pose(
-            self._fitted_path.frame_id,
-            first_point.x,
-            first_point.y,
-            first_point.yaw,
-        )
-
-        acquired = False
-        acquisition_message = ""
-        for retry in range(self._max_retries + 1):
-            context.retry_count = retry
-            state_machine.transition(
-                states.NAVIGATE_TO_PICKUP_STAGING,
-                "acquiring fitted path start (attempt {}/{})".format(
-                    retry + 1, self._max_retries + 1
-                ),
-            )
-            outcome, acquisition_message = self._navigation.navigate(
-                first_pose,
-                self._server.is_preempt_requested,
-                lambda: self._publish_state(
-                    context, "move_base is acquiring the fitted path start"
-                ),
-                pass_condition=lambda: self._pose_is_within_radius(
-                    first_pose, self._path_acquire_radius
-                ),
-            )
-            if outcome in (
-                NavigationOutcome.SUCCEEDED,
-                NavigationOutcome.PASSED,
-            ):
-                acquired = True
-                break
-            if outcome == NavigationOutcome.PREEMPTED:
-                self._preempt(
-                    context,
-                    state_machine,
-                    "task preempted while acquiring fitted path",
-                )
-                return
-        if not acquired:
-            error_code = (
-                error_codes.NAVIGATION_TIMEOUT
-                if outcome == NavigationOutcome.TIMEOUT
-                else error_codes.NAVIGATION_ABORTED
-            )
-            self._abort(
-                context,
-                state_machine,
-                error_code,
-                "failed to acquire fitted path: {}".format(acquisition_message),
-            )
-            return
-
-        context.retry_count = 0
-        state_machine.transition(
-            states.NAVIGATE_TO_PICKUP_STAGING,
-            "fitted path acquired; starting moving-lookahead navigation",
-        )
-
-        route_started = time.monotonic()
-        progress_checked_at = route_started
-        checked_progress = 0.0
-        heartbeat_at = 0.0
-        last_goal_s = None
-        last_goal_at = None
-        consecutive_goal_failures = 0
-        rate = rospy.Rate(self._path_control_frequency)
-
-        while not rospy.is_shutdown():
-            now = time.monotonic()
-            if self._server.is_preempt_requested():
-                self._navigation.cancel_goal()
-                self._preempt(
-                    context,
-                    state_machine,
-                    "task preempted during fitted-path navigation",
-                )
-                return
-            if now - route_started >= self._route_timeout:
-                self._navigation.cancel_goal()
-                self._abort(
-                    context,
-                    state_machine,
-                    error_codes.NAVIGATION_TIMEOUT,
-                    "fitted-path navigation exceeded {:.1f}s".format(
-                        self._route_timeout
-                    ),
-                )
-                return
-
-            localized = self._localized_xy(self._fitted_path.frame_id)
-            if localized is None:
-                rate.sleep()
-                continue
-            tracking = tracker.update(localized[0], localized[1])
-            self._path_progress_pub.publish(Float64(data=tracking.progress_s))
-
-            if tracking.cross_track_error >= self._cross_track_abort:
-                self._navigation.cancel_goal()
-                self._abort(
-                    context,
-                    state_machine,
-                    error_codes.NAVIGATION_ABORTED,
-                    "cross-track error {:.3f}m exceeds {:.3f}m limit at "
-                    "s={:.3f}m".format(
-                        tracking.cross_track_error,
-                        self._cross_track_abort,
-                        tracking.progress_s,
-                    ),
-                )
-                return
-            if tracking.cross_track_error >= self._cross_track_warn:
-                rospy.logwarn_throttle(
-                    1.0,
-                    "fitted-path cross-track error is %.3fm at s=%.3fm",
-                    tracking.cross_track_error,
-                    tracking.progress_s,
-                )
-
-            if tracking.progress_s >= checked_progress + self._progress_epsilon:
-                checked_progress = tracking.progress_s
-                progress_checked_at = now
-                consecutive_goal_failures = 0
-            elif now - progress_checked_at >= self._progress_timeout:
-                self._navigation.cancel_goal()
-                self._abort(
-                    context,
-                    state_machine,
-                    error_codes.NAVIGATION_TIMEOUT,
-                    "fitted path made less than {:.2f}m progress in {:.1f}s "
-                    "at s={:.3f}m".format(
-                        self._progress_epsilon,
-                        self._progress_timeout,
-                        tracking.progress_s,
-                    ),
-                )
-                return
-
-            remaining = self._fitted_path.total_length - tracking.progress_s
-            if remaining <= self._final_phase_distance:
-                break
-
-            state = self._navigation.get_state()
-            update_due = (
-                last_goal_s is None
-                or tracking.target.s >= last_goal_s + self._goal_update_distance
-                or (
-                    last_goal_at is not None
-                    and now - last_goal_at >= self._goal_update_period
-                )
-                or state == GoalStatus.SUCCEEDED
-            )
-            if update_due:
-                target_pose = self._make_pose(
-                    self._fitted_path.frame_id,
-                    tracking.target.x,
-                    tracking.target.y,
-                    tracking.target.yaw,
-                )
-                self._navigation.send_or_replace_goal(target_pose)
-                self._tracking_goal_pub.publish(target_pose)
-                last_goal_s = tracking.target.s
-                last_goal_at = now
-                state = self._navigation.get_state()
-
-            if state in (
-                GoalStatus.PREEMPTED,
-                GoalStatus.ABORTED,
-                GoalStatus.REJECTED,
-                GoalStatus.RECALLED,
-                GoalStatus.LOST,
-            ):
-                if consecutive_goal_failures < self._max_retries:
-                    consecutive_goal_failures += 1
-                    context.retry_count = consecutive_goal_failures
-                    retry_pose = self._make_pose(
-                        self._fitted_path.frame_id,
-                        tracking.target.x,
-                        tracking.target.y,
-                        tracking.target.yaw,
-                    )
-                    self._navigation.send_or_replace_goal(retry_pose)
-                    self._tracking_goal_pub.publish(retry_pose)
-                    last_goal_s = tracking.target.s
-                    last_goal_at = now
-                    self._publish_state(
-                        context,
-                        "retrying moving target after move_base state {}".format(
-                            state
-                        ),
-                    )
-                else:
-                    self._abort(
-                        context,
-                        state_machine,
-                        error_codes.NAVIGATION_ABORTED,
-                        "moving lookahead goal failed with move_base state "
-                        "{} at s={:.3f}m".format(state, tracking.progress_s),
-                    )
-                    return
-
-            if now - heartbeat_at >= 1.0:
-                heartbeat_at = now
-                self._publish_state(
-                    context,
-                    "tracking fitted path s={:.2f}/{:.2f}m, error={:.3f}m, "
-                    "lookahead={:.2f}m".format(
-                        tracking.progress_s,
-                        self._fitted_path.total_length,
-                        tracking.cross_track_error,
-                        tracking.lookahead,
-                    ),
-                )
-            rate.sleep()
-
-        if rospy.is_shutdown():
-            self._navigation.cancel_goal()
-            return
-
-        final_goal = context.pickup_staging_goals[-1]
-        final_outcome = None
-        final_message = ""
-        for retry in range(self._max_retries + 1):
-            context.retry_count = retry
-            self._publish_state(
-                context,
-                "sending exact final staging pose (attempt {}/{})".format(
-                    retry + 1, self._max_retries + 1
-                ),
-            )
-            final_outcome, final_message = self._navigation.navigate(
-                final_goal,
-                self._server.is_preempt_requested,
-                lambda: self._publish_state(
-                    context, "exact final staging goal is active"
-                ),
-            )
-            if final_outcome == NavigationOutcome.SUCCEEDED:
-                break
-            if final_outcome == NavigationOutcome.PREEMPTED:
-                self._preempt(
-                    context,
-                    state_machine,
-                    "task preempted during exact final staging goal",
-                )
-                return
-        if final_outcome != NavigationOutcome.SUCCEEDED:
-            error_code = (
-                error_codes.NAVIGATION_TIMEOUT
-                if final_outcome == NavigationOutcome.TIMEOUT
-                else error_codes.NAVIGATION_ABORTED
-            )
-            self._abort(
-                context,
-                state_machine,
-                error_code,
-                "exact final staging goal failed: {}".format(final_message),
-            )
-            return
-
-        state_machine.transition(
-            states.ARRIVED_PICKUP_STAGING,
-            "fitted path completed; arrived at pickup staging area",
-        )
-        return True
 
     def _navigate_pickup_pose(
         self,
@@ -1243,126 +235,29 @@ class MissionServer:
         stage,
         detail,
     ):
-        if stage == states.ALIGN_FOR_GRASP:
-            self._direct_align_pickup_pose(
-                context,
-                state_machine,
-                pose,
-                detail,
-            )
+        state_machine.transition(stage, detail)
+        call = (
+            self._navigation.align_for_grasp
+            if stage == states.ALIGN_FOR_GRASP
+            else self._navigation.navigate_pose
+        )
+        result = call(
+            pose,
+            request_id=context.task_id,
+            feedback_cb=lambda feedback: self._navigation_feedback(
+                context, feedback
+            ),
+            preempt_requested=self._server.is_preempt_requested,
+        )
+        if self._navigation_result_preempted(result):
+            raise PickupPreempted(result.message)
+        if result.success:
+            context.retry_count = 0
             return
-
-        last_outcome = None
-        last_message = "navigation was not attempted"
-        for retry in range(self._max_retries + 1):
-            context.retry_count = retry
-            state_machine.transition(
-                stage,
-                "{} (attempt {}/{})".format(
-                    detail, retry + 1, self._max_retries + 1
-                ),
-            )
-            last_outcome, last_message = self._navigation.navigate(
-                pose,
-                self._server.is_preempt_requested,
-                lambda: self._publish_state(
-                    context, detail + "; move_base active"
-                ),
-            )
-            if last_outcome == NavigationOutcome.SUCCEEDED:
-                context.retry_count = 0
-                return
-            if last_outcome == NavigationOutcome.PREEMPTED:
-                raise PickupPreempted(detail + ": " + last_message)
-        error_code = (
-            error_codes.NAVIGATION_TIMEOUT
-            if last_outcome == NavigationOutcome.TIMEOUT
-            else error_codes.NAVIGATION_ABORTED
-        )
         raise PickupFailure(
-            error_code,
-            "{} failed: {}".format(detail, last_message),
+            self._mission_navigation_error(result.error_code),
+            result.message,
         )
-
-    def _direct_align_pickup_pose(
-        self,
-        context,
-        state_machine,
-        pose,
-        detail,
-    ):
-        """Translate the omnidirectional base without changing its heading."""
-        frame_id = pose.header.frame_id or self._map_frame
-        if self._navigation.get_state() in (
-            GoalStatus.PENDING,
-            GoalStatus.ACTIVE,
-            GoalStatus.PREEMPTING,
-            GoalStatus.RECALLING,
-        ):
-            self._navigation.cancel_goal()
-        context.retry_count = 0
-        state_machine.transition(
-            states.ALIGN_FOR_GRASP,
-            detail + "; direct low-speed translation",
-        )
-        deadline = time.monotonic() + self._direct_alignment_timeout
-        next_feedback = 0.0
-        try:
-            while not rospy.is_shutdown():
-                if self._server.is_preempt_requested():
-                    raise PickupPreempted(
-                        "task preempted during fixed-standoff alignment"
-                    )
-                current = self._localized_pose(frame_id)
-                if current is None:
-                    raise PickupFailure(
-                        error_codes.ALIGNMENT_FAILED,
-                        "localized base pose is unavailable during direct alignment",
-                    )
-                error_x = pose.pose.position.x - current[0]
-                error_y = pose.pose.position.y - current[1]
-                distance = math.hypot(error_x, error_y)
-                if distance <= self._direct_alignment_tolerance:
-                    rospy.loginfo(
-                        "direct grasp alignment reached %.4fm residual",
-                        distance,
-                    )
-                    return
-                if time.monotonic() >= deadline:
-                    raise PickupFailure(
-                        error_codes.ALIGNMENT_FAILED,
-                        "direct fixed-standoff alignment timed out at {:.3f}m".format(
-                            distance
-                        ),
-                    )
-
-                # Convert the map-frame error into base-frame planar velocity.
-                cosine = math.cos(current[2])
-                sine = math.sin(current[2])
-                error_forward = cosine * error_x + sine * error_y
-                error_lateral = -sine * error_x + cosine * error_y
-                speed = min(
-                    self._direct_alignment_max_speed,
-                    max(
-                        self._direct_alignment_min_speed,
-                        self._direct_alignment_gain * distance,
-                    ),
-                )
-                command = Twist()
-                command.linear.x = speed * error_forward / distance
-                command.linear.y = speed * error_lateral / distance
-                self._cmd_vel_pub.publish(command)
-
-                now = time.monotonic()
-                if now >= next_feedback:
-                    self._publish_state(
-                        context,
-                        detail + "; direct residual {:.3f}m".format(distance),
-                    )
-                    next_feedback = now + 0.5
-                time.sleep(0.05)
-        finally:
-            self._cmd_vel_pub.publish(Twist())
 
     def _continue_after_arrival(self, context, state_machine, arrival_message):
         if self._pipeline_stop_after == "ARRIVED_PICKUP_STAGING":
@@ -1384,7 +279,7 @@ class MissionServer:
                     stage,
                     detail,
                 ),
-                localized_pose=self._localized_pose,
+                localized_pose=self._navigation.localized_pose,
                 preempt=self._server.is_preempt_requested,
             )
         except PickupPreempted as exc:
@@ -1400,24 +295,16 @@ class MissionServer:
             "target cube grasped and lifted from seq{}".format(station_number),
         )
 
-
-    """
-    ===================================
-    主执行函数：自动调用，并非手动显式调用
-    ===================================
-    """
     def _execute(self, goal):
-        if goal.task_id in self._completed_results:        # 任务已经完成
-            cached = self._completed_results[goal.task_id] # 返回缓存结果
+        if goal.task_id in self._completed_results:
+            cached = self._completed_results[goal.task_id]
             self._server.set_succeeded(
                 cached, "returning cached result for duplicate task_id"
             )
             return
 
-        # 创建任务上下文，TaskContext()保存任务的信息
         context = TaskContext(goal.task_id.strip(), goal.target_class)
         state_machine = MissionStateMachine(context, self._publish_state)
-        """ 状态机：1 接受任务 """
         state_machine.transition(states.ACCEPT_TASK, "task accepted")
 
         if not context.task_id:
@@ -1429,8 +316,9 @@ class MissionServer:
             )
             return
 
-        """ 状态机：2 校验任务 """
-        state_machine.transition(states.VALIDATE_TASK, "validating target class")
+        state_machine.transition(
+            states.VALIDATE_TASK, "validating target class"
+        )
         if context.target_class not in self.VALID_TARGET_CLASSES:
             self._abort(
                 context,
@@ -1440,41 +328,47 @@ class MissionServer:
             )
             return
 
-        # 规定时间内move_base连不上
-        if not self._navigation.wait_for_server(self._move_base_wait):
+        if not self._navigation.wait_for_server(
+            self._navigation_wait_timeout
+        ):
             self._abort(
                 context,
                 state_machine,
                 error_codes.MOVE_BASE_UNAVAILABLE,
-                "move_base action server is unavailable",
+                "navigation action server is unavailable",
             )
             return
 
-        """状态机：3 检查定位"""
         state_machine.transition(
             states.CHECK_LOCALIZATION, "waiting for AMCL pose and map TF"
         )
-        if not self._wait_for_localization():
-            if self._server.is_preempt_requested():
-                self._preempt(
-                    context, state_machine, "task preempted while localizing"
-                )
-            else:
-                self._abort(
-                    context,
-                    state_machine,
-                    error_codes.LOCALIZATION_NOT_READY,
-                    "AMCL pose or map-to-base transform is not ready",
-                )
+        readiness = self._navigation.wait_for_localization(
+            preempt_requested=self._server.is_preempt_requested,
+            feedback_cb=lambda feedback: self._navigation_feedback(
+                context, feedback
+            ),
+        )
+        if self._navigation_result_preempted(readiness):
+            self._preempt(
+                context,
+                state_machine,
+                readiness.message or "task preempted while localizing",
+            )
+            return
+        if not readiness.success:
+            self._abort(
+                context,
+                state_machine,
+                self._mission_navigation_error(readiness.error_code),
+                readiness.message,
+            )
             return
 
-        """状态机：4 获取目标点"""
         state_machine.transition(
             states.GET_PICKUP_STAGING_GOAL,
             "loading pickup staging route",
         )
         try:
-            # 读取按手动导航顺序记录的全部目标点
             context.pickup_staging_goals = (
                 self._goal_provider.get_pickup_staging_goals(context)
             )
@@ -1487,178 +381,41 @@ class MissionServer:
             )
             return
 
-        waypoint_count = len(context.pickup_staging_goals)
         rospy.loginfo(
             "task=%s loaded pickup staging route with %d waypoints",
             context.task_id,
-            waypoint_count,
+            len(context.pickup_staging_goals),
         )
-        if self._route_execution_mode == "fitted_path_lookahead":
-            rospy.loginfo(
-                "task=%s executing offline fitted path with moving lookahead",
-                context.task_id,
-            )
-            if not self._execute_fitted_path(context, state_machine):
-                return
-            self._continue_after_arrival(
+        state_machine.transition(
+            states.NAVIGATE_TO_PICKUP_STAGING,
+            "starting pickup staging route",
+        )
+        navigation = self._navigation.execute_staging_route(
+            context.pickup_staging_goals,
+            request_id=context.task_id,
+            feedback_cb=lambda feedback: self._navigation_feedback(
+                context, feedback
+            ),
+            preempt_requested=self._server.is_preempt_requested,
+        )
+        if self._navigation_result_preempted(navigation):
+            self._preempt(context, state_machine, navigation.message)
+            return
+        if not navigation.success:
+            self._abort(
                 context,
                 state_machine,
-                "fitted path completed; arrived at pickup staging area",
+                self._mission_navigation_error(navigation.error_code),
+                navigation.message,
             )
             return
-
-        for waypoint_index, waypoint in enumerate(
-            context.pickup_staging_goals
-        ):
-            context.current_waypoint_index = waypoint_index
-            context.retry_count = 0
-            waypoint_number = waypoint_index + 1
-            is_final_waypoint = waypoint_number == waypoint_count
-            requires_intermediate_heading = (
-                waypoint_number in self._heading_constrained_waypoints
-            )
-            while context.retry_count <= self._max_retries:
-                """
-                状态机：5 导航
-                每个路径点都有独立的重试次数。
-                """
-                state_machine.transition(
-                    states.NAVIGATE_TO_PICKUP_STAGING,
-                    "sending waypoint {}/{} to move_base".format(
-                        waypoint_number, waypoint_count
-                    ),
-                )
-
-                """
-                最终点只依据move_base Action状态和超时返回；普通中间点
-                进入通过半径后立即发送下一点；指定中间点进入半径后
-                取消当前目标，原地校正到航向容差内，再发送下一点。
-                planner、DWA临时输出的失败日志不会在这里触发TASK_FAILED；
-                只要Action仍为活动状态，就继续等待其重新规划。
-                """
-                pass_condition = None
-                if not is_final_waypoint:
-                    pass_condition = (
-                        lambda waypoint=waypoint:
-                        self._intermediate_waypoint_is_passed(waypoint)
-                    )
-
-                outcome, message = self._navigation.navigate(
-                    waypoint,
-                    self._server.is_preempt_requested,
-                    lambda waypoint_number=waypoint_number: self._publish_state(
-                        context,
-                        "waypoint {}/{} move_base goal is active".format(
-                            waypoint_number, waypoint_count
-                        ),
-                    ),
-                    pass_condition=pass_condition,
-                )
-
-                if (
-                    outcome == NavigationOutcome.PASSED
-                    and requires_intermediate_heading
-                ):
-                    self._publish_state(
-                        context,
-                        "waypoint {}/{} position reached; aligning "
-                        "heading".format(waypoint_number, waypoint_count),
-                    )
-                    outcome, message = (
-                        self._align_intermediate_waypoint_heading(
-                            waypoint,
-                            lambda waypoint_number=waypoint_number:
-                            self._publish_state(
-                                context,
-                                "waypoint {}/{} aligning heading".format(
-                                    waypoint_number, waypoint_count
-                                ),
-                            ),
-                        )
-                    )
-                    if outcome == NavigationOutcome.SUCCEEDED:
-                        outcome = NavigationOutcome.PASSED
-
-                if outcome in (
-                    NavigationOutcome.SUCCEEDED,
-                    NavigationOutcome.PASSED,
-                ):
-                    if outcome == NavigationOutcome.SUCCEEDED:
-                        waypoint_status = "goal reached"
-                    elif requires_intermediate_heading:
-                        waypoint_status = (
-                            "passed within {:.2f} m and {:.2f} rad heading "
-                            "tolerance; advancing"
-                        ).format(
-                            self._intermediate_pass_radius,
-                            self._intermediate_yaw_tolerance,
-                        )
-                    else:
-                        waypoint_status = (
-                            "passed within {:.2f} m; advancing without "
-                            "final orientation alignment"
-                        ).format(self._intermediate_pass_radius)
-                    self._publish_state(
-                        context,
-                        "waypoint {}/{} {}".format(
-                            waypoint_number,
-                            waypoint_count,
-                            waypoint_status,
-                        ),
-                    )
-                    break
-
-                waypoint_message = "waypoint {}/{}: {}".format(
-                    waypoint_number, waypoint_count, message
-                )
-                if outcome == NavigationOutcome.PREEMPTED:
-                    self._preempt(
-                        context, state_machine, waypoint_message
-                    )
-                    return
-
-                if context.retry_count < self._max_retries:
-                    context.retry_count += 1
-                    self._publish_state(
-                        context,
-                        "retrying " + waypoint_message,
-                    )
-                    continue
-
-                error_code = (
-                    error_codes.NAVIGATION_TIMEOUT
-                    if outcome == NavigationOutcome.TIMEOUT
-                    else error_codes.NAVIGATION_ABORTED
-                )
-                self._abort(
-                    context,
-                    state_machine,
-                    error_code,
-                    waypoint_message,
-                )
-                return
-            else:
-                self._abort(
-                    context,
-                    state_machine,
-                    error_codes.INTERNAL_ERROR,
-                    "waypoint {}/{} retry loop ended unexpectedly".format(
-                        waypoint_number, waypoint_count
-                    ),
-                )
-                return
-
-        """状态机：6 全部路径点到达后，才算到达等待区"""
+        arrival_message = navigation.message
         state_machine.transition(
             states.ARRIVED_PICKUP_STAGING,
-            "all {} waypoints reached; arrived at pickup staging area".format(
-                waypoint_count
-            ),
+            arrival_message,
         )
         self._continue_after_arrival(
             context,
             state_machine,
-            "all {} waypoints reached; arrived at pickup staging area".format(
-                waypoint_count
-            ),
+            arrival_message,
         )

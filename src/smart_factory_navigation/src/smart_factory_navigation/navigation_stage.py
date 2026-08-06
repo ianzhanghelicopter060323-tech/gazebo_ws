@@ -1,4 +1,4 @@
-"""Standard move_base Action client used by the mission layer."""
+"""Standard move_base Action client used by the navigation server."""
 
 import time
 
@@ -34,7 +34,7 @@ class NavigationStage:
         return self._client.wait_for_server(rospy.Duration(float(timeout)))
 
     def cancel_goal(self):
-        """Cancel the active move_base goal before mission-owned motion."""
+        """Cancel the active move_base goal before navigation-owned motion."""
         self._client.cancel_goal()
 
     def send_or_replace_goal(self, target_pose):

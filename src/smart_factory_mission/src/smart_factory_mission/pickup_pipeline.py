@@ -7,9 +7,9 @@ from geometry_msgs.msg import PoseStamped
 import rospy
 
 from smart_factory_interfaces.srv import LocateCube, LocateCubeRequest
+from smart_factory_manipulation.fixed_grasp import FixedGraspPlanner
+from smart_factory_manipulation.manipulation_stage import ManipulationStage
 from smart_factory_mission import error_codes, states
-from smart_factory_mission.fixed_grasp import FixedGraspPlanner
-from smart_factory_mission.manipulation_stage import ManipulationStage
 
 
 class PickupFailure(RuntimeError):
@@ -285,11 +285,16 @@ class PickupPipeline:
                     correction,
                 ),
             )
-            latest = self._observe(
-                station,
-                require_classification=False,
-                state_machine=state_machine,
-                preempt=preempt,
+            # The cube is stationary and ``latest.point_map`` is expressed in
+            # the map frame, so it remains valid after the base moves.  Reusing
+            # it avoids making grasp progress depend on a second OCR pass at a
+            # much closer camera distance.  The next loop iteration still
+            # checks the residual from the newly localized base pose and may
+            # issue another correction when necessary.
+            rospy.loginfo(
+                "seq%d reusing initial map-frame cube position; "
+                "post-alignment OCR is disabled",
+                station.number,
             )
         raise PickupFailure(error_codes.ALIGNMENT_FAILED, "alignment loop ended unexpectedly")
 

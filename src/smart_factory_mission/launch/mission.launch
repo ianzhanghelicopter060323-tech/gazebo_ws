@@ -1,62 +1,13 @@
 <launch>
-  <!-- Standalone mission entry point: start Gazebo, navigation and RViz by default. -->
-  <arg name="start_navigation" default="true"/>
-  <arg name="start_gazebo" default="true"/>
-  <arg name="gazebo_gui" default="true"/>
-  <arg name="start_rviz" default="true"/>
-  <arg name="rviz_config"
-       default="$(env HOME)/gazebo_ws/src/rviz_default_config.rviz"/>
-  <arg name="map_file"
-       default="$(find gazebo_map)/maps/math_newest.yaml"/>
-  <arg name="global_inflation_radius" default="0.10"/>
-  <arg name="local_inflation_radius" default="0.15"/>
-  <!-- Camera-FOV calibration only. Set false (or remove this node) for competition. -->
-  <arg name="spawn_calibration_cubes" default="false"/>
-  <arg name="calibration_cubes_config"
-       default="$(find car3)/config/calibration_cubes.yaml"/>
-
-  <!-- WSLg/Mesa D3D12 hardware rendering, consistent with gazebo_nav.launch. -->
-  <env name="GALLIUM_DRIVER" value="d3d12"/>
-  <env name="MESA_D3D12_DEFAULT_ADAPTER_NAME" value="NVIDIA"/>
-  <env name="LIBGL_ALWAYS_SOFTWARE" value="0"/>
-
+  <!-- Component launch: navigation, simulation and perception are supplied by bringup. -->
   <arg name="action_name" default="/sim_task/execute"/>
+  <arg name="navigation_action_name"
+       default="/smart_factory/navigation"/>
+  <arg name="navigation_server_wait_timeout" default="10.0"/>
   <arg name="mission_config"
        default="$(find smart_factory_mission)/config/mission.yaml"/>
   <arg name="goal_config"
        default="$(find smart_factory_mission)/config/pickup_staging_dev.yaml"/>
-  <arg name="path_config"
-       default="$(find smart_factory_mission)/config/pickup_staging_fitted_path.yaml"/>
-  <arg name="start_perception" default="true"/>
-  <arg name="cube_locator_config"
-       default="$(find smart_factory_perception)/config/cube_locator.yaml"/>
-
-  <include if="$(arg start_navigation)"
-           file="$(find gazebo_nav)/launch/gazebo_nav.launch">
-    <arg name="start_gazebo" value="$(arg start_gazebo)"/>
-    <arg name="gazebo_gui" value="$(arg gazebo_gui)"/>
-    <arg name="start_rviz" value="$(arg start_rviz)"/>
-    <arg name="rviz_config" value="$(arg rviz_config)"/>
-    <arg name="map_file" value="$(arg map_file)"/>
-    <arg name="global_inflation_radius"
-         value="$(arg global_inflation_radius)"/>
-    <arg name="local_inflation_radius"
-         value="$(arg local_inflation_radius)"/>
-  </include>
-
-  <node if="$(arg spawn_calibration_cubes)"
-        name="spawn_calibration_cubes"
-        pkg="car3"
-        type="spawn_calibration_cubes.py"
-        output="screen"
-        required="false">
-    <param name="config_file" value="$(arg calibration_cubes_config)"/>
-  </node>
-
-  <include if="$(arg start_perception)"
-           file="$(find smart_factory_perception)/launch/cube_locator.launch">
-    <arg name="config" value="$(arg cube_locator_config)"/>
-  </include>
 
   <node name="smart_factory_mission"
         pkg="smart_factory_mission"
@@ -65,7 +16,10 @@
         required="true">
     <rosparam command="load" file="$(arg mission_config)"/>
     <rosparam command="load" file="$(arg goal_config)"/>
-    <rosparam command="load" file="$(arg path_config)"/>
     <param name="action_name" value="$(arg action_name)"/>
+    <param name="navigation_action_name"
+           value="$(arg navigation_action_name)"/>
+    <param name="navigation_server_wait_timeout"
+           value="$(arg navigation_server_wait_timeout)"/>
   </node>
 </launch>

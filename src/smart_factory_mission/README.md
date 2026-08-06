@@ -2,13 +2,28 @@
 
 Mission orchestration for the incremental smart-factory task.
 
+Runtime responsibilities are split across ROS Actions without changing the
+external `ExecuteTask.action` contract:
+
+- `mission_server.py` owns task validation, state/result publication, result
+  caching, and high-level stage sequencing. It talks to navigation only through
+  `/smart_factory/navigation`.
+- `smart_factory_navigation` owns AMCL/TF readiness, the `move_base` client,
+  route retry/progress behavior, and bounded `/cmd_vel` base alignment.
+
+Arm, gripper, and fixed-grasp implementations live in
+`smart_factory_manipulation`; the mission package retains only sequencing and
+temporary compatibility imports for the former module paths.
+
 The current milestone implements:
 
 1. Receive `ExecuteTask.action`.
 2. Validate the target class.
-3. Check `move_base`, AMCL pose, and `map -> base_footprint` TF.
+3. Ask the navigation Action server to check `move_base`, AMCL pose, and
+   `map -> base_footprint` TF.
 4. Load a development-only pickup staging pose.
-5. In `fitted_path_lookahead` mode, publish the offline-fitted reference as a
+5. Submit the route through `Navigate.action`. In `fitted_path_lookahead` mode,
+   the navigation server publishes the offline-fitted reference as a
    latched `nav_msgs/Path`, project localization onto monotonic path progress,
    and replace curvature-adaptive moving `MoveBaseGoal` targets at a bounded
    rate. `legacy_waypoints` remains available as a configuration rollback.
@@ -28,9 +43,13 @@ and candidate-to-candidate motion stays under `move_base`; only the bounded
 fixed-standoff correction publishes `/cmd_vel` directly, with zero angular
 velocity and localization feedback.
 
-Before running a task, fill
-`config/pickup_staging_dev.yaml` and set `configured: true`.
+Before running a task, fill `config/pickup_staging_dev.yaml` and set
+`configured: true`.
 
-The orange camera calibration cubes are disabled by default in
-`launch/mission.launch`; pass `spawn_calibration_cubes:=true` only for a
-dedicated field-of-view calibration run.
+`launch/mission.launch` is a component launch and starts only the mission node;
+the `/smart_factory/navigation` Action server and perception must already be
+available. Navigation configuration now lives under
+`smart_factory_navigation/config/`. Use
+`roslaunch smart_factory_bringup full_competition.launch` for the integrated
+system. Camera-FOV calibration cubes are controlled by the bringup launch and
+remain disabled by default.

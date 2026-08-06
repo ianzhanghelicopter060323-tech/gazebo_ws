@@ -10,19 +10,11 @@
   <buildtool_depend>catkin</buildtool_depend>
 
   <depend>actionlib</depend>
-  <depend>actionlib_msgs</depend>
   <depend>geometry_msgs</depend>
-  <depend>move_base_msgs</depend>
-  <depend>nav_msgs</depend>
   <depend>rospy</depend>
-  <depend>sensor_msgs</depend>
   <depend>smart_factory_interfaces</depend>
-  <depend>std_msgs</depend>
-  <depend>std_srvs</depend>
-  <depend>tf2_ros</depend>
-  <depend>trajectory_msgs</depend>
+  <depend>smart_factory_manipulation</depend>
+  <depend>smart_factory_navigation</depend>
 
-  <exec_depend>gazebo_nav</exec_depend>
-  <exec_depend>smart_factory_perception</exec_depend>
   <test_depend>python3-nose</test_depend>
 </package>

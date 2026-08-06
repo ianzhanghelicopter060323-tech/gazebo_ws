@@ -5,7 +5,7 @@
   <arg name="start_gazebo" default="true"/>
   <arg name="gazebo_gui" default="true"/>
   <arg name="start_rviz" default="true"/>
-  <arg name="rviz_config" default="$(env HOME)/gazebo_ws/src/rviz_default_config.rviz"/>
+  <arg name="rviz_config" default="$(find gazebo_nav)/config/rviz_default_config.rviz"/>
   <arg name="map_file" default="$(find gazebo_map)/maps/math_newest.yaml"/>
   <!-- 全程使用单一固定 DWA 配置；两个 costmap 使用各自固定的膨胀半径。 -->
   <arg name="global_inflation_radius" default="0.10"/>
@@ -57,7 +57,11 @@
         pkg="rviz"
         type="rviz"
         required="false"
-        args="--disable-anti-aliasing -d $(arg rviz_config)"/>
+        args="--disable-anti-aliasing -d $(arg rviz_config)">
+    <!-- The post-EOL modal is exposed by WSLg as a separate remote window and
+         can make the RViz taskbar entry appear impossible to restore. -->
+    <env name="DISABLE_ROS1_EOL_WARNINGS" value="1"/>
+  </node>
   
   
 </launch>

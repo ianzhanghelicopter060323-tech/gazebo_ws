@@ -1,3 +1,4 @@
+# Installed with gazebo_nav; override rviz_config when needed.
 Panels:
   - Class: rviz/Displays
     Help Height: 78

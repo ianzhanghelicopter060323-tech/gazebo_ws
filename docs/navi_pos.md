@@ -824,9 +824,11 @@ $0.123\,\text{m}$，避开了当前 $0.10\,\text{m}$ 位置容差的边界。弱
 - 全局拟合中心线占用栅格采样数为 0、未知栅格采样数为 0，最小地图间隙约
   $0.141\,\text{m}$。
 
-当前 `mission.yaml` 已配置 `direct_segments: []`。任务执行器进入 seq 20 后不再直接跳到
-seq 21，而是继续以曲率自适应前视目标跟随图中的 20→21 红色样条弧。seq 20 与 seq 21
-仍保留为拟合锚点，不要求在中间停车。
+当时实验配置的 `direct_segments` 为空；该导航参数现已迁至
+`src/smart_factory_navigation/config/navigation.yaml`。Navigate Action Server 的
+`RouteExecutor` 进入 seq 20 后不再直接跳到 seq 21，而是继续以曲率自适应前视目标
+跟随图中的 20→21 红色样条弧。seq 20 与 seq 21 仍保留为拟合锚点，不要求在中间
+停车。
 
 ### 8. 文档坐标手动实验版（当前运行配置）
 
