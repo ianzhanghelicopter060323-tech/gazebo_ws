@@ -1,0 +1,22 @@
+# Request one stable RGB-D cube observation.  Stations are the numbered
+# observation poses used by the pickup mission.
+uint8 station
+bool require_classification
+---
+uint8 FOOD=0
+uint8 DAILY=1
+uint8 ELECTRONICS=2
+uint8 UNKNOWN=255
+
+bool success
+uint8 detected_class
+float32 confidence
+geometry_msgs/PointStamped point_camera
+geometry_msgs/PointStamped point_base
+geometry_msgs/PointStamped point_map
+int32 bbox_x
+int32 bbox_y
+int32 bbox_width
+int32 bbox_height
+string text
+string message

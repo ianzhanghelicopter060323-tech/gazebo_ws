@@ -6,6 +6,5 @@ Current interfaces:
 
 - `ExecuteTask.action`: vehicle/bridge to mission request, feedback, and result.
 - `TaskState.msg`: observable mission state for logs and debugging.
-
-Perception and manipulation interfaces will be added when those stages are
-implemented.
+- `LocateCube.srv`: temporally stable class, OCR box, and RGB-D point in camera,
+  base, and map frames.

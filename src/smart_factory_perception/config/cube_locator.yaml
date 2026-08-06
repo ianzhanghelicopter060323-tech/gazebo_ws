@@ -1,0 +1,25 @@
+service_name: /cube_locator/locate
+rgb_topic: /camera/rgb/image_raw
+depth_topic: /depth_camera/depth/image_raw
+camera_info_topic: /depth_camera/depth/camera_info
+base_frame: base_footprint
+map_frame: map
+
+sample_count: 5
+minimum_votes: 3
+request_timeout: 15.0
+maximum_point_spread: 0.03
+minimum_depth: 0.05
+maximum_depth: 2.0
+minimum_depth_pixels: 12
+tf_timeout: 0.5
+sync_slop: 0.08
+# car3.urdf gives both Gazebo camera sensors an extra roll=pi render pose while
+# publishing camera_depth_optical_frame.  This empirical correction maps the
+# rendered depth coordinates into that TF frame.  Use [1, 1, 1] on a normal
+# physical camera whose optical frame already follows REP 103.
+camera_axis_signs: [-1.0, 1.0, -1.0]
+
+ocr_scales: [1.0, 2.0, 4.0]
+min_text_confidence: 0.45
+class_threshold: 0.70

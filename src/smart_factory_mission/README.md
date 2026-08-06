@@ -13,11 +13,24 @@ The current milestone implements:
    and replace curvature-adaptive moving `MoveBaseGoal` targets at a bounded
    rate. `legacy_waypoints` remains available as a configuration rollback.
 6. Require the final `MoveBaseGoal` to return `SUCCEEDED`, preserving the DWA
-   position and orientation tolerances, then return `ARRIVED_PICKUP_STAGING`.
+   position and orientation tolerances, then enter `ARRIVED_PICKUP_STAGING`.
+7. Observe candidates in order 35, 36, 37. A stable non-target result advances
+   from 35 to 36; two stable non-target results select 37 by elimination.
+8. Use synchronized RGB-D observations to place the cube at the fixed arm TCP
+   target, leaving a calibrated 0.356 m base-to-cube-center standoff. Small
+   corrections use a heading-preserving, low-speed omnidirectional translation
+   loop and are followed by another RGB-D observation.
+9. Open the gripper before alignment/descent, execute the recorded fixed grasp
+   pose, require `ready`, close to 0.76, require `GRASPING`, and lift the cube.
 
-It does not modify planner output or read Gazebo model ground truth. It publishes
-zero-linear-velocity `/cmd_vel` commands only during the explicit heading-alignment
-phase, after cancelling the active `move_base` goal.
+It does not modify planner output or read Gazebo model ground truth. Normal route
+and candidate-to-candidate motion stays under `move_base`; only the bounded
+fixed-standoff correction publishes `/cmd_vel` directly, with zero angular
+velocity and localization feedback.
 
-Before running a navigation task, fill
+Before running a task, fill
 `config/pickup_staging_dev.yaml` and set `configured: true`.
+
+The orange camera calibration cubes are disabled by default in
+`launch/mission.launch`; pass `spawn_calibration_cubes:=true` only for a
+dedicated field-of-view calibration run.

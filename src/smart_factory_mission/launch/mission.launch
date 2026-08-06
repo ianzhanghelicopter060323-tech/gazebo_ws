@@ -11,7 +11,7 @@
   <arg name="global_inflation_radius" default="0.10"/>
   <arg name="local_inflation_radius" default="0.15"/>
   <!-- Camera-FOV calibration only. Set false (or remove this node) for competition. -->
-  <arg name="spawn_calibration_cubes" default="true"/>
+  <arg name="spawn_calibration_cubes" default="false"/>
   <arg name="calibration_cubes_config"
        default="$(find car3)/config/calibration_cubes.yaml"/>
 
@@ -27,6 +27,9 @@
        default="$(find smart_factory_mission)/config/pickup_staging_dev.yaml"/>
   <arg name="path_config"
        default="$(find smart_factory_mission)/config/pickup_staging_fitted_path.yaml"/>
+  <arg name="start_perception" default="true"/>
+  <arg name="cube_locator_config"
+       default="$(find smart_factory_perception)/config/cube_locator.yaml"/>
 
   <include if="$(arg start_navigation)"
            file="$(find gazebo_nav)/launch/gazebo_nav.launch">
@@ -49,6 +52,11 @@
         required="false">
     <param name="config_file" value="$(arg calibration_cubes_config)"/>
   </node>
+
+  <include if="$(arg start_perception)"
+           file="$(find smart_factory_perception)/launch/cube_locator.launch">
+    <arg name="config" value="$(arg cube_locator_config)"/>
+  </include>
 
   <node name="smart_factory_mission"
         pkg="smart_factory_mission"

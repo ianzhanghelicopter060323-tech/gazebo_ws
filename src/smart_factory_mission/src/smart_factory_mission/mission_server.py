@@ -35,6 +35,11 @@ from smart_factory_mission.path_tracker import (
     PathConfigError,
     PathTracker,
 )
+from smart_factory_mission.pickup_pipeline import (
+    PickupFailure,
+    PickupPipeline,
+    PickupPreempted,
+)
 from smart_factory_mission.state_machine import MissionStateMachine
 from smart_factory_mission.task_context import TaskContext
 
@@ -229,6 +234,46 @@ class MissionServer:
         self._remember_results = int(
             rospy.get_param("~task/remember_completed_results", 20)
         )
+        self._pipeline_stop_after = str(
+            rospy.get_param("~pipeline_stop_after", "ARRIVED_PICKUP_STAGING")
+        ).strip()
+        if self._pipeline_stop_after not in (
+            "ARRIVED_PICKUP_STAGING",
+            "OBJECT_GRASPED",
+        ):
+            raise ValueError(
+                "pipeline_stop_after must be ARRIVED_PICKUP_STAGING or "
+                "OBJECT_GRASPED"
+            )
+        self._pickup_pipeline = PickupPipeline(rospy.get_param("~pickup", {}))
+        self._direct_alignment_tolerance = float(
+            rospy.get_param("~pickup/direct_alignment_tolerance", 0.008)
+        )
+        self._direct_alignment_gain = float(
+            rospy.get_param("~pickup/direct_alignment_gain", 1.0)
+        )
+        self._direct_alignment_max_speed = float(
+            rospy.get_param("~pickup/direct_alignment_max_speed", 0.08)
+        )
+        self._direct_alignment_min_speed = float(
+            rospy.get_param("~pickup/direct_alignment_min_speed", 0.05)
+        )
+        self._direct_alignment_timeout = float(
+            rospy.get_param("~pickup/direct_alignment_timeout", 8.0)
+        )
+        for name, value in (
+            ("direct_alignment_tolerance", self._direct_alignment_tolerance),
+            ("direct_alignment_gain", self._direct_alignment_gain),
+            ("direct_alignment_max_speed", self._direct_alignment_max_speed),
+            ("direct_alignment_min_speed", self._direct_alignment_min_speed),
+            ("direct_alignment_timeout", self._direct_alignment_timeout),
+        ):
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError("pickup/{} must be positive".format(name))
+        if self._direct_alignment_min_speed > self._direct_alignment_max_speed:
+            raise ValueError(
+                "pickup/direct_alignment_min_speed must not exceed max speed"
+            )
 
         provider_type = rospy.get_param("~goal_source", "development")
 
@@ -496,6 +541,17 @@ class MissionServer:
         while len(self._completed_results) > self._remember_results:
             self._completed_results.popitem(last=False)
 
+    def _finish_success(self, context, stage, message):
+        result = self._make_result(
+            True,
+            stage,
+            error_codes.SUCCESS,
+            message,
+        )
+        self._remember_result(context.task_id, result)
+        self._server.set_succeeded(result, result.message)
+        self._publish_idle()
+
     """
     ==================
     检查AMCL定位是否就绪
@@ -665,7 +721,7 @@ class MissionServer:
         pose.pose.orientation.w = math.cos(yaw / 2.0)
         return pose
 
-    def _localized_xy(self, frame_id):
+    def _localized_pose(self, frame_id):
         try:
             transform = self._tf_buffer.lookup_transform(
                 frame_id,
@@ -688,7 +744,12 @@ class MissionServer:
         return (
             transform.transform.translation.x,
             transform.transform.translation.y,
+            self._quaternion_yaw(transform.transform.rotation),
         )
+
+    def _localized_xy(self, frame_id):
+        localized = self._localized_pose(frame_id)
+        return None if localized is None else localized[:2]
 
     def _pose_is_within_radius(self, pose, radius):
         frame_id = pose.header.frame_id or self._map_frame
@@ -1172,15 +1233,172 @@ class MissionServer:
             states.ARRIVED_PICKUP_STAGING,
             "fitted path completed; arrived at pickup staging area",
         )
-        result = self._make_result(
-            True,
-            states.ARRIVED_PICKUP_STAGING,
-            error_codes.SUCCESS,
-            "fitted path completed; arrived at pickup staging area",
+        return True
+
+    def _navigate_pickup_pose(
+        self,
+        context,
+        state_machine,
+        pose,
+        stage,
+        detail,
+    ):
+        if stage == states.ALIGN_FOR_GRASP:
+            self._direct_align_pickup_pose(
+                context,
+                state_machine,
+                pose,
+                detail,
+            )
+            return
+
+        last_outcome = None
+        last_message = "navigation was not attempted"
+        for retry in range(self._max_retries + 1):
+            context.retry_count = retry
+            state_machine.transition(
+                stage,
+                "{} (attempt {}/{})".format(
+                    detail, retry + 1, self._max_retries + 1
+                ),
+            )
+            last_outcome, last_message = self._navigation.navigate(
+                pose,
+                self._server.is_preempt_requested,
+                lambda: self._publish_state(
+                    context, detail + "; move_base active"
+                ),
+            )
+            if last_outcome == NavigationOutcome.SUCCEEDED:
+                context.retry_count = 0
+                return
+            if last_outcome == NavigationOutcome.PREEMPTED:
+                raise PickupPreempted(detail + ": " + last_message)
+        error_code = (
+            error_codes.NAVIGATION_TIMEOUT
+            if last_outcome == NavigationOutcome.TIMEOUT
+            else error_codes.NAVIGATION_ABORTED
         )
-        self._remember_result(context.task_id, result)
-        self._server.set_succeeded(result, result.message)
-        self._publish_idle()
+        raise PickupFailure(
+            error_code,
+            "{} failed: {}".format(detail, last_message),
+        )
+
+    def _direct_align_pickup_pose(
+        self,
+        context,
+        state_machine,
+        pose,
+        detail,
+    ):
+        """Translate the omnidirectional base without changing its heading."""
+        frame_id = pose.header.frame_id or self._map_frame
+        if self._navigation.get_state() in (
+            GoalStatus.PENDING,
+            GoalStatus.ACTIVE,
+            GoalStatus.PREEMPTING,
+            GoalStatus.RECALLING,
+        ):
+            self._navigation.cancel_goal()
+        context.retry_count = 0
+        state_machine.transition(
+            states.ALIGN_FOR_GRASP,
+            detail + "; direct low-speed translation",
+        )
+        deadline = time.monotonic() + self._direct_alignment_timeout
+        next_feedback = 0.0
+        try:
+            while not rospy.is_shutdown():
+                if self._server.is_preempt_requested():
+                    raise PickupPreempted(
+                        "task preempted during fixed-standoff alignment"
+                    )
+                current = self._localized_pose(frame_id)
+                if current is None:
+                    raise PickupFailure(
+                        error_codes.ALIGNMENT_FAILED,
+                        "localized base pose is unavailable during direct alignment",
+                    )
+                error_x = pose.pose.position.x - current[0]
+                error_y = pose.pose.position.y - current[1]
+                distance = math.hypot(error_x, error_y)
+                if distance <= self._direct_alignment_tolerance:
+                    rospy.loginfo(
+                        "direct grasp alignment reached %.4fm residual",
+                        distance,
+                    )
+                    return
+                if time.monotonic() >= deadline:
+                    raise PickupFailure(
+                        error_codes.ALIGNMENT_FAILED,
+                        "direct fixed-standoff alignment timed out at {:.3f}m".format(
+                            distance
+                        ),
+                    )
+
+                # Convert the map-frame error into base-frame planar velocity.
+                cosine = math.cos(current[2])
+                sine = math.sin(current[2])
+                error_forward = cosine * error_x + sine * error_y
+                error_lateral = -sine * error_x + cosine * error_y
+                speed = min(
+                    self._direct_alignment_max_speed,
+                    max(
+                        self._direct_alignment_min_speed,
+                        self._direct_alignment_gain * distance,
+                    ),
+                )
+                command = Twist()
+                command.linear.x = speed * error_forward / distance
+                command.linear.y = speed * error_lateral / distance
+                self._cmd_vel_pub.publish(command)
+
+                now = time.monotonic()
+                if now >= next_feedback:
+                    self._publish_state(
+                        context,
+                        detail + "; direct residual {:.3f}m".format(distance),
+                    )
+                    next_feedback = now + 0.5
+                time.sleep(0.05)
+        finally:
+            self._cmd_vel_pub.publish(Twist())
+
+    def _continue_after_arrival(self, context, state_machine, arrival_message):
+        if self._pipeline_stop_after == "ARRIVED_PICKUP_STAGING":
+            self._finish_success(
+                context,
+                states.ARRIVED_PICKUP_STAGING,
+                arrival_message,
+            )
+            return
+
+        try:
+            station_number = self._pickup_pipeline.run(
+                context=context,
+                state_machine=state_machine,
+                navigate=lambda pose, stage, detail: self._navigate_pickup_pose(
+                    context,
+                    state_machine,
+                    pose,
+                    stage,
+                    detail,
+                ),
+                localized_pose=self._localized_pose,
+                preempt=self._server.is_preempt_requested,
+            )
+        except PickupPreempted as exc:
+            self._preempt(context, state_machine, str(exc))
+            return
+        except PickupFailure as exc:
+            self._abort(context, state_machine, exc.error_code, str(exc))
+            return
+
+        self._finish_success(
+            context,
+            states.OBJECT_GRASPED,
+            "target cube grasped and lifted from seq{}".format(station_number),
+        )
 
 
     """
@@ -1280,7 +1498,13 @@ class MissionServer:
                 "task=%s executing offline fitted path with moving lookahead",
                 context.task_id,
             )
-            self._execute_fitted_path(context, state_machine)
+            if not self._execute_fitted_path(context, state_machine):
+                return
+            self._continue_after_arrival(
+                context,
+                state_machine,
+                "fitted path completed; arrived at pickup staging area",
+            )
             return
 
         for waypoint_index, waypoint in enumerate(
@@ -1431,14 +1655,10 @@ class MissionServer:
                 waypoint_count
             ),
         )
-        result = self._make_result(
-            True,
-            states.ARRIVED_PICKUP_STAGING,
-            error_codes.SUCCESS,
+        self._continue_after_arrival(
+            context,
+            state_machine,
             "all {} waypoints reached; arrived at pickup staging area".format(
                 waypoint_count
             ),
         )
-        self._remember_result(context.task_id, result)
-        self._server.set_succeeded(result, result.message)
-        self._publish_idle()

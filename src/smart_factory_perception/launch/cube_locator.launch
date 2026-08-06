@@ -1,0 +1,11 @@
+<launch>
+  <arg name="config"
+       default="$(find smart_factory_perception)/config/cube_locator.yaml"/>
+  <node name="cube_locator"
+        pkg="smart_factory_perception"
+        type="cube_locator"
+        output="screen"
+        required="true">
+    <rosparam command="load" file="$(arg config)"/>
+  </node>
+</launch>

@@ -3,6 +3,7 @@ project(smart_factory_interfaces)
 
 find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
+  geometry_msgs
   message_generation
   std_msgs
 )
@@ -17,12 +18,18 @@ add_action_files(
   ExecuteTask.action
 )
 
+add_service_files(
+  FILES
+  LocateCube.srv
+)
+
 generate_messages(
   DEPENDENCIES
   actionlib_msgs
+  geometry_msgs
   std_msgs
 )
 
 catkin_package(
-  CATKIN_DEPENDS actionlib_msgs message_runtime std_msgs
+  CATKIN_DEPENDS actionlib_msgs geometry_msgs message_runtime std_msgs
 )

@@ -1,8 +1,8 @@
 # smart_factory_perception
 
 This package owns RGB-D target detection, classification, depth localization,
-TF transformation, and temporal filtering. The first implemented component is
-an offline OCR foundation for the three Gazebo cube labels.
+TF transformation, and temporal filtering. It contains both the offline OCR
+tools and the runtime `/cube_locator/locate` service.
 
 ## OCR layout
 
@@ -82,10 +82,27 @@ rosrun smart_factory_perception ocr_image IMAGE.png \
   --scale 1 --retry-scales --json
 ```
 
-The current classifier accepts only 食品/日用/电子 keywords from the full
-image; unrelated OCR text does not enter the class score. Multi-object spatial
-grouping, RGB-depth synchronization, temporal voting and 3-D localization
-belong to the next ROS integration stage.
+The classifier accepts only 食品/日用/电子 keywords from the full image;
+unrelated OCR text does not enter the class score.
+
+## Runtime RGB-D locator
+
+`cube_locator` synchronizes RGB and depth images, finds the cube label locally,
+uses the median valid depth inside the OCR box, deprojects through
+`CameraInfo`, and transforms the point into `base_footprint` and `map`. A
+request succeeds only when at least 3 of 5 observations agree spatially and,
+when requested, on class.
+
+```bash
+roslaunch smart_factory_perception cube_locator.launch
+rosservice call /cube_locator/locate \
+  "{station: 35, require_classification: true}"
+```
+
+The configurable camera-axis correction in `config/cube_locator.yaml` accounts
+for the Gazebo sensor render convention; it was checked against simulation
+truth during calibration only. Runtime mission decisions do not read Gazebo
+model state.
 
 ## Capture one Gazebo camera frame
 

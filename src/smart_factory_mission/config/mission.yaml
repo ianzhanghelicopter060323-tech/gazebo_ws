@@ -1,5 +1,5 @@
 # Mission orchestration parameters. No track coordinates belong in this file.
-pipeline_stop_after: ARRIVED_PICKUP_STAGING
+pipeline_stop_after: OBJECT_GRASPED
 goal_source: development
 
 task:
@@ -93,3 +93,69 @@ localization:
   # the only stationary /amcl_pose sample and be rejected before departure.
   nomotion_update_service: /request_nomotion_update
   nomotion_update_period: 1.0
+
+# Conditional recognition and fixed-standoff grasp after the fitted route ends
+# at seq35.  The fixed target was calibrated headlessly on 2026-08-06 from
+# base_footprint -> tcp_link at arm pose [0, 1.5, 1.4, -1, 0]:
+# translation ~= [0.356, 0.000, 0.018] m.
+pickup:
+  enabled: true
+  frame_id: map
+  perception_service: /cube_locator/locate
+  perception_wait_timeout: 30.0
+  recognition_retries: 1
+
+  # A visual correction is rejected if it asks the base to move farther than
+  # this.  Two stop/re-observe corrections are allowed before grasping.
+  alignment_tolerance: 0.015
+  maximum_alignment_correction: 0.25
+  maximum_alignment_iterations: 2
+  # The planar base can translate laterally.  Small grasp corrections therefore
+  # use a slow, heading-preserving closed loop instead of asking DWA to rotate.
+  direct_alignment_tolerance: 0.008
+  direct_alignment_gain: 1.0
+  # The simulated planar chassis does not reliably move at centimetre-scale
+  # commands below about 0.05 m/s.
+  direct_alignment_min_speed: 0.05
+  direct_alignment_max_speed: 0.08
+  direct_alignment_timeout: 8.0
+
+  fixed_grasp:
+    target_forward: 0.356
+    target_lateral: 0.0
+    # Headless RGB-D/Gazebo-truth comparison at all three stations measured
+    # depth-point-minus-center forward errors of +0.011, +0.011, -0.003 m.
+    # The signed -5 mm correction minimizes the worst observed center error.
+    depth_to_center_forward: -0.005
+
+  stations:
+    - number: 35
+      x: -1.2243
+      y: -0.52503905352630406
+      yaw: 0.00007722691751649312
+      # All 80 successful close_navi samples used the common 2.10 scan pose.
+      scan_positions: [0.0, 0.0, 0.55, 2.10, 0.0]
+    - number: 36
+      x: -1.395
+      y: -0.235
+      yaw: 1.5691910264536908
+      scan_positions: [0.0, 0.0, 0.55, 2.10, 0.0]
+    - number: 37
+      x: -1.65569836894096
+      y: -0.44503905352630406
+      yaw: 3.141482426814858
+      scan_positions: [0.0, 0.0, 0.55, 2.10, 0.0]
+
+  manipulation:
+    arm_command_topic: /arm_controller/command
+    gripper_command_topic: /gripper_controller/command
+    joint_state_topic: /joint_states
+    ready_topic: /grasp_attach/ready
+    state_topic: /grasp_attach/state
+    open_position: 1.5
+    open_minimum: 1.4
+    closed_position: 0.76
+    arm_duration: 3.0
+    arm_tolerance: 0.03
+    command_timeout: 8.0
+    grasp_positions: [0.0, 1.5, 1.4, -1.0, 0.0]

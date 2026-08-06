@@ -8,10 +8,12 @@ find_package(catkin REQUIRED COMPONENTS
   move_base_msgs
   nav_msgs
   rospy
+  sensor_msgs
   smart_factory_interfaces
   std_msgs
   std_srvs
   tf2_ros
+  trajectory_msgs
 )
 
 catkin_python_setup()
@@ -24,10 +26,12 @@ catkin_package(
     move_base_msgs
     nav_msgs
     rospy
+    sensor_msgs
     smart_factory_interfaces
     std_msgs
     std_srvs
     tf2_ros
+    trajectory_msgs
 )
 
 if(CATKIN_ENABLE_TESTING)
