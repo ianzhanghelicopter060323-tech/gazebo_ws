@@ -21,6 +21,9 @@ DEFAULT_LOG_ROOT = WORKSPACE / "script" / "logs"
 DEFAULT_ROUTE = (
     WORKSPACE / "src" / "smart_factory_mission" / "config" / "pickup_staging_dev.yaml"
 )
+DEFAULT_MISSION = (
+    WORKSPACE / "src" / "smart_factory_mission" / "config" / "mission.yaml"
+)
 PATH_FITTER = WORKSPACE / "src" / "gazebo_map" / "scripts" / "plot_fitted_navigation_path.py"
 INDEX_PATTERN = re.compile(r"%(?:0\d+)?[di]")
 OBSERVATION_POSES = {
@@ -451,6 +454,14 @@ def parse_args(argv):
         help="use the final route pose directly instead of sending another move_base goal",
     )
     parser.add_argument(
+        "--navigation-only",
+        action="store_true",
+        help=(
+            "stop the mission at the route endpoint and disable perception; "
+            "the image is captured without OCR or class selection"
+        ),
+    )
+    parser.add_argument(
         "--photo-settle",
         type=float,
         default=1.0,
@@ -535,6 +546,8 @@ def validate_args(args):
             raise AutomationError("missing route configuration: {}".format(DEFAULT_ROUTE))
         if not PATH_FITTER.is_file():
             raise AutomationError("missing path fitter: {}".format(PATH_FITTER))
+    if args.navigation_only and not DEFAULT_MISSION.is_file():
+        raise AutomationError("missing mission configuration: {}".format(DEFAULT_MISSION))
 
 
 def prepare_truncated_route(end_sequence, output_dir, end_pose=None):
@@ -603,8 +616,32 @@ def prepare_truncated_route(end_sequence, output_dir, end_pose=None):
     return route_path, path_path, preview_path, fitter_output
 
 
+def prepare_navigation_only_mission(output_dir):
+    """Copy the competition mission while stopping before OCR/manipulation."""
+    source = DEFAULT_MISSION.read_text(encoding="utf-8")
+    lines = source.splitlines()
+    matches = [
+        index
+        for index, line in enumerate(lines)
+        if re.match(r"^pipeline_stop_after\s*:", line)
+    ]
+    if len(matches) != 1:
+        raise AutomationError(
+            "mission configuration must define one top-level pipeline_stop_after"
+        )
+    lines[matches[0]] = "pipeline_stop_after: ARRIVED_PICKUP_STAGING"
+    output = output_dir / "mission_navigation_only.yaml"
+    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return output
+
+
 def launch_simulation(
-    gui, log_file, goal_config=None, fitted_path_config=None
+    gui,
+    log_file,
+    goal_config=None,
+    fitted_path_config=None,
+    mission_config=None,
+    start_perception=True,
 ):
     command = [
         "roslaunch",
@@ -612,6 +649,7 @@ def launch_simulation(
         "full_competition.launch",
         "gazebo_gui:={}".format("true" if gui else "false"),
         "start_rviz:=false",
+        "start_perception:={}".format("true" if start_perception else "false"),
     ]
     if goal_config is not None:
         command.append("goal_config:={}".format(goal_config))
@@ -619,6 +657,8 @@ def launch_simulation(
         command.append(
             "fitted_path_config:={}".format(fitted_path_config)
         )
+    if mission_config is not None:
+        command.append("mission_config:={}".format(mission_config))
     return subprocess.Popen(
         ros_command(command),
         cwd=str(WORKSPACE),
@@ -644,6 +684,8 @@ def capture_one(args, attempt, log_path):
                 log_file,
                 goal_config=args.generated_goal_config,
                 fitted_path_config=args.generated_path_config,
+                mission_config=args.generated_mission_config,
+                start_perception=not args.navigation_only,
             )
             master_deadline = time.monotonic() + args.startup_timeout
             wait_for_ros("ROS master", ["rosnode", "list"], master_deadline)
@@ -801,6 +843,7 @@ def main(argv=None):
         log_dir.mkdir(parents=True, exist_ok=False)
         args.generated_goal_config = None
         args.generated_path_config = None
+        args.generated_mission_config = None
         if args.route_end_seq is not None:
             (
                 args.generated_goal_config,
@@ -816,6 +859,14 @@ def main(argv=None):
             print("generated_goal_config={}".format(args.generated_goal_config))
             print("generated_path_config={}".format(args.generated_path_config))
             print("generated_path_preview={}".format(preview_path))
+        if args.navigation_only:
+            args.generated_mission_config = prepare_navigation_only_mission(log_dir)
+            print(
+                "generated_mission_config={}".format(
+                    args.generated_mission_config
+                )
+            )
+            print("perception=disabled (no OCR or class selection)")
         print("workspace={}".format(WORKSPACE))
         print("view={}".format(args.view))
         print("output_format={}".format(Path(args.output_format).expanduser()))

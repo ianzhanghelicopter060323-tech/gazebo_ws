@@ -31,21 +31,21 @@ pickup:
 
   stations:
     - number: 35
-      x: -1.2243
-      y: -0.52503905352630406
+      x: -1.1543
+      y: -0.525
       yaw: 0.00007722691751649312
       # All 80 successful close_navi samples used the common 2.10 scan pose.
-      scan_positions: [0.0, 0.0, 0.55, 2.10, 0.0]
+      scan_positions: [0.0, 0.0, 0.55, 2.20, 0.0]
     - number: 36
       x: -1.395
       y: -0.235
       yaw: 1.5691910264536908
-      scan_positions: [0.0, 0.0, 0.55, 2.10, 0.0]
+      scan_positions: [0.0, 0.0, 0.55, 2.20, 0.0]
     - number: 37
       x: -1.65569836894096
       y: -0.44503905352630406
       yaw: 3.141482426814858
-      scan_positions: [0.0, 0.0, 0.55, 2.10, 0.0]
+      scan_positions: [0.0, 0.0, 0.55, 2.20, 0.0]
 
   manipulation:
     arm_command_topic: /arm_controller/command

@@ -22,8 +22,8 @@
        default="$(find smart_factory_navigation)/config/pickup_staging_fitted_path.yaml"/>
   <arg name="move_base_action" default="/move_base"/>
 
-  <!-- Camera-FOV calibration markers are opt-in and stay hidden in trials. -->
-  <arg name="spawn_calibration_cubes" default="false"/>
+  <!-- Temporarily enabled while retuning the observation camera pose. -->
+  <arg name="spawn_calibration_cubes" default="false"/> # 默认是否添加标定方块
   <arg name="calibration_cubes_config"
        default="$(find car3)/config/calibration_cubes.yaml"/>
 

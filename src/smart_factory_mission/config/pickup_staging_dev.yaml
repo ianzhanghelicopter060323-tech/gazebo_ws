@@ -151,16 +151,21 @@ pickup_staging:
       y: -0.9695332050323486
       yaw: -3.1115407943725586
     # seq 34
-    - x: -1.3833954572677612
-      y: -0.9247531890869141
+    - x: -1.2533954572677612
+      y: -0.8547531890869141
       yaw: 1.6074262857437132
+    # seq 345 (logical seq 34.5): guide the natural fit around the left side
+    # of the close_navi region before turning toward seq 35.
+    #- x: -1.4833954572677612
+    #  y: -0.6257531890869141
+    #  yaw: 1.6074262857437132
     # seq 35: close_navi observation point, facing the region center
       # close_navi 中心坐标 (-0.860, -0.525)
-    - x: -1.124
+    - x: -1.1543
       y: -0.525
       yaw: 0.00007722691751649312
 
-    # seq 36/37 暂时停用；保留坐标，后续需要多点观察时可重新启用。
+    # Stations 36/37 暂时停用；保留坐标，后续需要多点观察时可重新启用。
     # seq 36: mid observation point, facing the region center
       # mid 中心坐标 (-1.395, 0.080)
     # - x: -1.395

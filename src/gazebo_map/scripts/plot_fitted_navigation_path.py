@@ -21,7 +21,8 @@ from PIL import Image, ImageDraw, ImageFont
 import yaml
 
 
-SEQ_PATTERN = re.compile(r"\s*# seq (\d+)")
+SEQ_PATTERN = re.compile(r"\s*# seq (\d+)(?=\s|:|$)")
+SEQ_LABEL_PATTERN = re.compile(r"\s*# seq\s+([^\s:]+)")
 X_PATTERN = re.compile(r"\s*- x:\s*([-+0-9.eE]+)")
 Y_PATTERN = re.compile(r"\s*y:\s*([-+0-9.eE]+)")
 YAW_PATTERN = re.compile(r"\s*yaw:\s*([-+0-9.eE]+)")
@@ -79,7 +80,13 @@ def read_active_route(path):
     sequence = None
     records = []
     for index, line in enumerate(lines):
+        sequence_label_match = SEQ_LABEL_PATTERN.match(line)
         sequence_match = SEQ_PATTERN.match(line)
+        if sequence_label_match and not sequence_match:
+            raise ValueError(
+                "seq labels must be positive integers; encode a logical "
+                "fractional waypoint such as 34.5 with an integer ID such as 345"
+            )
         if sequence_match:
             sequence = int(sequence_match.group(1))
 
