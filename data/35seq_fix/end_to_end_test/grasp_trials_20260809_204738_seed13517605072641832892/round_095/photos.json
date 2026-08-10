@@ -1,0 +1,22 @@
+{
+  "round": 95,
+  "target_class": "daily",
+  "image_topic": "/camera/rgb/image_raw",
+  "captures": [
+    {
+      "station": 35,
+      "file": "seq35.png",
+      "captured_at": "2026-08-10T01:34:29.829+08:00",
+      "image_stamp": {
+        "secs": 179,
+        "nsecs": 609000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 2,
+      "recognized_class_id": 1,
+      "recognized_text": "日用 / 物块",
+      "recognition_confidence": 0.9990400075912476
+    }
+  ],
+  "errors": []
+}

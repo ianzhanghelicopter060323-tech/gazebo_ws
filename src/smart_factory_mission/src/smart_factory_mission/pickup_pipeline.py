@@ -1,6 +1,7 @@
 """Conditional 35 -> 36 -> 37 recognition, alignment, and fixed grasp."""
 
 from dataclasses import dataclass
+import json
 import math
 
 from geometry_msgs.msg import PoseStamped
@@ -29,6 +30,7 @@ class CandidateStation:
     y: float
     yaw: float
     scan_positions: tuple
+    supplemental_scan_positions: tuple = ()
 
     def pose(self, frame_id):
         goal = PoseStamped()
@@ -93,16 +95,32 @@ class PickupPipeline:
                         number
                     )
                 )
+            supplemental_scan = raw.get("supplemental_scan_positions", [])
+            if not isinstance(supplemental_scan, list) or len(
+                supplemental_scan
+            ) not in (0, 5):
+                raise ValueError(
+                    "station {} supplemental_scan_positions must be empty or "
+                    "contain five values".format(number)
+                )
             values = (
                 float(raw["x"]),
                 float(raw["y"]),
                 float(raw["yaw"]),
                 *(float(value) for value in scan),
+                *(float(value) for value in supplemental_scan),
             )
             if not all(math.isfinite(value) for value in values):
                 raise ValueError("station {} contains non-finite values".format(number))
             stations.append(
-                CandidateStation(number, values[0], values[1], values[2], values[3:])
+                CandidateStation(
+                    number,
+                    values[0],
+                    values[1],
+                    values[2],
+                    tuple(float(value) for value in scan),
+                    tuple(float(value) for value in supplemental_scan),
+                )
             )
         return tuple(stations)
 
@@ -141,47 +159,85 @@ class PickupPipeline:
     def _observe(self, station, require_classification, state_machine, preempt):
         if preempt():
             raise PickupPreempted("task preempted before cube observation")
-        state_machine.transition(
-            states.OBSERVE_PICKUP_CANDIDATE,
-            "moving arm to seq{} camera observation pose".format(station.number),
-        )
-        if not self._manipulation.move_arm(station.scan_positions, preempt):
-            if preempt():
-                raise PickupPreempted("task preempted while positioning camera")
-            raise PickupFailure(
-                error_codes.MANIPULATION_FAILED,
-                "arm did not reach seq{} observation pose".format(station.number),
+        last_message = "no perception response"
+        observation_poses = [("primary", station.scan_positions)]
+        if station.supplemental_scan_positions:
+            observation_poses.append(
+                ("supplemental", station.supplemental_scan_positions)
             )
 
-        last_message = "no perception response"
-        for attempt in range(self._recognition_retries + 1):
-            if preempt():
-                raise PickupPreempted("task preempted during cube recognition")
+        for pose_index, (pose_name, positions) in enumerate(observation_poses):
             state_machine.transition(
-                states.LOCALIZE_TARGET,
-                "seq{} RGB-D observation attempt {}/{}".format(
-                    station.number,
-                    attempt + 1,
-                    self._recognition_retries + 1,
+                states.OBSERVE_PICKUP_CANDIDATE,
+                "moving arm to seq{} {} camera observation pose".format(
+                    station.number, pose_name
                 ),
             )
-            request = LocateCubeRequest()
-            request.station = station.number
-            request.require_classification = bool(require_classification)
-            try:
-                response = self._locate(request)
-            except rospy.ServiceException as exc:
-                last_message = "perception service failed: {}".format(exc)
-                continue
-            last_message = response.message
-            if response.success:
-                return response
-            rospy.logwarn(
-                "seq%d observation rejected (attempt %d): %s",
-                station.number,
-                attempt + 1,
-                response.message,
-            )
+            if not self._manipulation.move_arm(positions, preempt):
+                if preempt():
+                    raise PickupPreempted("task preempted while positioning camera")
+                raise PickupFailure(
+                    error_codes.MANIPULATION_FAILED,
+                    "arm did not reach seq{} {} observation pose".format(
+                        station.number, pose_name
+                    ),
+                )
+
+            if pose_index > 0:
+                rospy.logwarn(
+                    "seq%d primary observation exhausted; retrying from the "
+                    "supplemental arm pose",
+                    station.number,
+                )
+            for attempt in range(self._recognition_retries + 1):
+                if preempt():
+                    raise PickupPreempted("task preempted during cube recognition")
+                state_machine.transition(
+                    states.LOCALIZE_TARGET,
+                    "seq{} {} RGB-D observation attempt {}/{}".format(
+                        station.number,
+                        pose_name,
+                        attempt + 1,
+                        self._recognition_retries + 1,
+                    ),
+                )
+                request = LocateCubeRequest()
+                request.station = station.number
+                request.require_classification = bool(require_classification)
+                try:
+                    response = self._locate(request)
+                except rospy.ServiceException as exc:
+                    last_message = "perception service failed: {}".format(exc)
+                    continue
+                last_message = response.message
+                if response.success:
+                    rospy.loginfo(
+                        "PICKUP_OBSERVATION_RESULT=%s",
+                        json.dumps(
+                            {
+                                "station": station.number,
+                                "observation_pose": pose_name,
+                                "recognition_attempt": attempt + 1,
+                                "recognized_class_id": int(
+                                    response.detected_class
+                                ),
+                                "recognized_text": str(response.text),
+                                "recognition_confidence": float(
+                                    response.confidence
+                                ),
+                            },
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        ),
+                    )
+                    return response
+                rospy.logwarn(
+                    "seq%d %s observation rejected (attempt %d): %s",
+                    station.number,
+                    pose_name,
+                    attempt + 1,
+                    response.message,
+                )
         raise PickupFailure(
             error_codes.OBJECT_NOT_FOUND,
             "seq{} has no stable cube observation: {}".format(
@@ -378,8 +434,32 @@ class PickupPipeline:
 
         state_machine.transition(
             states.OBJECT_GRASPED,
-            "seq{} target grasped and lifted with fixed 0.356m standoff".format(
+            "seq{} target grasped and lifted with fixed 0.326m standoff".format(
                 station.number
             ),
         )
         return station.number
+
+    def release(self, preempt):
+        """Lower the held cube, then open until release feedback is stable."""
+        if not self._manipulation.move_to_release_pose(preempt):
+            if preempt():
+                raise PickupPreempted(
+                    "task preempted while lowering the cube for release"
+                )
+            raise PickupFailure(
+                error_codes.MANIPULATION_FAILED,
+                "arm did not reach the configured low release pose",
+            )
+        if self._manipulation.grasp_state() != "GRASPING":
+            raise PickupFailure(
+                error_codes.GRASP_FAILED,
+                "cube was lost while lowering to the release pose",
+            )
+        if not self._manipulation.release_gripper(preempt):
+            if preempt():
+                raise PickupPreempted("task preempted while releasing the cube")
+            raise PickupFailure(
+                error_codes.MANIPULATION_FAILED,
+                "gripper did not open to release the cube",
+            )

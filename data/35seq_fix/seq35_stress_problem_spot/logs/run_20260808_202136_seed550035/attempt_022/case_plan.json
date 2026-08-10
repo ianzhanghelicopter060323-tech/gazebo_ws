@@ -1,0 +1,51 @@
+{
+  "capture_slot": 14,
+  "seed": 550035,
+  "target_class": "electronics",
+  "target_class_id": 2,
+  "target_model": "cube_2",
+  "models": {
+    "cube_2": {
+      "x": -0.9424906145877823,
+      "y": -0.6359284655916219,
+      "yaw": -1.5708,
+      "z": 0.02,
+      "station": 35
+    },
+    "cube_0": {
+      "number": 36,
+      "x": -1.395,
+      "y": 0.08,
+      "yaw": 0.0,
+      "z": 0.02
+    },
+    "cube_1": {
+      "number": 37,
+      "x": -2.01,
+      "y": -0.445,
+      "yaw": 1.5708,
+      "z": 0.02
+    }
+  },
+  "robot_start": {
+    "sequence": 34,
+    "x": -1.2533954572677612,
+    "y": -0.8547531890869141,
+    "yaw": 1.6074262857437132,
+    "z": 0.01
+  },
+  "navigation_goal": {
+    "sequence": 35,
+    "x": -1.1543,
+    "y": -0.525,
+    "yaw": 7.722691751649312e-05
+  },
+  "arm_scan_positions": [
+    0.0,
+    0.0,
+    0.55,
+    2.2,
+    0.0
+  ],
+  "retry_number": 2
+}

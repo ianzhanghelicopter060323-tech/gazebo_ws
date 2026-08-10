@@ -85,3 +85,88 @@ python3 script/capture_mid_images.py \
 ```
 
 按 `Ctrl+C` 可以安全停止；脚本只向自己启动的进程组发送退出信号，不会主动使用 `killall` 或 `pkill`。
+
+## 40 轮端到端锥桶测试
+
+`run_end_to_end_cone_trials.py` 默认执行 40 轮隔离测试。每轮重新启动完整仿真，
+由未修改的 `car3/scripts/spawn_cubes.py` 随机生成物块和 10 个锥桶，再从
+`food`、`daily`、`electronics` 中随机选择一个完整抓取与配送任务：
+
+```bash
+cd /home/ianichinose/gazebo_ws
+python3 script/run_end_to_end_cone_trials.py
+```
+
+运行前需要关闭其他 ROS/Gazebo 会话。若只需核对随机任务顺序和配置，不启动仿真：
+
+```bash
+python3 script/run_end_to_end_cone_trials.py --dry-run --seed 20260810
+```
+
+默认输出目录为
+`script/logs/end_to_end_cone_trials_<时间>/`，其中包含：
+
+- `trials.csv`：逐轮任务结果、前序/配送导航失败分类和锥桶碰撞摘要；
+- `summary.json`：完整汇总及每轮记录；
+- `collision_templates.json`：所有碰撞轮的锥桶初始分布；
+- `round_NNN/cone_trial.json`：任务阶段、`move_base` 目标和状态、锥桶初末位姿、物理接触与位移证据；
+- `round_NNN/stress_template.json`：仅在该轮检测到碰撞时生成，供后续固定分布压力测试使用；
+- `round_NNN/roslaunch.log` 和 `cone_monitor.log`：该轮诊断日志。
+
+默认复用 200 轮测试已验证的 Gazebo 服务端世界状态录制方式，同时通过正常仿真
+入口启动唯一一个 Gazebo GUI；不会为了录像额外启动第二个 `gzclient`。GUI 继承
+`gazebo_nav.launch` 的 `GALLIUM_DRIVER=d3d12`、
+`MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA` 和 `LIBGL_ALWAYS_SOFTWARE=0`，默认使用
+WSLg 的 NVIDIA 硬件加速。每轮在任务首次进入
+`NAVIGATE_TO_PICKUP_STAGING`（开始前序导航）时开始记录，任务结束后封装为
+可由 Gazebo 回放的状态日志，单独保存在：
+
+```text
+/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/
+  end_to_end_cone_trials_<时间>_seed<随机种子>/
+    round_NNN/gazebo_world_state.log
+    round_NNN/gazebo_world_recording.json
+    round_NNN/gazebo_world_recorder.log
+```
+
+录制辅助程序仅订阅 `/sim_task/state` 以确定起点，并使用 Gazebo 原生日志控制话题；
+不发布任务、导航或车辆控制消息。测试默认显示硬件加速 Gazebo 窗口；无需观察时可
+加 `--headless`，服务端录制仍正常进行。禁用录制可加
+`--disable-gazebo-recording`。
+
+回放某轮记录：
+
+```bash
+python3 script/play_gazebo_world_log.py \
+  data/cone_zone/end_to_end_test/<运行目录>/round_NNN/gazebo_world_state.log
+```
+
+碰撞默认采用两类只读证据的并集：Gazebo 物理接触流中的
+`car3` 与 `cone_*` 接触，以及任务开始基线后锥桶超过 `1 cm` 的平移或
+超过 `5°` 的倾倒。监测数据不会发布回任务节点，也不会改变规划器参数、目标或速度。
+如物理接触流在当前机器上带来明显额外负载，可用
+`--disable-contact-stream` 只保留每 0.05 秒采样一次的锥桶位移/倾倒检测。
+
+碰撞模板只记录后续测试需要的精确位姿和来源。固定分布压力测试应在正常随机生成脚本
+运行完后，由独立测试辅助脚本在 Gazebo 中重置锥桶位姿；不要修改
+`spawn_cubes.py`，也不要把 Gazebo 真值反馈给导航逻辑。
+
+## Gazebo 录制监测与清理
+
+`prune_successful_gazebo_recordings.py` 会同时监测原有 seq35 世界状态录制目录和
+上述锥桶测试录像目录。默认只预览，不删除：
+
+```bash
+python3 script/prune_successful_gazebo_recordings.py
+```
+
+测试期间持续监测并实际清理：
+
+```bash
+python3 script/prune_successful_gazebo_recordings.py --watch --apply
+```
+
+锥桶录像仅在 `trials.csv` 和录制清单共同证明整轮无错误时删除：任务完成且
+`error_code=0`，前序/配送导航均未失败，未检测到锥桶碰撞，锥桶/contact 监测完整，
+并且状态日志、任务 ID、路径和文件大小一致。任何字段缺失、未知、异常或不一致都
+保留录像。`--apply` 是永久删除；每次删除会在录像根目录生成 JSON 审计报告。

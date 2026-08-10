@@ -8,6 +8,8 @@
        default="$(find smart_factory_mission)/config/mission.yaml"/>
   <arg name="goal_config"
        default="$(find smart_factory_mission)/config/pickup_staging_dev.yaml"/>
+  <arg name="delivery_goal_config"
+       default="$(find smart_factory_mission)/config/delivery_goals.yaml"/>
 
   <node name="smart_factory_mission"
         pkg="smart_factory_mission"
@@ -16,6 +18,7 @@
         required="true">
     <rosparam command="load" file="$(arg mission_config)"/>
     <rosparam command="load" file="$(arg goal_config)"/>
+    <rosparam command="load" file="$(arg delivery_goal_config)"/>
     <param name="action_name" value="$(arg action_name)"/>
     <param name="navigation_action_name"
            value="$(arg navigation_action_name)"/>

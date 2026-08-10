@@ -1,0 +1,50 @@
+{
+  "round": 130,
+  "target_class": "food",
+  "image_topic": "/camera/rgb/image_raw",
+  "captures": [
+    {
+      "station": 35,
+      "file": "seq35.png",
+      "captured_at": "2026-08-10T04:11:49.285+08:00",
+      "image_stamp": {
+        "secs": 195,
+        "nsecs": 535000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 2,
+      "recognized_class_id": 2,
+      "recognized_text": "电子 / 物块",
+      "recognition_confidence": 0.9998900294303894
+    },
+    {
+      "station": 36,
+      "file": "seq36.png",
+      "captured_at": "2026-08-10T04:12:16.801+08:00",
+      "image_stamp": {
+        "secs": 221,
+        "nsecs": 236000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 1,
+      "recognized_class_id": 1,
+      "recognized_text": "日用 / 物块",
+      "recognition_confidence": 0.9981399774551392
+    },
+    {
+      "station": 37,
+      "file": "seq37.png",
+      "captured_at": "2026-08-10T04:12:38.559+08:00",
+      "image_stamp": {
+        "secs": 241,
+        "nsecs": 635000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 1,
+      "recognized_class_id": 0,
+      "recognized_text": "食品 / 物块 / 食品",
+      "recognition_confidence": 0.9994099736213684
+    }
+  ],
+  "errors": []
+}

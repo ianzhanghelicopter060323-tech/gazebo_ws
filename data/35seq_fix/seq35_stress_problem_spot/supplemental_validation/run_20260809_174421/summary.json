@@ -1,0 +1,54 @@
+{
+  "created_at": "2026-08-09T17:49:10+08:00",
+  "normal_spawn_files_modified": false,
+  "results": [
+    {
+      "round": 1,
+      "name": "lower_endpoint",
+      "food_pose": {
+        "x": -0.77,
+        "y": -0.69,
+        "z": 0.02,
+        "yaw": -1.5708
+      },
+      "case_file": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/supplemental_validation/run_20260809_174421/round_01_lower_endpoint/case_plan.json",
+      "log_file": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/supplemental_validation/run_20260809_174421/round_01_lower_endpoint/full_pipeline.log",
+      "status": "task_succeeded",
+      "task_result": {
+        "reported_success": true,
+        "completed_stage": 14,
+        "error_code": 0,
+        "message": "target cube grasped and lifted from seq35"
+      },
+      "task_client_exit_code": 0,
+      "primary_observation_attempts": 2,
+      "supplemental_pose_used": false,
+      "supplemental_log_matches": 0,
+      "duration_seconds": 138.379
+    },
+    {
+      "round": 2,
+      "name": "upper_endpoint",
+      "food_pose": {
+        "x": -0.77,
+        "y": -0.36,
+        "z": 0.02,
+        "yaw": -1.5708
+      },
+      "case_file": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/supplemental_validation/run_20260809_174421/round_02_upper_endpoint/case_plan.json",
+      "log_file": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/supplemental_validation/run_20260809_174421/round_02_upper_endpoint/full_pipeline.log",
+      "status": "task_succeeded",
+      "task_result": {
+        "reported_success": true,
+        "completed_stage": 14,
+        "error_code": 0,
+        "message": "target cube grasped and lifted from seq35"
+      },
+      "task_client_exit_code": 0,
+      "primary_observation_attempts": 2,
+      "supplemental_pose_used": false,
+      "supplemental_log_matches": 0,
+      "duration_seconds": 144.276
+    }
+  ]
+}

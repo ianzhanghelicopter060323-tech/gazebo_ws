@@ -1,0 +1,110 @@
+{
+  "scale": 1.0,
+  "label": "DAILY",
+  "confidence": 0.99806,
+  "text": "日用 / 物块",
+  "bbox": [
+    467,
+    304,
+    57,
+    37
+  ],
+  "accepted": true,
+  "lines": [
+    {
+      "text": "日用",
+      "confidence": 0.99806,
+      "bbox": [
+        467,
+        304,
+        57,
+        37
+      ]
+    },
+    {
+      "text": "物块",
+      "confidence": 0.99996,
+      "bbox": [
+        468,
+        333,
+        60,
+        37
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "scale": 1.0,
+      "label": "DAILY",
+      "confidence": 0.99806,
+      "text": "日用 / 物块",
+      "bbox": [
+        467,
+        304,
+        57,
+        37
+      ],
+      "accepted": true,
+      "lines": [
+        {
+          "text": "日用",
+          "confidence": 0.99806,
+          "bbox": [
+            467,
+            304,
+            57,
+            37
+          ]
+        },
+        {
+          "text": "物块",
+          "confidence": 0.99996,
+          "bbox": [
+            468,
+            333,
+            60,
+            37
+          ]
+        }
+      ]
+    }
+  ],
+  "frame_index": 2,
+  "sequence": 20,
+  "stamp": 144.51,
+  "expected_class": "daily",
+  "expected_class_id": 1,
+  "image_size": {
+    "width": 640,
+    "height": 480
+  },
+  "bbox_margins": {
+    "left": 467,
+    "top": 304,
+    "right": 116,
+    "bottom": 139,
+    "minimum": 116
+  },
+  "rgb_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/rgb_dataset/run_20260808_220848_seed550035/case_005/frame_02.png",
+  "depth_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_220848_seed550035/case_005/frame_02.npy",
+  "depth_preview_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_220848_seed550035/case_005/frame_02_preview.png",
+  "annotated_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/ocr_retan/run_20260808_220848_seed550035/case_005/frame_02.png",
+  "depth": 0.30630987882614136,
+  "point_camera": [
+    -0.12576553960944997,
+    0.05893013855985656,
+    -0.30630987882614136
+  ],
+  "point_base": [
+    0.2823777178840055,
+    -0.1233846620331005,
+    0.031238507296870277
+  ],
+  "point_map": [
+    -0.939312061548771,
+    -0.675176869148526,
+    0.03123864609158944
+  ],
+  "valid_observation": true,
+  "failure_reason": null
+}

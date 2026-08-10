@@ -1,0 +1,42 @@
+{
+  "created_at": "2026-08-11T03:55:56+08:00",
+  "summary": {
+    "rounds_examined": 1,
+    "eligible_rounds": 1,
+    "retained_rounds": 0,
+    "eligible_bytes": 32006136,
+    "deleted_files": 3,
+    "deleted_bytes": 32006136
+  },
+  "rounds": [
+    {
+      "dataset": "cone_zone_world",
+      "run": "end_to_end_cone_trials_20260811_032917_seed8873580064128461828",
+      "round": 6,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260811_032917_seed8873580064128461828/round_006",
+      "eligible_for_recording_deletion": true,
+      "reason": "round_completed_without_detected_errors",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260811_032917_seed8873580064128461828/round_006/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260811_032917_seed8873580064128461828/round_006/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260811_032917_seed8873580064128461828/round_006/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 32006136,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260811_032917_seed8873580064128461828/round_006/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260811_032917_seed8873580064128461828/round_006/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260811_032917_seed8873580064128461828/round_006/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 32006136,
+      "task_success": true,
+      "task_status": "task_completed",
+      "error_code": 0,
+      "preceding_navigation_failure": false,
+      "delivery_navigation_failure": false,
+      "cone_collision": false,
+      "cone_monitor_status": "complete",
+      "contact_stream_status": "stopped",
+      "gazebo_recording_status": "complete"
+    }
+  ]
+}

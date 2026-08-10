@@ -11,6 +11,9 @@ navigation:
     tracking_goal_topic: /sim_task/tracking_goal
     progress_topic: /sim_task/path_progress
     control_frequency: 20.0
+    # Keep path tracking at 20 Hz, but do not forward and log every control
+    # sample through both navigation and mission Action servers.
+    progress_feedback_frequency: 2.0
     acquire_radius: 0.20
     lookahead_min: 0.20
     lookahead_max: 0.50

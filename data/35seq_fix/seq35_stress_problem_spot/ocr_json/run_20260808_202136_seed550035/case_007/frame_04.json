@@ -1,0 +1,128 @@
+{
+  "scale": 1.0,
+  "label": "unknown",
+  "confidence": 0.0,
+  "text": "品 / 1",
+  "bbox": null,
+  "accepted": false,
+  "lines": [
+    {
+      "text": "品",
+      "confidence": 0.99856,
+      "bbox": [
+        461,
+        418,
+        86,
+        61
+      ]
+    },
+    {
+      "text": "1",
+      "confidence": 0.857,
+      "bbox": [
+        262,
+        460,
+        14,
+        19
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "scale": 1.0,
+      "label": "unknown",
+      "confidence": 0.0,
+      "text": "品 / 1",
+      "bbox": null,
+      "accepted": false,
+      "lines": [
+        {
+          "text": "品",
+          "confidence": 0.99856,
+          "bbox": [
+            461,
+            418,
+            86,
+            61
+          ]
+        },
+        {
+          "text": "1",
+          "confidence": 0.857,
+          "bbox": [
+            262,
+            460,
+            14,
+            19
+          ]
+        }
+      ]
+    },
+    {
+      "scale": 2.0,
+      "label": "unknown",
+      "confidence": 0.0,
+      "text": "勿块 / 品",
+      "bbox": null,
+      "accepted": false,
+      "lines": [
+        {
+          "text": "品",
+          "confidence": 0.9891,
+          "bbox": [
+            469,
+            428,
+            40,
+            51
+          ]
+        },
+        {
+          "text": "勿块",
+          "confidence": 0.92213,
+          "bbox": [
+            498,
+            425,
+            45,
+            54
+          ]
+        }
+      ]
+    },
+    {
+      "scale": 4.0,
+      "label": "unknown",
+      "confidence": 0.0,
+      "text": "食",
+      "bbox": null,
+      "accepted": false,
+      "lines": [
+        {
+          "text": "食",
+          "confidence": 0.99942,
+          "bbox": [
+            475,
+            456,
+            28,
+            24
+          ]
+        }
+      ]
+    }
+  ],
+  "frame_index": 4,
+  "sequence": 168,
+  "stamp": 161.947,
+  "expected_class": "food",
+  "expected_class_id": 0,
+  "image_size": {
+    "width": 640,
+    "height": 480
+  },
+  "bbox_margins": null,
+  "rgb_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/rgb_dataset/run_20260808_202136_seed550035/case_007/frame_04.png",
+  "depth_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_007/frame_04.npy",
+  "depth_preview_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_007/frame_04_preview.png",
+  "annotated_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/ocr_retan/run_20260808_202136_seed550035/case_007/frame_04.png",
+  "valid_observation": false,
+  "failure_reason": "NO_CLASS_KEYWORD"
+}

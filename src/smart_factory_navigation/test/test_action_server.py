@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import math
 import unittest
 from unittest import mock
 
@@ -7,6 +8,7 @@ import rospy
 
 from smart_factory_navigation import error_codes, states
 from smart_factory_navigation.action_server import NavigationActionServer
+from smart_factory_navigation.models import RouteExecutionContext
 from smart_factory_navigation.msg import NavigateGoal
 
 
@@ -48,7 +50,19 @@ class FakeRouteExecutor:
     def cancel(self):
         self.events.append("cancel")
 
-    def navigate_pose(self, context, recorder, _pose, phase, _detail):
+    def navigate_pose(
+        self,
+        context,
+        recorder,
+        _pose,
+        phase,
+        _detail,
+        position_tolerance=0.0,
+        yaw_tolerance=0.0,
+    ):
+        self.events.append(
+            ("pose_tolerances", position_tolerance, yaw_tolerance)
+        )
         recorder.transition(phase, "pose started")
         self.publish_hook(context, "pose heartbeat")
 
@@ -186,6 +200,19 @@ class NavigationActionServerTest(unittest.TestCase):
             [feedback.phase for feedback in action.feedback],
         )
 
+    def test_pose_request_passes_stage_specific_tolerances(self):
+        server, action, events = self._server()
+        goal = NavigateGoal(command=NavigateGoal.NAVIGATE_POSE)
+        goal.position_tolerance = 0.04
+        goal.yaw_tolerance = math.radians(5.0)
+
+        server.execute(goal)
+
+        self.assertEqual("succeeded", action.terminal[0])
+        self.assertIn(
+            ("pose_tolerances", 0.04, math.radians(5.0)), events
+        )
+
     def test_alignment_heartbeat_keeps_alignment_phase(self):
         server, action, _events = self._server()
 
@@ -195,6 +222,29 @@ class NavigationActionServerTest(unittest.TestCase):
         self.assertEqual(
             [states.ALIGN_FOR_GRASP, states.ALIGN_FOR_GRASP],
             [feedback.phase for feedback in action.feedback],
+        )
+
+    def test_path_progress_feedback_is_throttled_without_losing_progress(self):
+        server, action, _events = self._server()
+        server._active_context = RouteExecutionContext(
+            task_id="throttle-test",
+            pickup_staging_goals=[object()],
+        )
+        server._active_state = mock.Mock(current_phase=states.FOLLOW_ROUTE)
+
+        with mock.patch(
+            "smart_factory_navigation.action_server.time.monotonic",
+            side_effect=[10.0, 10.1, 10.5],
+        ):
+            server._publish_progress(1.0)
+            server._publish_progress(2.0)
+            server._publish_progress(3.0)
+
+        self.assertEqual(3.0, server._last_progress)
+        self.assertEqual(2, len(action.feedback))
+        self.assertEqual(
+            [1.0, 3.0],
+            [feedback.path_progress for feedback in action.feedback],
         )
 
 

@@ -1,6 +1,7 @@
 """ROS Action server that owns all navigation-side mutable state."""
 
 import math
+import time
 
 import actionlib
 from geometry_msgs.msg import PoseStamped
@@ -52,6 +53,22 @@ class NavigationActionServer:
         self._active_state = None
         self._failure = None
         self._last_progress = 0.0
+        progress_feedback_frequency = float(
+            rospy.get_param(
+                "~navigation/path_tracking/progress_feedback_frequency",
+                2.0,
+            )
+        )
+        if (
+            not math.isfinite(progress_feedback_frequency)
+            or progress_feedback_frequency <= 0.0
+        ):
+            raise ValueError(
+                "navigation/path_tracking/progress_feedback_frequency "
+                "must be positive"
+            )
+        self._progress_feedback_period = 1.0 / progress_feedback_frequency
+        self._last_progress_feedback_at = None
         self._route_executor = route_executor or RouteExecutor(
             localization=self._localization,
             publish_state=self._publish_route_state,
@@ -101,7 +118,14 @@ class NavigationActionServer:
 
     def _publish_progress(self, progress):
         self._last_progress = float(progress)
-        if self._active_context is not None:
+        now = time.monotonic()
+        feedback_due = (
+            self._last_progress_feedback_at is None
+            or now - self._last_progress_feedback_at
+            >= self._progress_feedback_period
+        )
+        if self._active_context is not None and feedback_due:
+            self._last_progress_feedback_at = now
             self._publish_route_state(
                 self._active_context,
                 "following fitted path at s={:.3f}m".format(progress),
@@ -161,6 +185,7 @@ class NavigationActionServer:
         )
         self._failure = None
         self._last_progress = 0.0
+        self._last_progress_feedback_at = None
         try:
             message = self._route_executor.execute_staging_route(
                 context, self._active_state
@@ -213,6 +238,8 @@ class NavigationActionServer:
                     goal.target_pose,
                     states.NAVIGATE_POSE,
                     "navigating to requested pose",
+                    position_tolerance=goal.position_tolerance,
+                    yaw_tolerance=goal.yaw_tolerance,
                 )
             except RouteNavigationPreempted as exc:
                 result = self._new_result(

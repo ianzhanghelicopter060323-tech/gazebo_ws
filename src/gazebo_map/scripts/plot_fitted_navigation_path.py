@@ -26,6 +26,12 @@ SEQ_LABEL_PATTERN = re.compile(r"\s*# seq\s+([^\s:]+)")
 X_PATTERN = re.compile(r"\s*- x:\s*([-+0-9.eE]+)")
 Y_PATTERN = re.compile(r"\s*y:\s*([-+0-9.eE]+)")
 YAW_PATTERN = re.compile(r"\s*yaw:\s*([-+0-9.eE]+)")
+DELIVERY_CLASS_COLORS = {
+    0: (220, 65, 65),
+    1: (45, 165, 95),
+    2: (40, 115, 225),
+}
+DELIVERY_ENTRY_COLOR = (145, 45, 190)
 
 
 def read_cube_spawn_areas(path):
@@ -72,6 +78,63 @@ def read_cube_spawn_areas(path):
     areas[by_center_x[1]][0] = "mid"
     areas[by_center_x[2]][0] = "close_navi"
     return [tuple(area) for area in areas]
+
+
+def read_delivery_navigation_goals(path):
+    """Read the shared cone-entry pose and three task-selected workshops."""
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    delivery = data.get("delivery") if isinstance(data, dict) else None
+    if not isinstance(delivery, dict) or delivery.get("configured") is not True:
+        raise ValueError("delivery navigation goals are not configured")
+    if delivery.get("frame_id") != "map":
+        raise ValueError("delivery navigation goals must use the map frame")
+
+    def pose(raw, label, color):
+        if not isinstance(raw, dict):
+            raise ValueError("{} must be a mapping".format(label))
+        missing = [key for key in ("x", "y", "yaw") if key not in raw]
+        if missing:
+            raise ValueError(
+                "{} is missing {}".format(label, ", ".join(missing))
+            )
+        values = [float(raw[key]) for key in ("x", "y", "yaw")]
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("{} contains a non-finite value".format(label))
+        return (label, values[0], values[1], values[2], color)
+
+    goals = [
+        pose(
+            delivery.get("entry_pose"),
+            "cone preparation pose",
+            DELIVERY_ENTRY_COLOR,
+        )
+    ]
+    destinations = delivery.get("destinations")
+    if not isinstance(destinations, list) or len(destinations) != 3:
+        raise ValueError("delivery.destinations must contain exactly three goals")
+    by_class = {}
+    for destination in destinations:
+        if not isinstance(destination, dict):
+            raise ValueError("delivery destination must be a mapping")
+        target_class = destination.get("target_class")
+        if target_class not in DELIVERY_CLASS_COLORS or target_class in by_class:
+            raise ValueError(
+                "delivery destinations must uniquely cover target classes 0, 1, 2"
+            )
+        name = destination.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("delivery destination name must not be empty")
+        by_class[target_class] = pose(
+            destination,
+            name.strip(),
+            DELIVERY_CLASS_COLORS[target_class],
+        )
+    if set(by_class) != set(DELIVERY_CLASS_COLORS):
+        raise ValueError(
+            "delivery destinations must uniquely cover target classes 0, 1, 2"
+        )
+    goals.extend(by_class[target_class] for target_class in sorted(by_class))
+    return goals
 
 
 def read_active_route(path):
@@ -639,6 +702,7 @@ def render_view(
     clearance_point,
     label_points,
     spawn_areas,
+    delivery_goals,
 ):
     left, top, right, bottom = crop
     nearest = getattr(Image, "Resampling", Image).NEAREST
@@ -741,6 +805,74 @@ def render_view(
         radius = point_radius + max(3, scale // 2)
         draw.ellipse((x - radius, y - radius, x + radius, y + radius), outline=color, width=max(2, scale // 2))
 
+    heading_length = 0.45
+    for label, goal_x, goal_y, goal_yaw, color in delivery_goals:
+        x, y = transform((goal_x, goal_y))
+        arrow_x, arrow_y = transform(
+            (
+                goal_x + heading_length * math.cos(goal_yaw),
+                goal_y + heading_length * math.sin(goal_yaw),
+            )
+        )
+        draw.line(
+            (x, y, arrow_x, arrow_y),
+            fill=color,
+            width=max(3, scale // 2),
+        )
+        delta_x = arrow_x - x
+        delta_y = arrow_y - y
+        arrow_pixels = math.hypot(delta_x, delta_y)
+        if arrow_pixels > 0.0:
+            unit_x = delta_x / arrow_pixels
+            unit_y = delta_y / arrow_pixels
+            normal_x = -unit_y
+            normal_y = unit_x
+            head_length = max(8, 2 * scale)
+            head_width = max(5, scale)
+            base_x = arrow_x - head_length * unit_x
+            base_y = arrow_y - head_length * unit_y
+            draw.polygon(
+                (
+                    (arrow_x, arrow_y),
+                    (
+                        base_x + head_width * normal_x,
+                        base_y + head_width * normal_y,
+                    ),
+                    (
+                        base_x - head_width * normal_x,
+                        base_y - head_width * normal_y,
+                    ),
+                ),
+                fill=color,
+            )
+        goal_radius = max(4, scale)
+        draw.ellipse(
+            (
+                x - goal_radius,
+                y - goal_radius,
+                x + goal_radius,
+                y + goal_radius,
+            ),
+            fill=color,
+            outline="white",
+            width=max(2, scale // 3),
+        )
+        if label_points:
+            font = load_font(max(12, scale + 5), bold=True)
+            text_width, text_height = draw.textsize(label, font=font)
+            label_x = x + goal_radius + 4
+            if label_x + text_width + 3 > view.width:
+                label_x = x - goal_radius - text_width - 4
+            label_y = max(2, min(y - text_height - 3, view.height - text_height - 2))
+            draw.text(
+                (label_x, label_y),
+                label,
+                fill=color,
+                font=font,
+                stroke_width=2,
+                stroke_fill="white",
+            )
+
     cx, cy = transform(clearance_point)
     radius = point_radius + scale
     draw.ellipse(
@@ -760,6 +892,7 @@ def create_figure(
     clearance_point,
     diagnostics,
     spawn_areas,
+    delivery_goals,
 ):
     points = np.asarray([[record[1], record[2]] for record in records])
     sequences = [record[0] for record in records]
@@ -775,6 +908,7 @@ def create_figure(
         clearance_point,
         False,
         spawn_areas,
+        delivery_goals,
     )
 
     resolution = metadata["resolution"]
@@ -787,7 +921,17 @@ def create_figure(
             for corner in ((x_min, y_min), (x_max, y_max))
         ]
     )
-    crop_points = np.vstack((fitted_points, area_corners))
+    delivery_crop_points = np.asarray(
+        [
+            point
+            for _label, x, y, yaw, _color in delivery_goals
+            for point in (
+                (x, y),
+                (x + 0.45 * math.cos(yaw), y + 0.45 * math.sin(yaw)),
+            )
+        ]
+    )
+    crop_points = np.vstack((fitted_points, area_corners, delivery_crop_points))
     minimum = np.min(crop_points, axis=0) - margin
     maximum = np.max(crop_points, axis=0) + margin
     left = max(0, int(math.floor((minimum[0] - origin_x) / resolution)))
@@ -819,11 +963,12 @@ def create_figure(
         clearance_point,
         True,
         spawn_areas,
+        delivery_goals,
     )
 
     margin_px = 24
     header = 70
-    footer = 145
+    footer = 220
     width = full.width + zoom.width + 3 * margin_px
     height = header + max(full.height, zoom.height) + footer
     canvas = Image.new("RGB", (width, height), "white")
@@ -832,7 +977,7 @@ def create_figure(
     draw = ImageDraw.Draw(canvas)
     draw.text(
         (margin_px, 16),
-        "Fitted pickup-staging global path on math_newest.pgm",
+        "Fitted pickup-staging path and delivery navigation goals on math_newest.pgm",
         fill=(20, 20, 20),
         font=load_font(26, bold=True),
     )
@@ -847,6 +992,10 @@ def create_figure(
         ("far_navi cube spawn region", (70, 150, 255)),
         ("mid cube spawn region", (255, 190, 30)),
         ("close_navi cube spawn region", (55, 190, 115)),
+        ("cone preparation pose / heading", DELIVERY_ENTRY_COLOR),
+        ("food workshop goal / heading", DELIVERY_CLASS_COLORS[0]),
+        ("daily workshop goal / heading", DELIVERY_CLASS_COLORS[1]),
+        ("electronics workshop goal / heading", DELIVERY_CLASS_COLORS[2]),
     ]
     x = margin_px
     y = legend_y
@@ -902,6 +1051,13 @@ def main():
         type=Path,
         default=workspace / "src/car3/scripts/spawn_cubes.py",
         help="read the three CUBE_AREAS rectangles for plot annotations",
+    )
+    parser.add_argument(
+        "--delivery-goals",
+        type=Path,
+        default=workspace
+        / "src/smart_factory_mission/config/delivery_goals.yaml",
+        help="render the cone preparation pose and three workshop goals",
     )
     parser.add_argument(
         "--route-doc",
@@ -965,6 +1121,7 @@ def main():
         records = route_records
     sequences = [record[0] for record in records]
     spawn_areas = read_cube_spawn_areas(args.cube_spawn_script)
+    delivery_goals = read_delivery_navigation_goals(args.delivery_goals)
     linear_segments, y_floor_segments = read_fit_constraints(
         args.mission_config, sequences
     )
@@ -1062,6 +1219,7 @@ def main():
             maximum_shift,
         ),
         spawn_areas,
+        delivery_goals,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     figure.save(args.output)
@@ -1071,6 +1229,14 @@ def main():
 
     print(f"output={args.output}")
     print(f"source_route={source_route}")
+    print(
+        "delivery_navigation_goals={}".format(
+            [
+                (label, x, y, yaw)
+                for label, x, y, yaw, _color in delivery_goals
+            ]
+        )
+    )
     if args.render_only:
         print("path_output=unchanged (render-only)")
     else:

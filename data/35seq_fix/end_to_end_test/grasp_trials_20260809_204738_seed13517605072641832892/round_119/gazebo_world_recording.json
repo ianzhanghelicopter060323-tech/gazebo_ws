@@ -1,0 +1,22 @@
+{
+  "round": 119,
+  "task_id": "grasp_trial_119_1786301162",
+  "world_name": "default",
+  "state_topic": "/sim_task/state",
+  "start_condition": {
+    "anchor": "seq34",
+    "fitted_path_progress_m": 7.858503136084133
+  },
+  "status": "stop_failed",
+  "recording_file": "gazebo_world_state.log",
+  "encoding": "zlib",
+  "trigger_progress_m": 7.875,
+  "started_at": "2026-08-10T02:48:26.623+08:00",
+  "started_sim_time": {
+    "secs": 164,
+    "nsecs": 870000000
+  },
+  "stopped_at": "2026-08-10T02:49:29.837+08:00",
+  "size_bytes": 0,
+  "error": "Command '['gz', 'topic', '-e', '/gazebo/default/log/status', '-d', '1']' timed out after 3.0 seconds"
+}

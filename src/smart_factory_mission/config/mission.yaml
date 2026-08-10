@@ -1,5 +1,5 @@
 # Mission orchestration parameters. No track coordinates belong in this file.
-pipeline_stop_after: OBJECT_GRASPED
+pipeline_stop_after: TASK_COMPLETED
 goal_source: development
 
 task:
@@ -18,7 +18,7 @@ pickup:
 
   # A visual correction is rejected if it asks the base to move farther than
   # this.  Two stop/re-observe corrections are allowed before grasping.
-  alignment_tolerance: 0.015
+  alignment_tolerance: 0.010
   maximum_alignment_correction: 0.25
   maximum_alignment_iterations: 4 # 最大机器人对齐物品重试数
   fixed_grasp:
@@ -31,21 +31,25 @@ pickup:
 
   stations:
     - number: 35
-      x: -1.1543
+      x: -1.2243
       y: -0.525
       yaw: 0.00007722691751649312
       # All 80 successful close_navi samples used the common 2.10 scan pose.
-      scan_positions: [0.0, 0.0, 0.55, 2.20, 0.0]
+      scan_positions: [0.0, 0.10, 0.55, 2.10, 0.0]
+      # Used only after every OCR attempt at the primary pose is rejected.
+      supplemental_scan_positions: [0.0, 0.3, 0.60, 1.8, 0.0]
     - number: 36
       x: -1.395
       y: -0.235
       yaw: 1.5691910264536908
       scan_positions: [0.0, 0.0, 0.55, 2.20, 0.0]
+      supplemental_scan_positions: [0.0, 0.3, 0.60, 1.8, 0.0]
     - number: 37
       x: -1.65569836894096
       y: -0.44503905352630406
       yaw: 3.141482426814858
       scan_positions: [0.0, 0.0, 0.55, 2.20, 0.0]
+      supplemental_scan_positions: [0.0, 0.3, 0.60, 1.8, 0.0]
 
   manipulation:
     arm_command_topic: /arm_controller/command
@@ -59,4 +63,11 @@ pickup:
     arm_duration: 3.0
     arm_tolerance: 0.03
     command_timeout: 8.0
+    # Release repeats the latched 1.5 command while polling attachment/joint
+    # feedback, then requires a continuous IDLE/open confirmation window.
+    release_command_rate: 10.0
+    release_confirmation_duration: 1.0
     grasp_positions: [0.0, 1.5, 0.3, 1.2, 0.0]
+    # Low placement pose recorded in docs/锥桶区导航纪要.md. The closed gripper
+    # reaches this pose before any open command is sent.
+    release_positions: [0.0, 0.70, 1.7, 0.5, 0.0]

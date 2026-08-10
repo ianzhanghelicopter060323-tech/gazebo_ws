@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import math
+import time
+
 import rospy
 import tf.transformations as T
 from sensor_msgs.msg import JointState
@@ -25,6 +28,15 @@ class GraspAttach:
         self.current_object = None  
         self.update_rate = rospy.get_param('~update_rate', 100)
         self.check_rate = rospy.get_param('~check_rate', 2)
+        self.grasp_attempt_rate = float(
+            rospy.get_param('~grasp_attempt_rate', self.check_rate))
+        if (
+            not math.isfinite(self.grasp_attempt_rate)
+            or self.grasp_attempt_rate <= 0.0
+        ):
+            raise ValueError('grasp_attempt_rate must be positive')
+        self._grasp_attempt_period = 1.0 / self.grasp_attempt_rate
+        self._last_grasp_attempt_at = None
         self.obj_half_x = rospy.get_param('~object_half_x', 0.02)
         self.obj_half_y = rospy.get_param('~object_half_y', 0.02)
         self.obj_half_z = rospy.get_param('~object_half_z', 0.02)
@@ -83,6 +95,16 @@ class GraspAttach:
         if self.r_joint_pos is None:
             return
         if self.state == 'IDLE' and self.r_joint_pos < self.close_threshold:
+            now = time.monotonic()
+            if (
+                self._last_grasp_attempt_at is not None
+                and now - self._last_grasp_attempt_at
+                < self._grasp_attempt_period
+            ):
+                return
+            # Record the attempt before the Gazebo service calls so a slow or
+            # failed query cannot immediately trigger another 50 Hz burst.
+            self._last_grasp_attempt_at = now
             self._do_grasp()
 
     def _gripper_command_cb(self, msg):

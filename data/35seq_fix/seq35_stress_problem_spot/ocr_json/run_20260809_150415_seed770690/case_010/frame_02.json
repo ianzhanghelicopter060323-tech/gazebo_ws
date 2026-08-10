@@ -1,0 +1,130 @@
+{
+  "scale": 1.0,
+  "label": "DAILY",
+  "confidence": 0.99865,
+  "text": "日用 / 物块 / 日",
+  "bbox": [
+    302,
+    157,
+    51,
+    30
+  ],
+  "accepted": true,
+  "lines": [
+    {
+      "text": "日用",
+      "confidence": 0.99865,
+      "bbox": [
+        302,
+        157,
+        51,
+        30
+      ]
+    },
+    {
+      "text": "物块",
+      "confidence": 0.99995,
+      "bbox": [
+        302,
+        175,
+        50,
+        32
+      ]
+    },
+    {
+      "text": "日",
+      "confidence": 0.89374,
+      "bbox": [
+        303,
+        203,
+        47,
+        24
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "scale": 1.0,
+      "label": "DAILY",
+      "confidence": 0.99865,
+      "text": "日用 / 物块 / 日",
+      "bbox": [
+        302,
+        157,
+        51,
+        30
+      ],
+      "accepted": true,
+      "lines": [
+        {
+          "text": "日用",
+          "confidence": 0.99865,
+          "bbox": [
+            302,
+            157,
+            51,
+            30
+          ]
+        },
+        {
+          "text": "物块",
+          "confidence": 0.99995,
+          "bbox": [
+            302,
+            175,
+            50,
+            32
+          ]
+        },
+        {
+          "text": "日",
+          "confidence": 0.89374,
+          "bbox": [
+            303,
+            203,
+            47,
+            24
+          ]
+        }
+      ]
+    }
+  ],
+  "frame_index": 2,
+  "sequence": 17,
+  "stamp": 145.211,
+  "expected_class": "daily",
+  "expected_class_id": 1,
+  "image_size": {
+    "width": 640,
+    "height": 480
+  },
+  "bbox_margins": {
+    "left": 302,
+    "top": 157,
+    "right": 287,
+    "bottom": 293,
+    "minimum": 157
+  },
+  "rgb_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/rgb_dataset/run_20260809_150415_seed770690/case_010/frame_02.png",
+  "depth_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260809_150415_seed770690/case_010/frame_02.npy",
+  "depth_preview_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260809_150415_seed770690/case_010/frame_02_preview.png",
+  "annotated_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/ocr_retan/run_20260809_150415_seed770690/case_010/frame_02.png",
+  "depth": 0.35430534183979034,
+  "point_camera": [
+    -0.005818865871875241,
+    -0.05694175888906486,
+    -0.35430534183979034
+  ],
+  "point_base": [
+    0.4077909066799835,
+    -0.0034650663467028714,
+    0.031099780241479358
+  ],
+  "point_map": [
+    -0.8161644572499891,
+    -0.5509428704744742,
+    0.0311000113657664
+  ],
+  "valid_observation": true,
+  "failure_reason": null
+}

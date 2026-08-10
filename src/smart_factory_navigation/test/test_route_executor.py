@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from types import SimpleNamespace
+import math
 import unittest
 from unittest import mock
 
@@ -72,12 +73,13 @@ class FakeNavigation:
 
 class RouteExecutorTest(unittest.TestCase):
     @staticmethod
-    def _pose(x=0.0, y=0.0):
+    def _pose(x=0.0, y=0.0, yaw=0.0):
         pose = PoseStamped()
         pose.header.frame_id = "map"
         pose.pose.position.x = x
         pose.pose.position.y = y
-        pose.pose.orientation.w = 1.0
+        pose.pose.orientation.z = math.sin(yaw / 2.0)
+        pose.pose.orientation.w = math.cos(yaw / 2.0)
         return pose
 
     def _executor(
@@ -271,6 +273,36 @@ class RouteExecutorTest(unittest.TestCase):
 
         self.assertEqual(2, len(navigation.navigate_calls))
         self.assertEqual(0, context.retry_count)
+
+    def test_single_pose_accepts_five_degree_entry_tolerance(self):
+        executor, navigation, *_ = self._executor(
+            [(NavigationOutcome.PASSED, "inside entry tolerances")]
+        )
+        context = self._context([])
+        pose = self._pose(yaw=math.radians(5.0))
+
+        executor.navigate_pose(
+            context,
+            self._state(context),
+            pose,
+            states.NAVIGATE_POSE,
+            "cone preparation pose",
+            position_tolerance=0.04,
+            yaw_tolerance=math.radians(5.0),
+        )
+
+        self.assertTrue(navigation.navigate_calls[0].pass_condition())
+        self.assertEqual(1, navigation.cancel_calls)
+
+    def test_entry_tolerance_rejects_heading_over_five_degrees(self):
+        executor, *_ = self._executor([])
+        pose = self._pose(yaw=math.radians(5.01))
+
+        self.assertFalse(
+            executor._pose_is_within_tolerances(
+                pose, 0.04, math.radians(5.0)
+            )
+        )
 
     def test_single_pose_maps_terminal_outcomes_to_public_exceptions(self):
         cases = (

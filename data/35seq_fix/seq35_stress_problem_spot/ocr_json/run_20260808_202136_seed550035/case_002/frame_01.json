@@ -1,0 +1,117 @@
+{
+  "scale": 1.0,
+  "label": "unknown",
+  "confidence": 0.0,
+  "text": "D / 1",
+  "bbox": null,
+  "accepted": false,
+  "lines": [
+    {
+      "text": "D",
+      "confidence": 0.50924,
+      "bbox": [
+        355,
+        434,
+        19,
+        9
+      ]
+    },
+    {
+      "text": "1",
+      "confidence": 0.85936,
+      "bbox": [
+        262,
+        460,
+        14,
+        19
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "scale": 1.0,
+      "label": "unknown",
+      "confidence": 0.0,
+      "text": "D / 1",
+      "bbox": null,
+      "accepted": false,
+      "lines": [
+        {
+          "text": "D",
+          "confidence": 0.50924,
+          "bbox": [
+            355,
+            434,
+            19,
+            9
+          ]
+        },
+        {
+          "text": "1",
+          "confidence": 0.85936,
+          "bbox": [
+            262,
+            460,
+            14,
+            19
+          ]
+        }
+      ]
+    },
+    {
+      "scale": 2.0,
+      "label": "unknown",
+      "confidence": 0.0,
+      "text": "",
+      "bbox": null,
+      "accepted": false,
+      "lines": []
+    },
+    {
+      "scale": 4.0,
+      "label": "unknown",
+      "confidence": 0.0,
+      "text": "N / 物",
+      "bbox": null,
+      "accepted": false,
+      "lines": [
+        {
+          "text": "N",
+          "confidence": 0.65274,
+          "bbox": [
+            464,
+            406,
+            24,
+            21
+          ]
+        },
+        {
+          "text": "物",
+          "confidence": 0.99916,
+          "bbox": [
+            485,
+            440,
+            22,
+            22
+          ]
+        }
+      ]
+    }
+  ],
+  "frame_index": 1,
+  "sequence": 9,
+  "stamp": 151.754,
+  "expected_class": "electronics",
+  "expected_class_id": 2,
+  "image_size": {
+    "width": 640,
+    "height": 480
+  },
+  "bbox_margins": null,
+  "rgb_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/rgb_dataset/run_20260808_202136_seed550035/case_002/frame_01.png",
+  "depth_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_002/frame_01.npy",
+  "depth_preview_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_002/frame_01_preview.png",
+  "annotated_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/ocr_retan/run_20260808_202136_seed550035/case_002/frame_01.png",
+  "valid_observation": false,
+  "failure_reason": "NO_CLASS_KEYWORD"
+}

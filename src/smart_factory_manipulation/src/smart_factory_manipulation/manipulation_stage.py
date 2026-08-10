@@ -33,9 +33,19 @@ class ManipulationStage:
         self._arm_duration = float(config.get("arm_duration", 3.0))
         self._arm_tolerance = float(config.get("arm_tolerance", 0.03))
         self._command_timeout = float(config.get("command_timeout", 8.0))
+        self._release_command_rate = float(
+            config.get("release_command_rate", 10.0)
+        )
+        self._release_confirmation_duration = float(
+            config.get("release_confirmation_duration", 1.0)
+        )
         self._grasp_positions = self._positions(
             config.get("grasp_positions", [0.0, 1.5, 1.4, -1.0, 0.0]),
             "grasp_positions",
+        )
+        self._release_positions = self._positions(
+            config.get("release_positions", [0.0, 0.7, 1.7, 0.5, 0.0]),
+            "release_positions",
         )
         self._validate()
 
@@ -76,6 +86,10 @@ class ManipulationStage:
             "arm_duration": self._arm_duration,
             "arm_tolerance": self._arm_tolerance,
             "command_timeout": self._command_timeout,
+            "release_command_rate": self._release_command_rate,
+            "release_confirmation_duration": (
+                self._release_confirmation_duration
+            ),
         }
         for name, value in positive.items():
             if not math.isfinite(value) or value <= 0.0:
@@ -141,6 +155,9 @@ class ManipulationStage:
     def move_to_grasp_pose(self, preempt_requested):
         return self.move_arm(self._grasp_positions, preempt_requested)
 
+    def move_to_release_pose(self, preempt_requested):
+        return self.move_arm(self._release_positions, preempt_requested)
+
     def open_gripper(self, preempt_requested):
         # The open command deliberately precedes every descent/grasp command.
         self._gripper_pub.publish(Float64(data=self._open_position))
@@ -149,6 +166,56 @@ class ManipulationStage:
             and self._state == "IDLE",
             preempt_requested,
         )
+
+    def release_gripper(self, preempt_requested):
+        """Hold the open command while rolling release feedback is stable."""
+        command = Float64(data=self._open_position)
+        command_period = 1.0 / self._release_command_rate
+        deadline = time.monotonic() + self._command_timeout
+        next_command_at = 0.0
+        confirmed_at = None
+
+        while not rospy.is_shutdown():
+            if preempt_requested():
+                return False
+
+            now = time.monotonic()
+            if now >= next_command_at:
+                # The publisher is latched, and periodic re-publication also
+                # protects the active controller from a transient overwrite.
+                self._gripper_pub.publish(command)
+                next_command_at = now + command_period
+
+            with self._condition:
+                released = (
+                    self._state == "IDLE"
+                    and self._joints.get("r_joint", -math.inf)
+                    >= self._open_minimum
+                )
+                if released:
+                    if confirmed_at is None:
+                        confirmed_at = now
+                    elif (
+                        now - confirmed_at
+                        >= self._release_confirmation_duration
+                    ):
+                        # Make the successful terminal command the publisher's
+                        # latched value after the rolling check completes.
+                        self._gripper_pub.publish(command)
+                        return True
+                else:
+                    # Any GRASPING rebound or insufficient opening restarts the
+                    # continuous confirmation window.
+                    confirmed_at = None
+
+                remaining = deadline - now
+                if remaining <= 0.0:
+                    return False
+                until_command = max(0.0, next_command_at - now)
+                self._condition.wait(
+                    timeout=min(0.1, remaining, until_command)
+                )
+        return False
 
     def wait_until_ready(self, preempt_requested):
         return self._wait_for(

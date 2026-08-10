@@ -11,6 +11,10 @@ string request_id
 geometry_msgs/PoseStamped[] waypoints
 geometry_msgs/PoseStamped target_pose
 string frame_id
+# Optional per-request early-acceptance tolerances for NAVIGATE_POSE. Both
+# values must be positive to enable them; zero keeps normal move_base success.
+float64 position_tolerance
+float64 yaw_tolerance
 ---
 # Error values intentionally retain the corresponding ExecuteTask values where
 # one exists, so the mission adapter can map them without semantic loss.

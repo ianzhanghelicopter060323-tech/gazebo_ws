@@ -1,0 +1,110 @@
+{
+  "scale": 1.0,
+  "label": "ELECTRONICS",
+  "confidence": 0.99992,
+  "text": "电子 / 物块",
+  "bbox": [
+    442,
+    323,
+    49,
+    29
+  ],
+  "accepted": true,
+  "lines": [
+    {
+      "text": "电子",
+      "confidence": 0.99992,
+      "bbox": [
+        442,
+        323,
+        49,
+        29
+      ]
+    },
+    {
+      "text": "物块",
+      "confidence": 0.99997,
+      "bbox": [
+        441,
+        346,
+        54,
+        34
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "scale": 1.0,
+      "label": "ELECTRONICS",
+      "confidence": 0.99992,
+      "text": "电子 / 物块",
+      "bbox": [
+        442,
+        323,
+        49,
+        29
+      ],
+      "accepted": true,
+      "lines": [
+        {
+          "text": "电子",
+          "confidence": 0.99992,
+          "bbox": [
+            442,
+            323,
+            49,
+            29
+          ]
+        },
+        {
+          "text": "物块",
+          "confidence": 0.99997,
+          "bbox": [
+            441,
+            346,
+            54,
+            34
+          ]
+        }
+      ]
+    }
+  ],
+  "frame_index": 5,
+  "sequence": 47,
+  "stamp": 152.339,
+  "expected_class": "electronics",
+  "expected_class_id": 2,
+  "image_size": {
+    "width": 640,
+    "height": 480
+  },
+  "bbox_margins": {
+    "left": 442,
+    "top": 323,
+    "right": 149,
+    "bottom": 128,
+    "minimum": 128
+  },
+  "rgb_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/rgb_dataset/run_20260808_202136_seed550035/case_013_retry_04/frame_05.png",
+  "depth_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_013_retry_04/frame_05.npy",
+  "depth_preview_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_013_retry_04/frame_05_preview.png",
+  "annotated_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/ocr_retan/run_20260808_202136_seed550035/case_013_retry_04/frame_05.png",
+  "depth": 0.30971041321754456,
+  "point_camera": [
+    -0.10608922327704887,
+    0.07048393601283384,
+    -0.30971041321754456
+  ],
+  "point_base": [
+    0.24989910736698354,
+    -0.1037272319353171,
+    0.03122441316598351
+  ],
+  "point_map": [
+    -0.9333990273137024,
+    -0.638091539898777,
+    0.03122452948216692
+  ],
+  "valid_observation": true,
+  "failure_reason": null
+}

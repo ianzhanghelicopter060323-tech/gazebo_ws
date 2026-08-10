@@ -1,0 +1,130 @@
+{
+  "scale": 1.0,
+  "label": "ELECTRONICS",
+  "confidence": 0.99994,
+  "text": "电子 / 物块 / D",
+  "bbox": [
+    414,
+    311,
+    49,
+    29
+  ],
+  "accepted": true,
+  "lines": [
+    {
+      "text": "电子",
+      "confidence": 0.99994,
+      "bbox": [
+        414,
+        311,
+        49,
+        29
+      ]
+    },
+    {
+      "text": "物块",
+      "confidence": 0.99994,
+      "bbox": [
+        413,
+        335,
+        53,
+        34
+      ]
+    },
+    {
+      "text": "D",
+      "confidence": 0.57567,
+      "bbox": [
+        356,
+        434,
+        18,
+        9
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "scale": 1.0,
+      "label": "ELECTRONICS",
+      "confidence": 0.99994,
+      "text": "电子 / 物块 / D",
+      "bbox": [
+        414,
+        311,
+        49,
+        29
+      ],
+      "accepted": true,
+      "lines": [
+        {
+          "text": "电子",
+          "confidence": 0.99994,
+          "bbox": [
+            414,
+            311,
+            49,
+            29
+          ]
+        },
+        {
+          "text": "物块",
+          "confidence": 0.99994,
+          "bbox": [
+            413,
+            335,
+            53,
+            34
+          ]
+        },
+        {
+          "text": "D",
+          "confidence": 0.57567,
+          "bbox": [
+            356,
+            434,
+            18,
+            9
+          ]
+        }
+      ]
+    }
+  ],
+  "frame_index": 2,
+  "sequence": 20,
+  "stamp": 152.502,
+  "expected_class": "electronics",
+  "expected_class_id": 2,
+  "image_size": {
+    "width": 640,
+    "height": 480
+  },
+  "bbox_margins": {
+    "left": 414,
+    "top": 311,
+    "right": 177,
+    "bottom": 140,
+    "minimum": 140
+  },
+  "rgb_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/rgb_dataset/run_20260808_202136_seed550035/case_006_retry_03/frame_02.png",
+  "depth_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_006_retry_03/frame_02.npy",
+  "depth_preview_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_006_retry_03/frame_02_preview.png",
+  "annotated_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/ocr_retan/run_20260808_202136_seed550035/case_006_retry_03/frame_02.png",
+  "depth": 0.313035249710083,
+  "point_camera": [
+    -0.08666382600518151,
+    0.06242733229186803,
+    -0.313035249710083
+  ],
+  "point_base": [
+    0.25861573172310515,
+    -0.08430223303220835,
+    0.031225390478325954
+  ],
+  "point_map": [
+    -0.9146032512992941,
+    -0.6288621467104963,
+    0.031225517632434252
+  ],
+  "valid_observation": true,
+  "failure_reason": null
+}

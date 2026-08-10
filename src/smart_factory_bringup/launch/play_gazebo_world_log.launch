@@ -1,0 +1,35 @@
+<launch>
+  <!-- Replay a Gazebo Classic state log with the same ROS and model search
+       environment used by the competition simulation. -->
+  <arg name="log_file"/>
+  <arg name="gui" default="true"/>
+  <arg name="paused" default="true"/>
+  <arg name="verbose" default="false"/>
+
+  <env name="GAZEBO_MODEL_PATH"
+       value="$(find car3)/models:$(optenv GAZEBO_MODEL_PATH)"/>
+  <!-- All models used by this workspace are local. Avoid blocking playback
+       while Gazebo Classic tries its retired online model database. -->
+  <env name="GAZEBO_MODEL_DATABASE_URI" value="http://127.0.0.1:9"/>
+
+  <node if="$(arg paused)"
+        pkg="gazebo_ros"
+        type="gzserver"
+        name="gazebo"
+        args="-u -p $(arg log_file)"
+        output="screen"
+        required="true"/>
+  <node unless="$(arg paused)"
+        pkg="gazebo_ros"
+        type="gzserver"
+        name="gazebo"
+        args="-p $(arg log_file)"
+        output="screen"
+        required="true"/>
+
+  <node if="$(arg gui)"
+        pkg="gazebo_ros"
+        type="gzclient"
+        name="gazebo_gui"
+        output="screen"/>
+</launch>

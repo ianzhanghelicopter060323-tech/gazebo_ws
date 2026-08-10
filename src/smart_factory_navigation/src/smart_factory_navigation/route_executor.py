@@ -396,8 +396,58 @@ class RouteExecutor:
             <= 1.0e-4
         )
 
-    def navigate_pose(self, context, state_machine, pose, stage, detail):
+    def _pose_is_within_tolerances(
+        self, pose, position_tolerance, yaw_tolerance
+    ):
+        frame_id = pose.header.frame_id or self._localization.map_frame
+        localized = self._localization.localized_pose(frame_id)
+        if localized is None:
+            return False
+        position_error = math.hypot(
+            pose.pose.position.x - localized[0],
+            pose.pose.position.y - localized[1],
+        )
+        target_yaw = self._quaternion_yaw(pose.pose.orientation)
+        yaw_error = abs(
+            self._shortest_angular_distance(localized[2], target_yaw)
+        )
+        comparison_epsilon = 1.0e-12
+        return (
+            position_error <= position_tolerance + comparison_epsilon
+            and yaw_error <= yaw_tolerance + comparison_epsilon
+        )
+
+    def navigate_pose(
+        self,
+        context,
+        state_machine,
+        pose,
+        stage,
+        detail,
+        position_tolerance=0.0,
+        yaw_tolerance=0.0,
+    ):
         """Navigate to one task-selected pose with mission retry semantics."""
+        if not all(
+            math.isfinite(value) and value >= 0.0
+            for value in (position_tolerance, yaw_tolerance)
+        ):
+            raise ValueError(
+                "navigation pose tolerances must be finite and nonnegative"
+            )
+        tolerances_enabled = position_tolerance > 0.0 and yaw_tolerance > 0.0
+        if (position_tolerance > 0.0) != (yaw_tolerance > 0.0):
+            raise ValueError(
+                "position_tolerance and yaw_tolerance must both be positive "
+                "or both be zero"
+            )
+        pass_condition = (
+            lambda: self._pose_is_within_tolerances(
+                pose, position_tolerance, yaw_tolerance
+            )
+            if tolerances_enabled
+            else None
+        )
         last_outcome = None
         last_message = "navigation was not attempted"
         for retry in range(self._max_retries + 1):
@@ -414,8 +464,14 @@ class RouteExecutor:
                 lambda: self._publish_state(
                     context, detail + "; move_base active"
                 ),
+                pass_condition=pass_condition,
             )
-            if last_outcome == NavigationOutcome.SUCCEEDED:
+            if last_outcome in (
+                NavigationOutcome.SUCCEEDED,
+                NavigationOutcome.PASSED,
+            ):
+                if last_outcome == NavigationOutcome.PASSED:
+                    self._navigation.cancel_goal()
                 context.retry_count = 0
                 return
             if last_outcome == NavigationOutcome.PREEMPTED:

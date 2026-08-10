@@ -1,0 +1,110 @@
+{
+  "scale": 1.0,
+  "label": "ELECTRONICS",
+  "confidence": 0.99989,
+  "text": "电子 / 物块",
+  "bbox": [
+    417,
+    289,
+    49,
+    30
+  ],
+  "accepted": true,
+  "lines": [
+    {
+      "text": "电子",
+      "confidence": 0.99989,
+      "bbox": [
+        417,
+        289,
+        49,
+        30
+      ]
+    },
+    {
+      "text": "物块",
+      "confidence": 0.99993,
+      "bbox": [
+        417,
+        314,
+        50,
+        31
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "scale": 1.0,
+      "label": "ELECTRONICS",
+      "confidence": 0.99989,
+      "text": "电子 / 物块",
+      "bbox": [
+        417,
+        289,
+        49,
+        30
+      ],
+      "accepted": true,
+      "lines": [
+        {
+          "text": "电子",
+          "confidence": 0.99989,
+          "bbox": [
+            417,
+            289,
+            49,
+            30
+          ]
+        },
+        {
+          "text": "物块",
+          "confidence": 0.99993,
+          "bbox": [
+            417,
+            314,
+            50,
+            31
+          ]
+        }
+      ]
+    }
+  ],
+  "frame_index": 1,
+  "sequence": 9,
+  "stamp": 144.515,
+  "expected_class": "electronics",
+  "expected_class_id": 2,
+  "image_size": {
+    "width": 640,
+    "height": 480
+  },
+  "bbox_margins": {
+    "left": 417,
+    "top": 289,
+    "right": 174,
+    "bottom": 161,
+    "minimum": 161
+  },
+  "rgb_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/rgb_dataset/run_20260808_220848_seed550035/case_016/frame_01.png",
+  "depth_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_220848_seed550035/case_016/frame_01.npy",
+  "depth_preview_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_220848_seed550035/case_016/frame_01_preview.png",
+  "annotated_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/ocr_retan/run_20260808_220848_seed550035/case_016/frame_01.png",
+  "depth": 0.31147797405719757,
+  "point_camera": [
+    -0.08842505078656958,
+    0.04640488202435676,
+    -0.31147797405719757
+  ],
+  "point_base": [
+    0.29592569043801714,
+    -0.0860436100234037,
+    0.03124203035474482
+  ],
+  "point_map": [
+    -0.9259859691096527,
+    -0.6371671477722333,
+    0.031242186517755344
+  ],
+  "valid_observation": true,
+  "failure_reason": null
+}

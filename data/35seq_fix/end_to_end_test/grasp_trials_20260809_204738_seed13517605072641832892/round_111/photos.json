@@ -1,0 +1,36 @@
+{
+  "round": 111,
+  "target_class": "daily",
+  "image_topic": "/camera/rgb/image_raw",
+  "captures": [
+    {
+      "station": 35,
+      "file": "seq35.png",
+      "captured_at": "2026-08-10T02:20:42.313+08:00",
+      "image_stamp": {
+        "secs": 181,
+        "nsecs": 891000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 1,
+      "recognized_class_id": 0,
+      "recognized_text": "食品 / 物块 / 食品",
+      "recognition_confidence": 0.9940900206565857
+    },
+    {
+      "station": 36,
+      "file": "seq36.png",
+      "captured_at": "2026-08-10T02:21:02.089+08:00",
+      "image_stamp": {
+        "secs": 199,
+        "nsecs": 941000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 1,
+      "recognized_class_id": 1,
+      "recognized_text": "日用 / 物块",
+      "recognition_confidence": 0.998740017414093
+    }
+  ],
+  "errors": []
+}

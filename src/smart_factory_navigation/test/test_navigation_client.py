@@ -83,6 +83,30 @@ class NavigationClientTest(unittest.TestCase):
         self.assertEqual(error_codes.REQUEST_PREEMPTED, result.error_code)
         self.assertEqual(1, action_client.cancel_calls)
 
+    def test_pose_method_sends_exactly_one_unmodified_target(self):
+        action_client = FakeActionClient(successful_result())
+        client = NavigationClient(action_client=action_client)
+        target = PoseStamped()
+        target.header.frame_id = "map"
+        target.pose.position.x = 1.045097827911377
+        target.pose.position.y = -2.963428497314453
+
+        result = client.navigate_pose(
+            target,
+            request_id="delivery-food",
+            position_tolerance=0.04,
+            yaw_tolerance=math.radians(5.0),
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(1, len(action_client.goals))
+        goal = action_client.goals[0]
+        self.assertEqual(NavigateGoal.NAVIGATE_POSE, goal.command)
+        self.assertEqual("delivery-food", goal.request_id)
+        self.assertIs(target, goal.target_pose)
+        self.assertAlmostEqual(0.04, goal.position_tolerance)
+        self.assertAlmostEqual(math.radians(5.0), goal.yaw_tolerance)
+
     def test_localized_pose_preserves_frame_and_yaw(self):
         action_client = FakeActionClient(successful_result(pose_valid=True))
         client = NavigationClient(action_client=action_client)

@@ -37,3 +37,68 @@ calibration_cubes:
       x: -1.92
       y: -0.28
       yaw: 1.5708
+
+# Isolated seq35 perception stress test.  The production cube spawner does not
+# read this section; script/run_seq35_stress_trials.py applies it only after a
+# normal simulation has started.  Keeping the fixture beside the FOV markers
+# makes the problem coordinate and camera boundary calibration auditable
+# without adding a deterministic back door to spawn_cubes.py.
+seq35_stress_problem_spot:
+  output_root: /home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot
+  count: 10
+  max_attempts: 50
+  seed: 770690
+
+  # This isolated regression targets the food-cube failure seen in round 87.
+  # The other two textured cubes remain present at seq36/37.
+  classes: [food, daily, electronics]
+  class_selection: fixed
+  target_class: food
+  model_by_class:
+    food: cube_0
+    daily: cube_1
+    electronics: cube_2
+
+  target:
+    # Sample around the round-87 pose instead of replaying one exact point.
+    # The recorded seed makes the 20 mm translation and 3 degree yaw offsets
+    # reproducible while the normal production spawner remains unchanged.
+    sampling: fixed_point
+    center: {x: -0.821, y: -0.555, yaw: -1.5708, z: 0.02}
+    jitter: {x: 0.0, y: 0.0, yaw: 0.0}
+    bounds: {x_min: -0.95, x_max: -0.77, y_min: -0.69, y_max: -0.36}
+
+  # Non-target cubes remain in legal regions so the scene retains all three
+  # textured objects. Their assignment to seq36/37 is randomized per case.
+  other_stations:
+    - {number: 36, x: -1.395, y: 0.08, yaw: 0.0, z: 0.02}
+    - {number: 37, x: -2.01, y: -0.445, yaw: 1.5708, z: 0.02}
+
+  robot_start:
+    sequence: 34
+    x: -1.2533954572677612
+    y: -0.8547531890869141
+    yaw: 1.6074262857437132
+    z: 0.01
+  navigation_goal:
+    sequence: 35
+    x: -1.2243
+    y: -0.525
+    yaw: 0.00007722691751649312
+
+  arm_scan_positions: [0.0, 0.10, 0.55, 2.10, 0.0]
+  capture:
+    frames_per_case: 5
+    warmup_frames: 8
+    timeout: 15.0
+    minimum_votes: 3
+    maximum_point_spread: 0.03
+    minimum_depth: 0.05
+    maximum_depth: 2.0
+    minimum_depth_pixels: 12
+    tf_timeout: 0.5
+    sync_slop: 0.08
+    camera_axis_signs: [-1.0, 1.0, -1.0]
+    ocr_scales: [1.0, 2.0, 4.0]
+    min_text_confidence: 0.45
+    class_threshold: 0.70

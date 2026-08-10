@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
 )
 catkin_package()
+
 catkin_install_python(PROGRAMS
   scripts/monitor_navigation_safety.py
   scripts/send_navigation_task.py

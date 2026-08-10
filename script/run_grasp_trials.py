@@ -18,6 +18,8 @@ import subprocess
 import sys
 import time
 
+import yaml
+
 from capture_pickup_dataset import (
     AutomationError,
     CleanupError,
@@ -26,7 +28,9 @@ from capture_pickup_dataset import (
     launch_simulation,
     master_is_running,
     read_ros_run_id,
+    ros_command,
     run_owned,
+    stop_process_group,
     stop_owned_launch,
     wait_for_ros,
     wait_for_simulation,
@@ -37,6 +41,21 @@ TASK_CLASSES = ("food", "daily", "electronics")
 TASK_CLASS_IDS = {"food": 0, "daily": 1, "electronics": 2}
 # cube_0/1/2 use Food.png, Daily_Necessities.png and Electronics.png.
 TASK_CLASS_MODELS = {"food": "cube_0", "daily": "cube_1", "electronics": "cube_2"}
+DEFAULT_PHOTO_ROOT = (
+    WORKSPACE
+    / "data"
+    / "35seq_fix"
+    / "end_to_end_test"
+)
+PHOTO_CAPTURE_SCRIPT = WORKSPACE / "script" / "capture_end_to_end_observations.py"
+GAZEBO_WORLD_RECORDER_SCRIPT = WORKSPACE / "script" / "record_gazebo_world.py"
+FITTED_PATH_FILE = (
+    WORKSPACE
+    / "src"
+    / "smart_factory_navigation"
+    / "config"
+    / "pickup_staging_fitted_path.yaml"
+)
 # Spawn regions from car3/scripts/spawn_cubes.py, matched to the mission's
 # observation stations by their calibrated base pose and heading.
 STATION_AREAS = {
@@ -52,6 +71,7 @@ SELECTION_PATTERN = re.compile(
     r"selected seq(35|36|37) for target class (\d+) \(observed class (\d+)\)"
 )
 SUCCESS_STATION_PATTERN = re.compile(r"grasped and lifted from seq(35|36|37)")
+OBSERVED_STATION_PATTERN = re.compile(r"locating cube at station (35|36|37)\b")
 FLOAT_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 POSITION_PATTERN = re.compile(
     r"position:\s*\n\s*x:\s*(?P<x>{0})\s*\n\s*y:\s*(?P<y>{0})".format(
@@ -75,6 +95,15 @@ CSV_FIELDS = (
     "duration_seconds",
     "started_at",
     "log_file",
+    "photo_status",
+    "photo_count",
+    "photo_stations",
+    "photo_dir",
+    "photo_manifest",
+    "gazebo_recording_status",
+    "gazebo_recording_path",
+    "gazebo_recording_size_bytes",
+    "gazebo_recording_manifest",
 )
 
 
@@ -85,8 +114,9 @@ def parse_args(argv):
             "food/daily/electronics, and record grasp successes"
         )
     )
+    # 修改默认调用轮数
     parser.add_argument(
-        "--rounds", type=int, default=40, help="number of simulation trials (default: 40)"
+        "--rounds", type=int, default=200, help="number of simulation trials (default: 200)"
     )
     parser.add_argument(
         "--seed",
@@ -125,13 +155,49 @@ def parse_args(argv):
             "<workspace>/script/logs/grasp_trials_<timestamp>"
         ),
     )
+    parser.add_argument(
+        "--photo-root",
+        type=Path,
+        default=DEFAULT_PHOTO_ROOT,
+        help="root directory for one RGB photo per observed station",
+    )
+    parser.add_argument(
+        "--photo-ready-timeout",
+        type=float,
+        default=15.0,
+        help="seconds to wait for the photo recorder and its first camera frame",
+    )
+    parser.add_argument(
+        "--gazebo-recording-ready-timeout",
+        type=float,
+        default=10.0,
+        help="seconds to wait for the Gazebo world recorder subscriber",
+    )
+    parser.add_argument(
+        "--gazebo-recording-start-progress",
+        type=float,
+        help=(
+            "fitted-path progress that triggers recording; default: read the "
+            "seq34 anchor from pickup_staging_fitted_path.yaml"
+        ),
+    )
+    parser.add_argument(
+        "--disable-gazebo-world-recording",
+        action="store_true",
+        help="disable the default per-round Gazebo world-state recording",
+    )
     return parser.parse_args(argv)
 
 
 def validate_args(args):
     if args.rounds <= 0:
         raise AutomationError("--rounds must be positive")
-    for name in ("startup_timeout", "task_timeout"):
+    for name in (
+        "startup_timeout",
+        "task_timeout",
+        "photo_ready_timeout",
+        "gazebo_recording_ready_timeout",
+    ):
         if getattr(args, name) <= 0.0:
             raise AutomationError("--{} must be positive".format(name.replace("_", "-")))
     for name in ("startup_settle", "restart_settle"):
@@ -141,6 +207,38 @@ def validate_args(args):
             )
     if not SETUP_FILE.is_file():
         raise AutomationError("missing {}; run catkin_make first".format(SETUP_FILE))
+    if not PHOTO_CAPTURE_SCRIPT.is_file():
+        raise AutomationError("missing photo recorder {}".format(PHOTO_CAPTURE_SCRIPT))
+    if not args.disable_gazebo_world_recording:
+        if not GAZEBO_WORLD_RECORDER_SCRIPT.is_file():
+            raise AutomationError(
+                "missing Gazebo world recorder {}".format(
+                    GAZEBO_WORLD_RECORDER_SCRIPT
+                )
+            )
+        if args.gazebo_recording_start_progress is None:
+            args.gazebo_recording_start_progress = fitted_anchor_progress(
+                FITTED_PATH_FILE, 34
+            )
+        if args.gazebo_recording_start_progress < 0.0:
+            raise AutomationError(
+                "--gazebo-recording-start-progress must be non-negative"
+            )
+
+
+def fitted_anchor_progress(path, sequence):
+    try:
+        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+        anchors = payload["fitted_path"]["anchors"]
+        return float(
+            next(anchor["s"] for anchor in anchors if int(anchor["seq"]) == sequence)
+        )
+    except (OSError, KeyError, StopIteration, TypeError, ValueError, yaml.YAMLError) as exc:
+        raise AutomationError(
+            "could not read seq{} progress from {}: {}".format(
+                sequence, path, exc
+            )
+        )
 
 
 def parse_task_result(output):
@@ -238,7 +336,179 @@ def add_recognition_result(record, log_path):
         record["recognition_status"] = "incorrect"
 
 
-def new_record(round_number, task_id, target_class, log_path):
+def ordered_observed_stations(log_text):
+    stations = []
+    for match in OBSERVED_STATION_PATTERN.finditer(log_text):
+        station = int(match.group(1))
+        if station not in stations:
+            stations.append(station)
+    return stations
+
+
+def add_photo_result(record, log_path, manifest_path):
+    """Record whether every station tested in this round has exactly one photo."""
+    try:
+        log_text = log_path.read_text(encoding="utf-8", errors="replace")
+        expected_stations = ordered_observed_stations(log_text)
+    except OSError:
+        expected_stations = []
+
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        record["photo_status"] = "manifest_unavailable: {}".format(exc)
+        return
+
+    captures = manifest.get("captures", [])
+    captured_stations = []
+    for capture in captures:
+        try:
+            station = int(capture["station"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if station not in captured_stations:
+            captured_stations.append(station)
+    record["photo_count"] = len(captured_stations)
+    record["photo_stations"] = ";".join(str(value) for value in captured_stations)
+
+    if manifest.get("errors"):
+        record["photo_status"] = "capture_error"
+    elif expected_stations and captured_stations == expected_stations:
+        record["photo_status"] = "complete"
+    elif expected_stations:
+        missing = [value for value in expected_stations if value not in captured_stations]
+        record["photo_status"] = "incomplete_missing_{}".format(
+            "_".join(str(value) for value in missing)
+        )
+    elif captured_stations:
+        record["photo_status"] = "captured_log_unavailable"
+    else:
+        record["photo_status"] = "no_station_observed"
+
+
+def start_photo_recorder(args, round_number, target_class, photo_round_dir):
+    ready_path = photo_round_dir.parent / (photo_round_dir.name + ".ready")
+    capture_log_path = photo_round_dir.parent / (photo_round_dir.name + "_capture.log")
+    capture_log = capture_log_path.open("w", encoding="utf-8")
+    command = ros_command(
+        [
+            "python3",
+            str(PHOTO_CAPTURE_SCRIPT),
+            "--output-dir",
+            str(photo_round_dir),
+            "--round",
+            str(round_number),
+            "--target-class",
+            target_class,
+            "--ready-file",
+            str(ready_path),
+        ]
+    )
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=str(WORKSPACE),
+            stdout=capture_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+        deadline = time.monotonic() + args.photo_ready_timeout
+        while time.monotonic() < deadline:
+            if ready_path.is_file():
+                return process, capture_log, ready_path
+            if process.poll() is not None:
+                raise AutomationError(
+                    "photo recorder exited before receiving a camera frame; see {}".format(
+                        capture_log_path
+                    )
+                )
+            time.sleep(0.1)
+        raise AutomationError(
+            "photo recorder did not receive a camera frame within {:.1f}s; see {}".format(
+                args.photo_ready_timeout, capture_log_path
+            )
+        )
+    except Exception:
+        if "process" in locals():
+            stop_process_group(process, interrupt_timeout=2.0)
+        capture_log.close()
+        raise
+
+
+def start_gazebo_world_recorder(
+    args, round_number, task_id, photo_round_dir
+):
+    ready_path = photo_round_dir / ".gazebo_world_recorder.ready"
+    recorder_log_path = photo_round_dir / "gazebo_world_recorder.log"
+    recorder_log = recorder_log_path.open("w", encoding="utf-8")
+    command = ros_command(
+        [
+            "python3",
+            str(GAZEBO_WORLD_RECORDER_SCRIPT),
+            "--output-dir",
+            str(photo_round_dir),
+            "--round",
+            str(round_number),
+            "--task-id",
+            task_id,
+            "--start-progress",
+            str(args.gazebo_recording_start_progress),
+            "--ready-file",
+            str(ready_path),
+        ]
+    )
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=str(WORKSPACE),
+            stdout=recorder_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+        deadline = time.monotonic() + args.gazebo_recording_ready_timeout
+        while time.monotonic() < deadline:
+            if ready_path.is_file():
+                return process, recorder_log, ready_path
+            if process.poll() is not None:
+                raise AutomationError(
+                    "Gazebo world recorder exited during startup; see {}".format(
+                        recorder_log_path
+                    )
+                )
+            time.sleep(0.1)
+        raise AutomationError(
+            "Gazebo world recorder was not ready within {:.1f}s; see {}".format(
+                args.gazebo_recording_ready_timeout, recorder_log_path
+            )
+        )
+    except Exception:
+        if "process" in locals():
+            stop_process_group(process, interrupt_timeout=2.0)
+        recorder_log.close()
+        raise
+
+
+def add_gazebo_recording_result(record, manifest_path):
+    if record["gazebo_recording_status"] == "disabled":
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        record["gazebo_recording_status"] = "manifest_unavailable: {}".format(exc)
+        return
+    record["gazebo_recording_status"] = str(manifest.get("status", "unknown"))
+    record["gazebo_recording_size_bytes"] = int(manifest.get("size_bytes", 0))
+    recording_file = manifest.get("recording_file")
+    if recording_file:
+        record["gazebo_recording_path"] = str(manifest_path.parent / recording_file)
+
+
+def new_record(
+    round_number, task_id, target_class, log_path, photo_round_dir,
+    gazebo_recording_enabled=True,
+):
     return {
         "round": round_number,
         "task_id": task_id,
@@ -256,15 +526,43 @@ def new_record(round_number, task_id, target_class, log_path):
         "duration_seconds": 0.0,
         "started_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
         "log_file": str(log_path),
+        "photo_status": "not_started",
+        "photo_count": 0,
+        "photo_stations": "",
+        "photo_dir": str(photo_round_dir),
+        "photo_manifest": str(photo_round_dir / "photos.json"),
+        "gazebo_recording_status": (
+            "not_started" if gazebo_recording_enabled else "disabled"
+        ),
+        "gazebo_recording_path": str(
+            photo_round_dir / "gazebo_world_state.log"
+        ),
+        "gazebo_recording_size_bytes": 0,
+        "gazebo_recording_manifest": str(
+            photo_round_dir / "gazebo_world_recording.json"
+        ),
     }
 
 
-def run_trial(args, round_number, target_class, log_path):
+def run_trial(args, round_number, target_class, log_path, photo_round_dir):
     task_id = "grasp_trial_{:03d}_{}".format(round_number, int(time.time()))
-    record = new_record(round_number, task_id, target_class, log_path)
+    record = new_record(
+        round_number,
+        task_id,
+        target_class,
+        log_path,
+        photo_round_dir,
+        gazebo_recording_enabled=not args.disable_gazebo_world_recording,
+    )
     started = time.monotonic()
     launch_process = None
     launch_run_id = None
+    photo_process = None
+    photo_log = None
+    photo_ready_path = None
+    gazebo_recording_process = None
+    gazebo_recording_log = None
+    gazebo_recording_ready_path = None
     phase = "startup"
 
     with log_path.open("w", encoding="utf-8") as log_file:
@@ -310,6 +608,19 @@ def run_trial(args, round_number, target_class, log_path):
                 )
             log_file.flush()
 
+            phase = "photo_capture_startup"
+            photo_process, photo_log, photo_ready_path = start_photo_recorder(
+                args, round_number, target_class, photo_round_dir
+            )
+            if not args.disable_gazebo_world_recording:
+                phase = "gazebo_recording_startup"
+                (
+                    gazebo_recording_process,
+                    gazebo_recording_log,
+                    gazebo_recording_ready_path,
+                ) = start_gazebo_world_recorder(
+                    args, round_number, task_id, photo_round_dir
+                )
             phase = "task"
             command = [
                 "rosrun",
@@ -352,11 +663,39 @@ def run_trial(args, round_number, target_class, log_path):
             log_file.flush()
         finally:
             try:
-                stop_owned_launch(launch_process, launch_run_id)
+                stop_process_group(
+                    gazebo_recording_process, interrupt_timeout=8.0
+                )
+                if gazebo_recording_log is not None:
+                    gazebo_recording_log.close()
+                if gazebo_recording_ready_path is not None:
+                    try:
+                        gazebo_recording_ready_path.unlink()
+                    except FileNotFoundError:
+                        pass
             finally:
-                record["duration_seconds"] = round(time.monotonic() - started, 3)
+                try:
+                    stop_process_group(photo_process, interrupt_timeout=3.0)
+                    if photo_log is not None:
+                        photo_log.close()
+                    if photo_ready_path is not None:
+                        try:
+                            photo_ready_path.unlink()
+                        except FileNotFoundError:
+                            pass
+                finally:
+                    try:
+                        stop_owned_launch(launch_process, launch_run_id)
+                    finally:
+                        record["duration_seconds"] = round(
+                            time.monotonic() - started, 3
+                        )
 
     add_recognition_result(record, log_path)
+    add_photo_result(record, log_path, photo_round_dir / "photos.json")
+    add_gazebo_recording_result(
+        record, photo_round_dir / "gazebo_world_recording.json"
+    )
     return record
 
 
@@ -387,8 +726,22 @@ def make_summary(results, requested_rounds, seed):
         bool(record["recognition_correct"]) for record in results
     )
     infrastructure_errors = sum(
-        record["status"] in {"startup_error", "task_error", "result_unavailable"}
+        record["status"]
+        in {
+            "startup_error",
+            "photo_capture_startup_error",
+            "gazebo_recording_startup_error",
+            "task_error",
+            "result_unavailable",
+        }
         for record in results
+    )
+    photo_captures = sum(record["photo_count"] for record in results)
+    complete_photo_rounds = sum(
+        record["photo_status"] == "complete" for record in results
+    )
+    complete_gazebo_recordings = sum(
+        record["gazebo_recording_status"] == "complete" for record in results
     )
     return {
         "requested_rounds": requested_rounds,
@@ -401,6 +754,9 @@ def make_summary(results, requested_rounds, seed):
             round(correct_recognitions / len(results), 4) if results else None
         ),
         "infrastructure_errors": infrastructure_errors,
+        "photo_captures": photo_captures,
+        "complete_photo_rounds": complete_photo_rounds,
+        "complete_gazebo_recordings": complete_gazebo_recordings,
         "seed": seed,
         "by_class": by_class,
     }
@@ -470,6 +826,19 @@ def print_summary(summary, csv_path, json_path):
             )
         )
     print("infrastructure_errors={}".format(summary["infrastructure_errors"]))
+    print(
+        "photos={} complete_photo_rounds={}/{}".format(
+            summary["photo_captures"],
+            summary["complete_photo_rounds"],
+            summary["completed_rounds"],
+        )
+    )
+    print(
+        "complete_gazebo_recordings={}/{}".format(
+            summary["complete_gazebo_recordings"],
+            summary["completed_rounds"],
+        )
+    )
     print("csv={}".format(csv_path))
     print("json={}".format(json_path))
 
@@ -495,30 +864,49 @@ def main(argv=None):
             else WORKSPACE / "script" / "logs" / ("grasp_trials_" + timestamp)
         )
         output_dir.mkdir(parents=True, exist_ok=False)
+        photo_run_dir = (
+            args.photo_root.expanduser().resolve()
+            / ("{}_seed{}".format(output_dir.name, seed))
+        )
+        photo_run_dir.mkdir(parents=True, exist_ok=False)
         rng = random.Random(seed)
 
         print("workspace={}".format(WORKSPACE))
         print("rounds={} seed={} logs={}".format(args.rounds, seed, output_dir))
+        print("photos={}".format(photo_run_dir))
+        if not args.disable_gazebo_world_recording:
+            print(
+                "gazebo_world_recording=enabled from seq34 s={:.6f}m".format(
+                    args.gazebo_recording_start_progress
+                )
+            )
 
         for round_number in range(1, args.rounds + 1):
             target_class = rng.choice(TASK_CLASSES)
             log_path = output_dir / "round_{:03d}.log".format(round_number)
+            photo_round_dir = photo_run_dir / "round_{:03d}".format(round_number)
             print(
                 "[round {}/{}] target_class={}".format(
                     round_number, args.rounds, target_class
                 ),
                 flush=True,
             )
-            record = run_trial(args, round_number, target_class, log_path)
+            record = run_trial(
+                args, round_number, target_class, log_path, photo_round_dir
+            )
             results.append(record)
             csv_path, json_path, _summary = write_reports(
                 output_dir, results, args.rounds, seed
             )
             print(
-                "  status={} recognition={} grasp_success={} duration={:.1f}s".format(
+                "  status={} recognition={} grasp_success={} photos={}({}) "
+                "gazebo_recording={} duration={:.1f}s".format(
                     record["status"],
                     record["recognition_status"],
                     record["success"],
+                    record["photo_count"],
+                    record["photo_status"],
+                    record["gazebo_recording_status"],
                     record["duration_seconds"],
                 ),
                 flush=True,

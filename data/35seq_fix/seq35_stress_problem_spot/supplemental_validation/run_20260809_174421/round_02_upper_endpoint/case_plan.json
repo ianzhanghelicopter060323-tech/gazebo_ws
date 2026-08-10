@@ -1,0 +1,35 @@
+{
+  "name": "upper_endpoint",
+  "models": {
+    "cube_0": {
+      "x": -0.77,
+      "y": -0.36,
+      "z": 0.02,
+      "yaw": -1.5708,
+      "station": 35,
+      "class": "food"
+    },
+    "cube_1": {
+      "x": -1.395,
+      "y": 0.08,
+      "z": 0.02,
+      "yaw": 0.0,
+      "station": 36,
+      "class": "daily"
+    },
+    "cube_2": {
+      "x": -2.01,
+      "y": -0.445,
+      "z": 0.02,
+      "yaw": 1.5708,
+      "station": 37,
+      "class": "electronics"
+    }
+  },
+  "robot_start": {
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.01,
+    "yaw": 0.0
+  }
+}

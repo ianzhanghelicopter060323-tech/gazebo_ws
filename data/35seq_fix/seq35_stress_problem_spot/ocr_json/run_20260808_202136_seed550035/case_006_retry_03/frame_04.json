@@ -1,0 +1,150 @@
+{
+  "scale": 1.0,
+  "label": "ELECTRONICS",
+  "confidence": 0.99986,
+  "text": "电子 / 物块 / D / <",
+  "bbox": [
+    413,
+    310,
+    51,
+    31
+  ],
+  "accepted": true,
+  "lines": [
+    {
+      "text": "电子",
+      "confidence": 0.99986,
+      "bbox": [
+        413,
+        310,
+        51,
+        31
+      ]
+    },
+    {
+      "text": "物块",
+      "confidence": 0.99994,
+      "bbox": [
+        413,
+        335,
+        53,
+        34
+      ]
+    },
+    {
+      "text": "<",
+      "confidence": 0.54073,
+      "bbox": [
+        307,
+        435,
+        17,
+        7
+      ]
+    },
+    {
+      "text": "D",
+      "confidence": 0.6112,
+      "bbox": [
+        357,
+        434,
+        17,
+        9
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "scale": 1.0,
+      "label": "ELECTRONICS",
+      "confidence": 0.99986,
+      "text": "电子 / 物块 / D / <",
+      "bbox": [
+        413,
+        310,
+        51,
+        31
+      ],
+      "accepted": true,
+      "lines": [
+        {
+          "text": "电子",
+          "confidence": 0.99986,
+          "bbox": [
+            413,
+            310,
+            51,
+            31
+          ]
+        },
+        {
+          "text": "物块",
+          "confidence": 0.99994,
+          "bbox": [
+            413,
+            335,
+            53,
+            34
+          ]
+        },
+        {
+          "text": "<",
+          "confidence": 0.54073,
+          "bbox": [
+            307,
+            435,
+            17,
+            7
+          ]
+        },
+        {
+          "text": "D",
+          "confidence": 0.6112,
+          "bbox": [
+            357,
+            434,
+            17,
+            9
+          ]
+        }
+      ]
+    }
+  ],
+  "frame_index": 4,
+  "sequence": 39,
+  "stamp": 153.801,
+  "expected_class": "electronics",
+  "expected_class_id": 2,
+  "image_size": {
+    "width": 640,
+    "height": 480
+  },
+  "bbox_margins": {
+    "left": 413,
+    "top": 310,
+    "right": 176,
+    "bottom": 139,
+    "minimum": 139
+  },
+  "rgb_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/rgb_dataset/run_20260808_202136_seed550035/case_006_retry_03/frame_04.png",
+  "depth_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_006_retry_03/frame_04.npy",
+  "depth_preview_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_006_retry_03/frame_04_preview.png",
+  "annotated_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/ocr_retan/run_20260808_202136_seed550035/case_006_retry_03/frame_04.png",
+  "depth": 0.31301602721214294,
+  "point_camera": [
+    -0.08665850425557534,
+    0.06242349882816867,
+    -0.31301602721214294
+  ],
+  "point_base": [
+    0.25861194050106495,
+    -0.08429691112324614,
+    0.031244621308009146
+  ],
+  "point_map": [
+    -0.9146072411498173,
+    -0.6288569720401735,
+    0.031244748461052962
+  ],
+  "valid_observation": true,
+  "failure_reason": null
+}

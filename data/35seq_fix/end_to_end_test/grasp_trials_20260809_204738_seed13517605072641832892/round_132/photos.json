@@ -1,0 +1,22 @@
+{
+  "round": 132,
+  "target_class": "food",
+  "image_topic": "/camera/rgb/image_raw",
+  "captures": [
+    {
+      "station": 35,
+      "file": "seq35.png",
+      "captured_at": "2026-08-10T04:17:17.279+08:00",
+      "image_stamp": {
+        "secs": 175,
+        "nsecs": 69000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 1,
+      "recognized_class_id": 0,
+      "recognized_text": "食品 / 物块 / 食品",
+      "recognition_confidence": 0.9548799991607666
+    }
+  ],
+  "errors": []
+}

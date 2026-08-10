@@ -1,0 +1,19 @@
+{
+  "round": 1,
+  "name": "lower_endpoint",
+  "food_pose": {
+    "x": -0.77,
+    "y": -0.69,
+    "z": 0.02,
+    "yaw": -1.5708
+  },
+  "case_file": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/supplemental_validation/run_20260809_174116/round_01_lower_endpoint/case_plan.json",
+  "log_file": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/supplemental_validation/run_20260809_174116/round_01_lower_endpoint/full_pipeline.log",
+  "status": "validation_error",
+  "task_result": null,
+  "error": "waiting for ROS master timed out: ERROR: Unable to communicate with master!",
+  "primary_observation_attempts": 0,
+  "supplemental_pose_used": false,
+  "supplemental_log_matches": 0,
+  "duration_seconds": 90.746
+}

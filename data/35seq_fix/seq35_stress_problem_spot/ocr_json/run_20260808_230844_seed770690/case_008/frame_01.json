@@ -1,0 +1,150 @@
+{
+  "scale": 1.0,
+  "label": "DAILY",
+  "confidence": 0.9979,
+  "text": "日用 / 物块 / 日用 / 物块",
+  "bbox": [
+    229,
+    77,
+    45,
+    54
+  ],
+  "accepted": true,
+  "lines": [
+    {
+      "text": "日用",
+      "confidence": 0.9979,
+      "bbox": [
+        229,
+        77,
+        45,
+        23
+      ]
+    },
+    {
+      "text": "物块",
+      "confidence": 0.99998,
+      "bbox": [
+        227,
+        95,
+        45,
+        23
+      ]
+    },
+    {
+      "text": "日用",
+      "confidence": 0.99638,
+      "bbox": [
+        230,
+        115,
+        40,
+        16
+      ]
+    },
+    {
+      "text": "物块",
+      "confidence": 0.9154,
+      "bbox": [
+        233,
+        127,
+        39,
+        16
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "scale": 1.0,
+      "label": "DAILY",
+      "confidence": 0.9979,
+      "text": "日用 / 物块 / 日用 / 物块",
+      "bbox": [
+        229,
+        77,
+        45,
+        54
+      ],
+      "accepted": true,
+      "lines": [
+        {
+          "text": "日用",
+          "confidence": 0.9979,
+          "bbox": [
+            229,
+            77,
+            45,
+            23
+          ]
+        },
+        {
+          "text": "物块",
+          "confidence": 0.99998,
+          "bbox": [
+            227,
+            95,
+            45,
+            23
+          ]
+        },
+        {
+          "text": "日用",
+          "confidence": 0.99638,
+          "bbox": [
+            230,
+            115,
+            40,
+            16
+          ]
+        },
+        {
+          "text": "物块",
+          "confidence": 0.9154,
+          "bbox": [
+            233,
+            127,
+            39,
+            16
+          ]
+        }
+      ]
+    }
+  ],
+  "frame_index": 1,
+  "sequence": 9,
+  "stamp": 144.378,
+  "expected_class": "daily",
+  "expected_class_id": 1,
+  "image_size": {
+    "width": 640,
+    "height": 480
+  },
+  "bbox_margins": {
+    "left": 229,
+    "top": 77,
+    "right": 366,
+    "bottom": 349,
+    "minimum": 77
+  },
+  "rgb_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/rgb_dataset/run_20260808_230844_seed770690/case_008/frame_01.png",
+  "depth_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_230844_seed770690/case_008/frame_01.npy",
+  "depth_preview_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_230844_seed770690/case_008/frame_01_preview.png",
+  "annotated_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/ocr_retan/run_20260808_230844_seed770690/case_008/frame_01.png",
+  "depth": 0.38463926315307617,
+  "point_camera": [
+    0.06226805654244096,
+    -0.12318245968178537,
+    -0.38463926315307617
+  ],
+  "point_base": [
+    0.48059200755673404,
+    0.06465743478624629,
+    0.028343445560661207
+  ],
+  "point_map": [
+    -0.7779638822876992,
+    -0.4647997390659002,
+    0.028343739760926412
+  ],
+  "valid_observation": true,
+  "failure_reason": null
+}

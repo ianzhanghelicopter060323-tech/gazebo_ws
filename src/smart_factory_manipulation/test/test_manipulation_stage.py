@@ -127,6 +127,16 @@ class ManipulationStageTest(unittest.TestCase):
         command = self.publishers["/arm_controller/command"].messages[-1]
         self.assertEqual(command.points[0].positions, target)
 
+    def test_move_to_release_pose_uses_configured_low_pose(self):
+        target = [0.0, 0.7, 1.7, 0.5, 0.0]
+        stage = self._stage(release_positions=target)
+        self._publish_joint_state(ManipulationStage.JOINT_NAMES, target)
+
+        self.assertTrue(stage.move_to_release_pose(lambda: False))
+
+        command = self.publishers["/arm_controller/command"].messages[-1]
+        self.assertEqual(command.points[0].positions, target)
+
     def test_open_gripper_requires_open_joint_and_idle_attachment(self):
         stage = self._stage(open_position=1.48, open_minimum=1.4)
         self._publish_joint_state(["r_joint"], [1.45])
@@ -149,6 +159,37 @@ class ManipulationStageTest(unittest.TestCase):
         command = self.publishers["/gripper_controller/command"].messages[-1]
         self.assertAlmostEqual(command.data, 0.76)
 
+    def test_release_republishes_open_command_until_feedback_is_stable(self):
+        stage = self._stage(
+            command_timeout=0.05,
+            release_command_rate=500.0,
+            release_confirmation_duration=0.006,
+        )
+        self._publish_joint_state(["r_joint"], [1.45])
+        self._publish_grasp_state("IDLE")
+
+        self.assertTrue(stage.release_gripper(lambda: False))
+
+        commands = self.publishers["/gripper_controller/command"].messages
+        self.assertGreaterEqual(len(commands), 3)
+        self.assertTrue(all(command.data == 1.5 for command in commands))
+        self.assertTrue(self.publishers["/gripper_controller/command"].latch)
+
+    def test_release_rejects_open_joint_while_state_remains_grasping(self):
+        stage = self._stage(
+            command_timeout=0.008,
+            release_command_rate=500.0,
+            release_confirmation_duration=0.002,
+        )
+        self._publish_joint_state(["r_joint"], [1.45])
+        self._publish_grasp_state("GRASPING")
+
+        self.assertFalse(stage.release_gripper(lambda: False))
+
+        commands = self.publishers["/gripper_controller/command"].messages
+        self.assertGreaterEqual(len(commands), 2)
+        self.assertTrue(all(command.data == 1.5 for command in commands))
+
     def test_preempt_stops_feedback_wait_after_publishing_command(self):
         stage = self._stage()
 
@@ -169,7 +210,10 @@ class ManipulationStageTest(unittest.TestCase):
             {"open_position": 1.4, "open_minimum": 1.4},
             {"closed_position": 1.5},
             {"command_timeout": 0.0},
+            {"release_command_rate": 0.0},
+            {"release_confirmation_duration": 0.0},
             {"grasp_positions": [0.0] * 4},
+            {"release_positions": [0.0] * 4},
             {"grasp_positions": [0.0, 0.0, float("nan"), 0.0, 0.0]},
         )
         for config in invalid_configs:

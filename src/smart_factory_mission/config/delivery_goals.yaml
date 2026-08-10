@@ -1,0 +1,36 @@
+# Two sequential native move_base goals: the temporary shared "准备位姿2"
+# alignment pose, then one task-selected workshop destination. No path fitting
+# is used. Source: docs/锥桶区导航纪要.md (2026-08-10).
+delivery:
+  configured: true
+  frame_id: map
+  entry_pose:
+    x: -0.9053443884849548
+    y: -1.44
+    yaw: -1.563357949256897
+    # Preserve the 4 cm position window while allowing <= 10 deg yaw. This
+    # preparation pose primarily prevents a dangerous scrape against the baffle.
+    position_tolerance: 0.04
+    yaw_tolerance_deg: 10.0
+  destinations:
+    - target_class: 0
+      name: food workshop
+      x: 1.045097827911377
+      y: -2.963428497314453
+      yaw: -1.5963127613067627
+      position_tolerance: 0.04
+      yaw_tolerance_deg: 5.0
+    - target_class: 1
+      name: daily workshop
+      x: 0.9615546464920044
+      y: -1.5215368270874023
+      yaw: 1.5825541019439697
+      position_tolerance: 0.04
+      yaw_tolerance_deg: 5.0
+    - target_class: 2
+      name: electronics workshop
+      x: 2.4891703128814697
+      y: -2.1998729705810547
+      yaw: 0.0027615150902420282
+      position_tolerance: 0.04
+      yaw_tolerance_deg: 5.0

@@ -1,0 +1,539 @@
+{
+  "run_name": "run_20260809_161419_seed770690",
+  "created_at": "2026-08-09T16:14:19+08:00",
+  "count": 10,
+  "max_attempts": 50,
+  "seed": 770690,
+  "target_sampling": {
+    "sampling": "uniform_jitter",
+    "x": -0.821,
+    "y": -0.555,
+    "yaw": -1.5708,
+    "z": 0.02,
+    "jitter_x": 0.02,
+    "jitter_y": 0.02,
+    "jitter_yaw": 0.05236,
+    "x_min": -0.95,
+    "x_max": -0.77,
+    "y_min": -0.69,
+    "y_max": -0.36
+  },
+  "config": "/home/ianichinose/gazebo_ws/src/car3/config/calibration_cubes.yaml",
+  "config_sha256": "99ed4d428194bc1241a245e769fe11071c777c22da8fd1c4b335e791588425be",
+  "git": {
+    "commit": "7e0937048fa7e1956a78053ced5e8994886addd0",
+    "status": "M docs/navigation_path_fit_math_newest.png\n M \"docs/\\347\\211\\251\\345\\223\\201\\346\\212\\223\\345\\217\\226\\345\\235\\220\\346\\240\\207\\345\\222\\214\\346\\234\\272\\346\\242\\260\\350\\207\\202\\350\\256\\260\\345\\275\\225.md\"\n M script/run_grasp_trials.py\n M src/car3/config/calibration_cubes.yaml\n M src/car3/scripts/grasp_attach.py\n M src/car3/scripts/spawn_calibration_cubes.py\n M src/car3/test/test_grasp_attach_state.py\n M src/gazebo_nav/launch/config/amcl/amcl_omni.launch\n M src/gazebo_nav/launch/config/move_base/dwa_local_planner_params.yaml\n M src/smart_factory_bringup/launch/full_competition.launch\n M src/smart_factory_mission/config/mission.yaml\n M src/smart_factory_mission/config/pickup_staging_dev.yaml\n M src/smart_factory_mission/src/smart_factory_mission/pickup_pipeline.py\n M src/smart_factory_mission/test/test_pickup_sequence.py\n M src/smart_factory_navigation/config/navigation.yaml\n M src/smart_factory_navigation/config/pickup_staging_fitted_path.yaml\n M src/smart_factory_navigation/src/smart_factory_navigation/action_server.py\n M src/smart_factory_navigation/test/test_action_server.py\n?? data/35seq_fix/\n?? \"docs/seq35\\350\\257\\206\\345\\210\\253\\345\\216\\213\\345\\212\\233\\346\\265\\213\\350\\257\\225\\344\\270\\216\\346\\255\\243\\347\\241\\256\\347\\216\\207\\350\\241\\245\\346\\225\\221\\346\\226\\271\\346\\241\\210.md\"\n?? far_cube.png\n?? script/_setup_seq35_stress_scene.py\n?? script/capture_end_to_end_observations.py\n?? script/capture_seq35_stress_frames.py\n?? script/run_seq35_stress_trials.py\n?? script/test_seq35_stress_trials.py"
+  },
+  "plans": [
+    {
+      "capture_slot": 1,
+      "seed": 770690,
+      "target_sampling": "uniform_jitter",
+      "target_class": "food",
+      "target_class_id": 0,
+      "target_model": "cube_0",
+      "models": {
+        "cube_0": {
+          "x": -0.8178545299751466,
+          "y": -0.5663397742547941,
+          "yaw": -1.553223840724211,
+          "z": 0.02,
+          "station": 35
+        },
+        "cube_2": {
+          "number": 36,
+          "x": -1.395,
+          "y": 0.08,
+          "yaw": 0.0,
+          "z": 0.02
+        },
+        "cube_1": {
+          "number": 37,
+          "x": -2.01,
+          "y": -0.445,
+          "yaw": 1.5708,
+          "z": 0.02
+        }
+      },
+      "robot_start": {
+        "sequence": 34,
+        "x": -1.2533954572677612,
+        "y": -0.8547531890869141,
+        "yaw": 1.6074262857437132,
+        "z": 0.01
+      },
+      "navigation_goal": {
+        "sequence": 35,
+        "x": -1.2243,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "arm_scan_positions": [
+        0.0,
+        0.1,
+        0.55,
+        2.1,
+        0.0
+      ]
+    },
+    {
+      "capture_slot": 2,
+      "seed": 770690,
+      "target_sampling": "uniform_jitter",
+      "target_class": "food",
+      "target_class_id": 0,
+      "target_model": "cube_0",
+      "models": {
+        "cube_0": {
+          "x": -0.8066786649560166,
+          "y": -0.546372366366047,
+          "yaw": -1.5705376556443762,
+          "z": 0.02,
+          "station": 35
+        },
+        "cube_2": {
+          "number": 36,
+          "x": -1.395,
+          "y": 0.08,
+          "yaw": 0.0,
+          "z": 0.02
+        },
+        "cube_1": {
+          "number": 37,
+          "x": -2.01,
+          "y": -0.445,
+          "yaw": 1.5708,
+          "z": 0.02
+        }
+      },
+      "robot_start": {
+        "sequence": 34,
+        "x": -1.2533954572677612,
+        "y": -0.8547531890869141,
+        "yaw": 1.6074262857437132,
+        "z": 0.01
+      },
+      "navigation_goal": {
+        "sequence": 35,
+        "x": -1.2243,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "arm_scan_positions": [
+        0.0,
+        0.1,
+        0.55,
+        2.1,
+        0.0
+      ]
+    },
+    {
+      "capture_slot": 3,
+      "seed": 770690,
+      "target_sampling": "uniform_jitter",
+      "target_class": "food",
+      "target_class_id": 0,
+      "target_model": "cube_0",
+      "models": {
+        "cube_0": {
+          "x": -0.8400198615622699,
+          "y": -0.571282592841956,
+          "yaw": -1.5426748533896144,
+          "z": 0.02,
+          "station": 35
+        },
+        "cube_2": {
+          "number": 36,
+          "x": -1.395,
+          "y": 0.08,
+          "yaw": 0.0,
+          "z": 0.02
+        },
+        "cube_1": {
+          "number": 37,
+          "x": -2.01,
+          "y": -0.445,
+          "yaw": 1.5708,
+          "z": 0.02
+        }
+      },
+      "robot_start": {
+        "sequence": 34,
+        "x": -1.2533954572677612,
+        "y": -0.8547531890869141,
+        "yaw": 1.6074262857437132,
+        "z": 0.01
+      },
+      "navigation_goal": {
+        "sequence": 35,
+        "x": -1.2243,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "arm_scan_positions": [
+        0.0,
+        0.1,
+        0.55,
+        2.1,
+        0.0
+      ]
+    },
+    {
+      "capture_slot": 4,
+      "seed": 770690,
+      "target_sampling": "uniform_jitter",
+      "target_class": "food",
+      "target_class_id": 0,
+      "target_model": "cube_0",
+      "models": {
+        "cube_0": {
+          "x": -0.8056403314413475,
+          "y": -0.551137877787287,
+          "yaw": -1.5682074381168913,
+          "z": 0.02,
+          "station": 35
+        },
+        "cube_1": {
+          "number": 36,
+          "x": -1.395,
+          "y": 0.08,
+          "yaw": 0.0,
+          "z": 0.02
+        },
+        "cube_2": {
+          "number": 37,
+          "x": -2.01,
+          "y": -0.445,
+          "yaw": 1.5708,
+          "z": 0.02
+        }
+      },
+      "robot_start": {
+        "sequence": 34,
+        "x": -1.2533954572677612,
+        "y": -0.8547531890869141,
+        "yaw": 1.6074262857437132,
+        "z": 0.01
+      },
+      "navigation_goal": {
+        "sequence": 35,
+        "x": -1.2243,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "arm_scan_positions": [
+        0.0,
+        0.1,
+        0.55,
+        2.1,
+        0.0
+      ]
+    },
+    {
+      "capture_slot": 5,
+      "seed": 770690,
+      "target_sampling": "uniform_jitter",
+      "target_class": "food",
+      "target_class_id": 0,
+      "target_model": "cube_0",
+      "models": {
+        "cube_0": {
+          "x": -0.8195852584255328,
+          "y": -0.5434034567456625,
+          "yaw": -1.5678312404108385,
+          "z": 0.02,
+          "station": 35
+        },
+        "cube_2": {
+          "number": 36,
+          "x": -1.395,
+          "y": 0.08,
+          "yaw": 0.0,
+          "z": 0.02
+        },
+        "cube_1": {
+          "number": 37,
+          "x": -2.01,
+          "y": -0.445,
+          "yaw": 1.5708,
+          "z": 0.02
+        }
+      },
+      "robot_start": {
+        "sequence": 34,
+        "x": -1.2533954572677612,
+        "y": -0.8547531890869141,
+        "yaw": 1.6074262857437132,
+        "z": 0.01
+      },
+      "navigation_goal": {
+        "sequence": 35,
+        "x": -1.2243,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "arm_scan_positions": [
+        0.0,
+        0.1,
+        0.55,
+        2.1,
+        0.0
+      ]
+    },
+    {
+      "capture_slot": 6,
+      "seed": 770690,
+      "target_sampling": "uniform_jitter",
+      "target_class": "food",
+      "target_class_id": 0,
+      "target_model": "cube_0",
+      "models": {
+        "cube_0": {
+          "x": -0.8247133248773134,
+          "y": -0.5455838635732985,
+          "yaw": -1.6024288041865733,
+          "z": 0.02,
+          "station": 35
+        },
+        "cube_1": {
+          "number": 36,
+          "x": -1.395,
+          "y": 0.08,
+          "yaw": 0.0,
+          "z": 0.02
+        },
+        "cube_2": {
+          "number": 37,
+          "x": -2.01,
+          "y": -0.445,
+          "yaw": 1.5708,
+          "z": 0.02
+        }
+      },
+      "robot_start": {
+        "sequence": 34,
+        "x": -1.2533954572677612,
+        "y": -0.8547531890869141,
+        "yaw": 1.6074262857437132,
+        "z": 0.01
+      },
+      "navigation_goal": {
+        "sequence": 35,
+        "x": -1.2243,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "arm_scan_positions": [
+        0.0,
+        0.1,
+        0.55,
+        2.1,
+        0.0
+      ]
+    },
+    {
+      "capture_slot": 7,
+      "seed": 770690,
+      "target_sampling": "uniform_jitter",
+      "target_class": "food",
+      "target_class_id": 0,
+      "target_model": "cube_0",
+      "models": {
+        "cube_0": {
+          "x": -0.8166616340907924,
+          "y": -0.5694746060255257,
+          "yaw": -1.5829726355676048,
+          "z": 0.02,
+          "station": 35
+        },
+        "cube_2": {
+          "number": 36,
+          "x": -1.395,
+          "y": 0.08,
+          "yaw": 0.0,
+          "z": 0.02
+        },
+        "cube_1": {
+          "number": 37,
+          "x": -2.01,
+          "y": -0.445,
+          "yaw": 1.5708,
+          "z": 0.02
+        }
+      },
+      "robot_start": {
+        "sequence": 34,
+        "x": -1.2533954572677612,
+        "y": -0.8547531890869141,
+        "yaw": 1.6074262857437132,
+        "z": 0.01
+      },
+      "navigation_goal": {
+        "sequence": 35,
+        "x": -1.2243,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "arm_scan_positions": [
+        0.0,
+        0.1,
+        0.55,
+        2.1,
+        0.0
+      ]
+    },
+    {
+      "capture_slot": 8,
+      "seed": 770690,
+      "target_sampling": "uniform_jitter",
+      "target_class": "food",
+      "target_class_id": 0,
+      "target_model": "cube_0",
+      "models": {
+        "cube_0": {
+          "x": -0.8261402320445397,
+          "y": -0.5624679315613073,
+          "yaw": -1.5221275348202885,
+          "z": 0.02,
+          "station": 35
+        },
+        "cube_2": {
+          "number": 36,
+          "x": -1.395,
+          "y": 0.08,
+          "yaw": 0.0,
+          "z": 0.02
+        },
+        "cube_1": {
+          "number": 37,
+          "x": -2.01,
+          "y": -0.445,
+          "yaw": 1.5708,
+          "z": 0.02
+        }
+      },
+      "robot_start": {
+        "sequence": 34,
+        "x": -1.2533954572677612,
+        "y": -0.8547531890869141,
+        "yaw": 1.6074262857437132,
+        "z": 0.01
+      },
+      "navigation_goal": {
+        "sequence": 35,
+        "x": -1.2243,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "arm_scan_positions": [
+        0.0,
+        0.1,
+        0.55,
+        2.1,
+        0.0
+      ]
+    },
+    {
+      "capture_slot": 9,
+      "seed": 770690,
+      "target_sampling": "uniform_jitter",
+      "target_class": "food",
+      "target_class_id": 0,
+      "target_model": "cube_0",
+      "models": {
+        "cube_0": {
+          "x": -0.8357283143168879,
+          "y": -0.5711710520397955,
+          "yaw": -1.555782954465613,
+          "z": 0.02,
+          "station": 35
+        },
+        "cube_2": {
+          "number": 36,
+          "x": -1.395,
+          "y": 0.08,
+          "yaw": 0.0,
+          "z": 0.02
+        },
+        "cube_1": {
+          "number": 37,
+          "x": -2.01,
+          "y": -0.445,
+          "yaw": 1.5708,
+          "z": 0.02
+        }
+      },
+      "robot_start": {
+        "sequence": 34,
+        "x": -1.2533954572677612,
+        "y": -0.8547531890869141,
+        "yaw": 1.6074262857437132,
+        "z": 0.01
+      },
+      "navigation_goal": {
+        "sequence": 35,
+        "x": -1.2243,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "arm_scan_positions": [
+        0.0,
+        0.1,
+        0.55,
+        2.1,
+        0.0
+      ]
+    },
+    {
+      "capture_slot": 10,
+      "seed": 770690,
+      "target_sampling": "uniform_jitter",
+      "target_class": "food",
+      "target_class_id": 0,
+      "target_model": "cube_0",
+      "models": {
+        "cube_0": {
+          "x": -0.8355308831267455,
+          "y": -0.5390323805544806,
+          "yaw": -1.5370339227023486,
+          "z": 0.02,
+          "station": 35
+        },
+        "cube_2": {
+          "number": 36,
+          "x": -1.395,
+          "y": 0.08,
+          "yaw": 0.0,
+          "z": 0.02
+        },
+        "cube_1": {
+          "number": 37,
+          "x": -2.01,
+          "y": -0.445,
+          "yaw": 1.5708,
+          "z": 0.02
+        }
+      },
+      "robot_start": {
+        "sequence": 34,
+        "x": -1.2533954572677612,
+        "y": -0.8547531890869141,
+        "yaw": 1.6074262857437132,
+        "z": 0.01
+      },
+      "navigation_goal": {
+        "sequence": 35,
+        "x": -1.2243,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "arm_scan_positions": [
+        0.0,
+        0.1,
+        0.55,
+        2.1,
+        0.0
+      ]
+    }
+  ]
+}

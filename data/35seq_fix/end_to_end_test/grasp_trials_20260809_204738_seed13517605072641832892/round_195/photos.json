@@ -1,0 +1,50 @@
+{
+  "round": 195,
+  "target_class": "daily",
+  "image_topic": "/camera/rgb/image_raw",
+  "captures": [
+    {
+      "station": 35,
+      "file": "seq35.png",
+      "captured_at": "2026-08-10T07:14:12.878+08:00",
+      "image_stamp": {
+        "secs": 177,
+        "nsecs": 207000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 2,
+      "recognized_class_id": 2,
+      "recognized_text": "电子 / 物块",
+      "recognition_confidence": 0.9999399781227112
+    },
+    {
+      "station": 36,
+      "file": "seq36.png",
+      "captured_at": "2026-08-10T07:15:03.278+08:00",
+      "image_stamp": {
+        "secs": 223,
+        "nsecs": 407000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 1,
+      "recognized_class_id": 0,
+      "recognized_text": "食品 / 物块",
+      "recognition_confidence": 0.9973099827766418
+    },
+    {
+      "station": 37,
+      "file": "seq37.png",
+      "captured_at": "2026-08-10T07:15:23.865+08:00",
+      "image_stamp": {
+        "secs": 242,
+        "nsecs": 957000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 1,
+      "recognized_class_id": 1,
+      "recognized_text": "日用 / 物块 / 日用 / 物块",
+      "recognition_confidence": 0.9993699789047241
+    }
+  ],
+  "errors": []
+}

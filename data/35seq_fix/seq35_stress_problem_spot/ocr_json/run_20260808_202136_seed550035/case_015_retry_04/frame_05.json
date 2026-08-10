@@ -1,0 +1,110 @@
+{
+  "scale": 1.0,
+  "label": "FOOD",
+  "confidence": 0.9993,
+  "text": "食品 / 物块",
+  "bbox": [
+    465,
+    318,
+    60,
+    38
+  ],
+  "accepted": true,
+  "lines": [
+    {
+      "text": "食品",
+      "confidence": 0.9993,
+      "bbox": [
+        465,
+        318,
+        60,
+        38
+      ]
+    },
+    {
+      "text": "物块",
+      "confidence": 0.99996,
+      "bbox": [
+        467,
+        348,
+        60,
+        38
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "scale": 1.0,
+      "label": "FOOD",
+      "confidence": 0.9993,
+      "text": "食品 / 物块",
+      "bbox": [
+        465,
+        318,
+        60,
+        38
+      ],
+      "accepted": true,
+      "lines": [
+        {
+          "text": "食品",
+          "confidence": 0.9993,
+          "bbox": [
+            465,
+            318,
+            60,
+            38
+          ]
+        },
+        {
+          "text": "物块",
+          "confidence": 0.99996,
+          "bbox": [
+            467,
+            348,
+            60,
+            38
+          ]
+        }
+      ]
+    }
+  ],
+  "frame_index": 5,
+  "sequence": 47,
+  "stamp": 155.303,
+  "expected_class": "food",
+  "expected_class_id": 0,
+  "image_size": {
+    "width": 640,
+    "height": 480
+  },
+  "bbox_margins": {
+    "left": 465,
+    "top": 318,
+    "right": 115,
+    "bottom": 124,
+    "minimum": 115
+  },
+  "rgb_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/rgb_dataset/run_20260808_202136_seed550035/case_015_retry_04/frame_05.png",
+  "depth_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_015_retry_04/frame_05.npy",
+  "depth_preview_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/depth_dataset/run_20260808_202136_seed550035/case_015_retry_04/frame_05_preview.png",
+  "annotated_path": "/home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot/ocr_retan/run_20260808_202136_seed550035/case_015_retry_04/frame_05.png",
+  "depth": 0.31024979054927826,
+  "point_camera": [
+    -0.1270192472371523,
+    0.07024273557813866,
+    -0.31024979054927826
+  ],
+  "point_base": [
+    0.2503664586409806,
+    -0.1246402060724699,
+    0.03085509072211201
+  ],
+  "point_map": [
+    -0.9271989840442533,
+    -0.667365616051941,
+    0.03085520649041701
+  ],
+  "valid_observation": true,
+  "failure_reason": null
+}

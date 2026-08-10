@@ -1,0 +1,22 @@
+{
+  "round": 199,
+  "target_class": "electronics",
+  "image_topic": "/camera/rgb/image_raw",
+  "captures": [
+    {
+      "station": 35,
+      "file": "seq35.png",
+      "captured_at": "2026-08-10T07:25:23.306+08:00",
+      "image_stamp": {
+        "secs": 176,
+        "nsecs": 970000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 2,
+      "recognized_class_id": 2,
+      "recognized_text": "电子 / 物块",
+      "recognition_confidence": 0.9998999834060669
+    }
+  ],
+  "errors": []
+}

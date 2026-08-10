@@ -158,11 +158,15 @@ class NavigationClient:
         request_id="",
         feedback_cb=None,
         preempt_requested=None,
+        position_tolerance=0.0,
+        yaw_tolerance=0.0,
     ):
         goal = NavigateGoal()
         goal.command = NavigateGoal.NAVIGATE_POSE
         goal.request_id = request_id
         goal.target_pose = pose
+        goal.position_tolerance = float(position_tolerance)
+        goal.yaw_tolerance = float(yaw_tolerance)
         return self._call(goal, feedback_cb, preempt_requested)
 
     def align_for_grasp(

@@ -1,9 +1,9 @@
 # 通用代价地图参数（适用于 global_costmap 与 local_costmap）
 
-# 建议优先使用 footprint（更精确），同时保留 robot_radius 可自动回退
-footprint: [[0.12, -0.12], [0.12, 0.12],[-0.12, 0.12], [-0.12, -0.12]]
-# 显式固定当前默认安全边界，避免不同 costmap 版本的隐式默认值造成行为漂移。
-footprint_padding: 0.01
+# 全程固定使用同一安全 footprint：几何半尺寸由 0.120 m 增至 0.132 m，
+# padding 由 0.010 m 增至 0.012 m；有效半尺寸 0.144 m，相对原值增加约 10.8%。
+footprint: [[0.132, -0.132], [0.132, 0.132], [-0.132, 0.132], [-0.132, -0.132]]
+footprint_padding: 0.012
 # robot_radius: 0.20   # 比实际略大一点，提高导航安全性
 
 obstacle_layer:
@@ -23,7 +23,7 @@ obstacle_layer:
 
 inflation_layer:
   enabled: true
-  cost_scaling_factor: 2.8      # 不改变膨胀半径，仅减缓代价衰减，让规划更早远离锥桶
+  cost_scaling_factor: 2.8      # 保持代价衰减不变，先单独评估 footprint/膨胀半径影响
   # inflation_radius 由 gazebo_nav.launch 分别写入 global_costmap 和 local_costmap，
   # 避免公共配置将两个膨胀半径绑定为同一个值。
 

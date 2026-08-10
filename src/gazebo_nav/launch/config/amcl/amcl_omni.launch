@@ -4,7 +4,10 @@
   <param name="odom_model_type" value="omni"/>
   <!-- Gazebo planar odometry is nearly noise-free; retain small nonzero noise. -->
   <param name="odom_alpha5" value="0.001"/>
-  <param name="transform_tolerance" value="0.2" />
+  <!-- Future-date map->odom far enough to cover AMCL/scan processing jitter.
+       Keep this parameter defined exactly once: a former duplicate below
+       silently overrode the intended value with 0.1 s. -->
+  <param name="transform_tolerance" value="0.3"/>
   <param name="gui_publish_rate" value="10.0"/>
   <param name="laser_max_beams" value="120"/>
   <param name="use_map_topic" value="false"/>  
@@ -45,7 +48,6 @@
   <param name="initial_cov_yy" value="0.0004"/>
   <param name="initial_cov_aa" value="0.0003"/>
   <param name="resample_interval" value="1"/>
-  <param name="transform_tolerance" value="0.1"/>
   <param name="recovery_alpha_slow" value="0.0"/>
   <param name="recovery_alpha_fast" value="0.0"/>
   <!-- <param name="odom_frame_id" value="odom"/>   -->

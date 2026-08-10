@@ -73,16 +73,17 @@ def cube_sdf(name, size, material):
 def main():
     rospy.init_node("spawn_calibration_cubes")
     config_file = rospy.get_param("~config_file")
+    # Preserve direct-script compatibility; full_competition.launch always
+    # passes this parameter explicitly and defaults it to false.
+    enabled = bool(rospy.get_param("~enabled", True))
     try:
         frame_id, size, z, material, markers = load_config(config_file)
     except (OSError, ValueError, yaml.YAMLError) as exc:
         rospy.logfatal("invalid calibration cube configuration: %s", exc)
         return 2
 
-    rospy.wait_for_service("/gazebo/spawn_sdf_model")
     rospy.wait_for_service("/gazebo/delete_model")
     rospy.wait_for_service("/gazebo/get_world_properties")
-    spawn_model = rospy.ServiceProxy("/gazebo/spawn_sdf_model", SpawnModel)
     delete_model = rospy.ServiceProxy("/gazebo/delete_model", DeleteModel)
     world_properties = rospy.ServiceProxy(
         "/gazebo/get_world_properties", GetWorldProperties
@@ -91,7 +92,21 @@ def main():
     existing_models = set(world_properties().model_names)
     for name, _region, _x, _y, _yaw in markers:
         if name in existing_models:
-            delete_model(name)
+            response = delete_model(name)
+            if not response.success:
+                rospy.logerr(
+                    "failed to remove stale calibration cube %s: %s",
+                    name,
+                    response.status_message,
+                )
+                return 1
+
+    if not enabled:
+        rospy.loginfo("camera calibration cubes disabled; stale markers removed")
+        return 0
+
+    rospy.wait_for_service("/gazebo/spawn_sdf_model")
+    spawn_model = rospy.ServiceProxy("/gazebo/spawn_sdf_model", SpawnModel)
 
     for name, region, x, y, yaw in markers:
         pose = Pose(

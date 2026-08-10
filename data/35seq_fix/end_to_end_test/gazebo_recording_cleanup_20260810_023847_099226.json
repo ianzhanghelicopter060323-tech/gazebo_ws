@@ -1,0 +1,32 @@
+{
+  "created_at": "2026-08-10T02:38:47+08:00",
+  "summary": {
+    "rounds_examined": 1,
+    "eligible_rounds": 1,
+    "retained_rounds": 0,
+    "eligible_bytes": 500,
+    "deleted_files": 2,
+    "deleted_bytes": 500
+  },
+  "rounds": [
+    {
+      "run": "grasp_trials_20260809_204738_seed13517605072641832892",
+      "round": 116,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/35seq_fix/end_to_end_test/grasp_trials_20260809_204738_seed13517605072641832892/round_116",
+      "recognition_correct": true,
+      "grasp_success": true,
+      "eligible_for_recording_deletion": true,
+      "reason": "correct_recognition_and_successful_grasp",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/35seq_fix/end_to_end_test/grasp_trials_20260809_204738_seed13517605072641832892/round_116/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/35seq_fix/end_to_end_test/grasp_trials_20260809_204738_seed13517605072641832892/round_116/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 500,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/35seq_fix/end_to_end_test/grasp_trials_20260809_204738_seed13517605072641832892/round_116/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/35seq_fix/end_to_end_test/grasp_trials_20260809_204738_seed13517605072641832892/round_116/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 500
+    }
+  ]
+}

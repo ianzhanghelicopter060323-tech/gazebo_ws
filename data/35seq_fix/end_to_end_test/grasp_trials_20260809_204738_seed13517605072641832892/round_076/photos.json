@@ -1,0 +1,36 @@
+{
+  "round": 76,
+  "target_class": "electronics",
+  "image_topic": "/camera/rgb/image_raw",
+  "captures": [
+    {
+      "station": 35,
+      "file": "seq35.png",
+      "captured_at": "2026-08-10T00:37:25.013+08:00",
+      "image_stamp": {
+        "secs": 180,
+        "nsecs": 624000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 2,
+      "recognized_class_id": 0,
+      "recognized_text": "食品 / 物块",
+      "recognition_confidence": 0.9937199950218201
+    },
+    {
+      "station": 36,
+      "file": "seq36.png",
+      "captured_at": "2026-08-10T00:37:55.348+08:00",
+      "image_stamp": {
+        "secs": 204,
+        "nsecs": 223000000
+      },
+      "observation_pose": "primary",
+      "recognition_attempt": 1,
+      "recognized_class_id": 2,
+      "recognized_text": "电子 / 物块",
+      "recognition_confidence": 0.9999499917030334
+    }
+  ],
+  "errors": []
+}

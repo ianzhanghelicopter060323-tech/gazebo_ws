@@ -67,10 +67,11 @@ class MissionServer:
         if self._pipeline_stop_after not in (
             "ARRIVED_PICKUP_STAGING",
             "OBJECT_GRASPED",
+            "TASK_COMPLETED",
         ):
             raise ValueError(
-                "pipeline_stop_after must be ARRIVED_PICKUP_STAGING or "
-                "OBJECT_GRASPED"
+                "pipeline_stop_after must be ARRIVED_PICKUP_STAGING, "
+                "OBJECT_GRASPED, or TASK_COMPLETED"
             )
 
         self._pickup_pipeline = pickup_pipeline
@@ -227,13 +228,15 @@ class MissionServer:
             or self._server.is_preempt_requested()
         )
 
-    def _navigate_pickup_pose(
+    def _navigate_pose(
         self,
         context,
         state_machine,
         pose,
         stage,
         detail,
+        position_tolerance=0.0,
+        yaw_tolerance=0.0,
     ):
         state_machine.transition(stage, detail)
         call = (
@@ -241,14 +244,21 @@ class MissionServer:
             if stage == states.ALIGN_FOR_GRASP
             else self._navigation.navigate_pose
         )
-        result = call(
-            pose,
-            request_id=context.task_id,
-            feedback_cb=lambda feedback: self._navigation_feedback(
+        call_arguments = {
+            "request_id": context.task_id,
+            "feedback_cb": lambda feedback: self._navigation_feedback(
                 context, feedback
             ),
-            preempt_requested=self._server.is_preempt_requested,
-        )
+            "preempt_requested": self._server.is_preempt_requested,
+        }
+        if call == self._navigation.navigate_pose:
+            call_arguments.update(
+                {
+                    "position_tolerance": position_tolerance,
+                    "yaw_tolerance": yaw_tolerance,
+                }
+            )
+        result = call(pose, **call_arguments)
         if self._navigation_result_preempted(result):
             raise PickupPreempted(result.message)
         if result.success:
@@ -272,7 +282,7 @@ class MissionServer:
             station_number = self._pickup_pipeline.run(
                 context=context,
                 state_machine=state_machine,
-                navigate=lambda pose, stage, detail: self._navigate_pickup_pose(
+                navigate=lambda pose, stage, detail: self._navigate_pose(
                     context,
                     state_machine,
                     pose,
@@ -289,10 +299,83 @@ class MissionServer:
             self._abort(context, state_machine, exc.error_code, str(exc))
             return
 
+        if self._pipeline_stop_after == "OBJECT_GRASPED":
+            self._finish_success(
+                context,
+                states.OBJECT_GRASPED,
+                "target cube grasped and lifted from seq{}".format(
+                    station_number
+                ),
+            )
+            return
+
+        try:
+            state_machine.transition(
+                states.GET_DELIVERY_GOAL,
+                "selecting workshop from received target class",
+            )
+            destination = self._goal_provider.get_delivery_destination(context)
+            context.delivery_entry_goal = destination.entry_pose
+            context.delivery_goal = destination.pose
+
+            self._navigate_pose(
+                context,
+                state_machine,
+                destination.entry_pose,
+                states.NAVIGATE_TO_DELIVERY,
+                "navigating to cone entry and enforcing entry heading",
+                position_tolerance=destination.entry_position_tolerance,
+                yaw_tolerance=destination.entry_yaw_tolerance,
+            )
+            self._navigate_pose(
+                context,
+                state_machine,
+                destination.pose,
+                states.NAVIGATE_TO_DELIVERY,
+                "entry heading reached; navigating through cone zone to {}".format(
+                    destination.name
+                ),
+                position_tolerance=destination.position_tolerance,
+                yaw_tolerance=destination.yaw_tolerance,
+            )
+            state_machine.transition(
+                states.ARRIVED_DELIVERY,
+                "move_base reached {}".format(destination.name),
+            )
+            state_machine.transition(
+                states.RELEASE_OBJECT,
+                "lowering arm, then opening gripper at {}".format(
+                    destination.name
+                ),
+            )
+            self._pickup_pipeline.release(
+                self._server.is_preempt_requested
+            )
+        except GoalUnavailable as exc:
+            self._abort(
+                context,
+                state_machine,
+                error_codes.GOAL_UNAVAILABLE,
+                str(exc),
+            )
+            return
+        except PickupPreempted as exc:
+            self._preempt(context, state_machine, str(exc))
+            return
+        except PickupFailure as exc:
+            self._abort(context, state_machine, exc.error_code, str(exc))
+            return
+
+        state_machine.transition(
+            states.TASK_COMPLETED,
+            "cube released at {}".format(destination.name),
+        )
         self._finish_success(
             context,
-            states.OBJECT_GRASPED,
-            "target cube grasped and lifted from seq{}".format(station_number),
+            states.TASK_COMPLETED,
+            "target cube delivered to {} and released".format(
+                destination.name
+            ),
         )
 
     def _execute(self, goal):

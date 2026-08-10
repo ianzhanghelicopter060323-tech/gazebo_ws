@@ -7,8 +7,13 @@ from unittest import mock
 from geometry_msgs.msg import PoseStamped
 import rospy
 
-from smart_factory_mission import states
-from smart_factory_mission.pickup_pipeline import CandidateStation, PickupPipeline
+from smart_factory_mission import error_codes, states
+from smart_factory_mission.pickup_pipeline import (
+    CandidateStation,
+    PickupFailure,
+    PickupPipeline,
+    PickupPreempted,
+)
 
 
 class PickupSequenceTest(unittest.TestCase):
@@ -79,6 +84,75 @@ class PickupSequenceTest(unittest.TestCase):
         self.assertEqual(navigation, [36, 37])
 
 
+class PickupObservationPoseTest(unittest.TestCase):
+    def test_rejected_primary_observation_uses_supplemental_pose(self):
+        pipeline = PickupPipeline.__new__(PickupPipeline)
+        pipeline._recognition_retries = 1
+        pipeline._manipulation = mock.Mock()
+        pipeline._manipulation.move_arm.return_value = True
+        rejected = types.SimpleNamespace(success=False, message="no stable OCR")
+        accepted = types.SimpleNamespace(
+            success=True,
+            message="food",
+            detected_class=0,
+            text="食品物块",
+            confidence=0.9,
+        )
+        pipeline._locate = mock.Mock(side_effect=[rejected, rejected, accepted])
+        primary = (0.0, 0.1, 0.55, 2.1, 0.0)
+        supplemental = (0.0, 0.3, 0.6, 1.8, 0.0)
+        station = CandidateStation(
+            35, 0.0, 0.0, 0.0, primary, supplemental
+        )
+
+        with mock.patch("rospy.logwarn"):
+            result = pipeline._observe(
+                station,
+                require_classification=True,
+                state_machine=mock.Mock(),
+                preempt=lambda: False,
+            )
+
+        self.assertIs(result, accepted)
+        self.assertEqual(
+            pipeline._manipulation.move_arm.call_args_list,
+            [mock.call(primary, mock.ANY), mock.call(supplemental, mock.ANY)],
+        )
+        self.assertEqual(pipeline._locate.call_count, 3)
+
+    def test_successful_primary_observation_skips_supplemental_pose(self):
+        pipeline = PickupPipeline.__new__(PickupPipeline)
+        pipeline._recognition_retries = 1
+        pipeline._manipulation = mock.Mock()
+        pipeline._manipulation.move_arm.return_value = True
+        accepted = types.SimpleNamespace(
+            success=True,
+            message="food",
+            detected_class=0,
+            text="食品物块",
+            confidence=0.9,
+        )
+        pipeline._locate = mock.Mock(return_value=accepted)
+        primary = (0.0, 0.1, 0.55, 2.1, 0.0)
+        supplemental = (0.0, 0.3, 0.6, 1.8, 0.0)
+        station = CandidateStation(
+            35, 0.0, 0.0, 0.0, primary, supplemental
+        )
+
+        result = pipeline._observe(
+            station,
+            require_classification=True,
+            state_machine=mock.Mock(),
+            preempt=lambda: False,
+        )
+
+        self.assertIs(result, accepted)
+        pipeline._manipulation.move_arm.assert_called_once_with(
+            primary, mock.ANY
+        )
+        pipeline._locate.assert_called_once()
+
+
 class PickupAlignmentTest(unittest.TestCase):
     def test_alignment_reuses_initial_map_point_without_second_observation(self):
         pipeline = PickupPipeline.__new__(PickupPipeline)
@@ -123,6 +197,61 @@ class PickupAlignmentTest(unittest.TestCase):
         )
         self.assertEqual(pipeline._planner.correction_distance.call_count, 2)
         pipeline._observe.assert_not_called()
+
+
+class PickupReleaseTest(unittest.TestCase):
+    def test_release_lowers_held_cube_before_rolling_gripper_open(self):
+        pipeline = PickupPipeline.__new__(PickupPipeline)
+        pipeline._manipulation = mock.Mock()
+        pipeline._manipulation.move_to_release_pose.return_value = True
+        pipeline._manipulation.grasp_state.return_value = "GRASPING"
+        pipeline._manipulation.release_gripper.return_value = True
+        preempt = lambda: False
+
+        pipeline.release(preempt)
+
+        self.assertEqual(
+            pipeline._manipulation.method_calls,
+            [
+                mock.call.move_to_release_pose(preempt),
+                mock.call.grasp_state(),
+                mock.call.release_gripper(preempt),
+            ],
+        )
+        pipeline._manipulation.open_gripper.assert_not_called()
+
+    def test_release_does_not_open_when_arm_fails_to_lower(self):
+        pipeline = PickupPipeline.__new__(PickupPipeline)
+        pipeline._manipulation = mock.Mock()
+        pipeline._manipulation.move_to_release_pose.return_value = False
+
+        with self.assertRaises(PickupFailure) as raised:
+            pipeline.release(lambda: False)
+
+        self.assertEqual(error_codes.MANIPULATION_FAILED, raised.exception.error_code)
+        pipeline._manipulation.release_gripper.assert_not_called()
+
+    def test_release_aborts_when_cube_is_lost_during_lowering(self):
+        pipeline = PickupPipeline.__new__(PickupPipeline)
+        pipeline._manipulation = mock.Mock()
+        pipeline._manipulation.move_to_release_pose.return_value = True
+        pipeline._manipulation.grasp_state.return_value = "IDLE"
+
+        with self.assertRaises(PickupFailure) as raised:
+            pipeline.release(lambda: False)
+
+        self.assertEqual(error_codes.GRASP_FAILED, raised.exception.error_code)
+        pipeline._manipulation.release_gripper.assert_not_called()
+
+    def test_release_preempts_while_arm_is_lowering(self):
+        pipeline = PickupPipeline.__new__(PickupPipeline)
+        pipeline._manipulation = mock.Mock()
+        pipeline._manipulation.move_to_release_pose.return_value = False
+
+        with self.assertRaises(PickupPreempted):
+            pipeline.release(lambda: True)
+
+        pipeline._manipulation.release_gripper.assert_not_called()
 
 
 if __name__ == "__main__":

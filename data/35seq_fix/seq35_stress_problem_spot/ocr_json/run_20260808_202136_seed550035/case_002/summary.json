@@ -1,0 +1,113 @@
+{
+  "run_name": "run_20260808_202136_seed550035",
+  "case_name": "case_002",
+  "expected_class": "electronics",
+  "expected_class_id": 2,
+  "target_model": "cube_2",
+  "frames_attempted": 5,
+  "valid_observations": 0,
+  "minimum_votes": 3,
+  "failure_reason_counts": {
+    "NO_CLASS_KEYWORD": 5
+  },
+  "runtime_state": {
+    "car3": {
+      "success": true,
+      "pose": {
+        "position": {
+          "x": -1.146693975043077,
+          "y": -0.5614157457227155,
+          "z": 0.00889731601436005
+        },
+        "orientation": {
+          "x": -1.3593144224967568e-07,
+          "y": -3.6422765044687174e-07,
+          "z": 0.019257090156193927,
+          "w": 0.9998145650462216
+        }
+      },
+      "status_message": "GetModelState: got properties"
+    },
+    "cube_2": {
+      "success": true,
+      "pose": {
+        "position": {
+          "x": -0.957254211765822,
+          "y": -0.6634223960173125,
+          "z": 0.019999951001918693
+        },
+        "orientation": {
+          "x": -1.5607915994847087e-09,
+          "y": -2.2175066983540035e-09,
+          "z": -0.21094524905564763,
+          "w": 0.9774978782078512
+        }
+      },
+      "status_message": "GetModelState: got properties"
+    },
+    "amcl": {
+      "pose": {
+        "position": {
+          "x": -1.149618039972394,
+          "y": -0.5597448509513406,
+          "z": 0.0
+        },
+        "orientation": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.023645755682229413,
+          "w": 0.9997204000310368
+        }
+      },
+      "covariance": [
+        0.00011024749555677005,
+        1.3184075279282226e-05,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.3184075279282226e-05,
+        0.0002887641664895968,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.00015241763141728861
+      ]
+    },
+    "joint_states": {
+      "arm_joint1": 4.333338047501911e-05,
+      "arm_joint2": -7.455758046326366e-05,
+      "arm_joint3": 0.5499759498954493,
+      "arm_joint4": 2.199992286749268,
+      "arm_joint5": -1.6080038395038798e-05,
+      "r_joint": 1.8246880797434528e-05
+    }
+  },
+  "success": false,
+  "classification_correct": false,
+  "failure_reason": "NO_CLASS_KEYWORD"
+}

@@ -24,6 +24,8 @@ class GraspAttachStateTest(unittest.TestCase):
         node.r_joint_pos = joint
         node.close_threshold = 0.8
         node.release_command_threshold = 1.2
+        node._grasp_attempt_period = 0.5
+        node._last_grasp_attempt_at = None
         node._do_grasp = mock.Mock()
         node._do_release = mock.Mock()
         return node
@@ -58,6 +60,19 @@ class GraspAttachStateTest(unittest.TestCase):
         node._tick_state()
 
         node._do_grasp.assert_called_once_with()
+
+    def test_closed_joint_grasp_attempts_are_throttled(self):
+        node = self._node(state="IDLE", joint=0.79)
+
+        with mock.patch(
+            "grasp_attach.time.monotonic",
+            side_effect=[10.0, 10.1, 10.5],
+        ):
+            node._tick_state()
+            node._tick_state()
+            node._tick_state()
+
+        self.assertEqual(2, node._do_grasp.call_count)
 
 
 if __name__ == "__main__":
