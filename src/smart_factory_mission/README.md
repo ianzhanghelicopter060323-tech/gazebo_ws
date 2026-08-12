@@ -22,13 +22,12 @@ The current milestone implements:
 3. Ask the navigation Action server to check `move_base`, AMCL pose, and
    `map -> base_footprint` TF.
 4. Load a development-only pickup staging pose.
-5. Submit the route through `Navigate.action`. In `fitted_path_lookahead` mode,
-   the navigation server publishes the offline-fitted reference as a
-   latched `nav_msgs/Path`, project localization onto monotonic path progress,
-   and replace curvature-adaptive moving `MoveBaseGoal` targets at a bounded
-   rate. `legacy_waypoints` remains available as a configuration rollback.
-6. Require the final `MoveBaseGoal` to return `SUCCEEDED`, preserving the DWA
-   position and orientation tolerances, then enter `ARRIVED_PICKUP_STAGING`.
+5. Submit the route through `Navigate.action`. The navigation server publishes
+   the offline-fitted reference as a latched `nav_msgs/Path` and sends its 30
+   generated execution waypoints to `move_base` sequentially. Intermediate
+   points advance within a 0.15 m position-only radius.
+6. Accept the final staging pose within a 0.15 m position radius and 0.04 rad
+   yaw tolerance, then enter `ARRIVED_PICKUP_STAGING`.
 7. Observe candidates in order 35, 36, 37. A stable non-target result advances
    from 35 to 36; two stable non-target results select 37 by elimination.
 8. Use synchronized RGB-D observations to place the cube at the fixed arm TCP

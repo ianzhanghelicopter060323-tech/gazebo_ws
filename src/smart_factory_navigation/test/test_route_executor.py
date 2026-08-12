@@ -82,16 +82,34 @@ class RouteExecutorTest(unittest.TestCase):
         pose.pose.orientation.w = math.cos(yaw / 2.0)
         return pose
 
+    @staticmethod
+    def _fitted_config():
+        points = [
+            {"s": 0.0, "x": 0.0, "y": 0.0, "yaw": 0.1},
+            {"s": 1.5, "x": 1.0, "y": 1.0, "yaw": 0.2},
+            {"s": 3.5, "x": 2.0, "y": 3.0, "yaw": 1.2},
+        ]
+        return {
+            "configured": True,
+            "frame_id": "map",
+            "points": points,
+            "execution_waypoints": list(points),
+            "final_goal": {"x": 2.0, "y": 3.0, "yaw": 0.4},
+        }
+
     def _executor(
         self,
         outcomes,
         parameter_overrides=None,
         preempt_requested=None,
     ):
-        parameters = parameter_overrides or {}
+        parameters = {
+            "~navigation/fitted_waypoints/count": 3,
+            "~fitted_path": self._fitted_config(),
+        }
+        parameters.update(parameter_overrides or {})
         navigation = FakeNavigation(outcomes)
         alignment = mock.Mock()
-        alignment.heading_tolerance = 0.25
         alignment.stop = mock.Mock()
         published = []
         aborted = []
@@ -140,28 +158,138 @@ class RouteExecutorTest(unittest.TestCase):
     def _state(context):
         return NavigationStateRecorder(context, lambda _event: None)
 
-    def test_public_route_api_advances_intermediate_and_final_waypoints(self):
+    def test_fitted_waypoints_are_sent_sequentially(self):
         executor, navigation, _alignment, _published, aborted, _preempted = (
             self._executor(
                 [
                     (NavigationOutcome.PASSED, "inside pass radius"),
-                    (NavigationOutcome.SUCCEEDED, "goal reached"),
-                ]
+                    (NavigationOutcome.PASSED, "inside pass radius"),
+                    (NavigationOutcome.PASSED, "inside final pass radius"),
+                ],
+                {
+                    "~navigation/intermediate_pass_radius": 0.15,
+                    "~navigation/final_pass_radius": 0.15,
+                    "~navigation/final_yaw_tolerance": 0.04,
+                },
             )
         )
-        context = self._context([self._pose(1.0), self._pose(2.0)])
+        executor._publish_fitted_reference_path = mock.Mock()
+        executor._pose_is_within_tolerances = mock.Mock(return_value=True)
+        final_goal = self._pose(2.0, 3.0, yaw=0.4)
+        context = self._context([final_goal])
 
-        message = executor.execute_staging_route(
-            context, self._state(context)
-        )
+        with mock.patch(
+            "smart_factory_navigation.route_executor.rospy.Time.now",
+            return_value=rospy.Time(1.0),
+        ):
+            message = executor.execute_staging_route(
+                context, self._state(context)
+            )
 
         self.assertEqual(
-            "all 2 waypoints reached; arrived at pickup staging area", message
+            "all 3 waypoints reached; arrived at pickup staging area", message
         )
-        self.assertEqual(2, len(navigation.navigate_calls))
+        self.assertEqual(3, len(navigation.navigate_calls))
         self.assertIsNotNone(navigation.navigate_calls[0].pass_condition)
-        self.assertIsNone(navigation.navigate_calls[1].pass_condition)
+        self.assertIsNotNone(navigation.navigate_calls[1].pass_condition)
+        self.assertIsNotNone(navigation.navigate_calls[2].pass_condition)
+        self.assertTrue(navigation.navigate_calls[2].pass_condition())
+        executor._pose_is_within_tolerances.assert_called_once_with(
+            final_goal, 0.15, 0.04
+        )
+        self.assertAlmostEqual(
+            1.0, navigation.navigate_calls[1].pose.pose.position.x
+        )
+        self.assertIs(navigation.navigate_calls[2].pose, final_goal)
+        self.assertEqual(0.15, executor._intermediate_pass_radius)
+        self.assertEqual(0.15, executor._final_pass_radius)
+        self.assertEqual(0.04, executor._final_yaw_tolerance)
+        self.assertEqual(1, navigation.cancel_calls)
+        executor._publish_fitted_reference_path.assert_called_once_with()
         self.assertFalse(aborted)
+
+    def test_zero_final_pass_radius_keeps_exact_move_base_completion(self):
+        executor, navigation, _alignment, _published, aborted, _preempted = (
+            self._executor(
+                [
+                    (NavigationOutcome.PASSED, "inside pass radius"),
+                    (NavigationOutcome.PASSED, "inside pass radius"),
+                    (NavigationOutcome.SUCCEEDED, "goal reached"),
+                ],
+                {
+                    "~navigation/intermediate_pass_radius": 0.15,
+                    "~navigation/final_pass_radius": 0.0,
+                },
+            )
+        )
+        executor._publish_fitted_reference_path = mock.Mock()
+        final_goal = self._pose(2.0, 3.0, yaw=0.4)
+        context = self._context([final_goal])
+
+        with mock.patch(
+            "smart_factory_navigation.route_executor.rospy.Time.now",
+            return_value=rospy.Time(1.0),
+        ):
+            message = executor.execute_staging_route(
+                context, self._state(context)
+            )
+
+        self.assertEqual(
+            "all 3 waypoints reached; arrived at pickup staging area", message
+        )
+        self.assertIsNone(navigation.navigate_calls[2].pass_condition)
+        self.assertEqual(0, navigation.cancel_calls)
+        self.assertFalse(aborted)
+
+    def test_negative_final_pass_radius_is_rejected(self):
+        with self.assertRaisesRegex(
+            ValueError, "navigation/final_pass_radius must not be negative"
+        ):
+            self._executor(
+                [], {"~navigation/final_pass_radius": -0.01}
+            )
+
+    def test_nonpositive_final_yaw_tolerance_is_rejected(self):
+        with self.assertRaisesRegex(
+            ValueError, "navigation/final_yaw_tolerance must be positive"
+        ):
+            self._executor(
+                [], {"~navigation/final_yaw_tolerance": 0.0}
+            )
+
+    def test_final_radius_does_not_bypass_seq35_yaw_alignment(self):
+        executor, *_ = self._executor(
+            [],
+            {
+                "~navigation/final_pass_radius": 0.15,
+                "~navigation/final_yaw_tolerance": 0.04,
+            },
+        )
+
+        self.assertFalse(
+            executor.final_waypoint_is_passed(self._pose(yaw=0.041))
+        )
+        self.assertTrue(
+            executor.final_waypoint_is_passed(self._pose(yaw=0.039))
+        )
+
+    def test_stale_final_goal_is_rejected_before_navigation(self):
+        executor, navigation, _alignment, _published, aborted, _preempted = (
+            self._executor([])
+        )
+        context = self._context([self._pose(2.0, 3.0, yaw=0.5)])
+
+        with mock.patch(
+            "smart_factory_navigation.route_executor.rospy.Time.now",
+            return_value=rospy.Time(1.0),
+        ):
+            result = executor.execute_staging_route(
+                context, self._state(context)
+            )
+
+        self.assertIsNone(result)
+        self.assertFalse(navigation.navigate_calls)
+        self.assertEqual(error_codes.GOAL_UNAVAILABLE, aborted[-1][0])
 
     def test_move_base_wait_polls_and_stops_promptly_on_preempt(self):
         preempt_requested = mock.Mock(side_effect=(False, True))
@@ -193,9 +321,15 @@ class RouteExecutorTest(unittest.TestCase):
                 ]
             )
         )
-        context = self._context([self._pose()])
+        context = self._context([self._pose(2.0, 3.0, yaw=0.4)])
 
-        result = executor.execute_staging_route(context, self._state(context))
+        with mock.patch(
+            "smart_factory_navigation.route_executor.rospy.Time.now",
+            return_value=rospy.Time(1.0),
+        ):
+            result = executor.execute_staging_route(
+                context, self._state(context)
+            )
 
         self.assertIsNone(result)
         self.assertEqual(2, len(navigation.navigate_calls))
@@ -207,9 +341,15 @@ class RouteExecutorTest(unittest.TestCase):
                 [(NavigationOutcome.PREEMPTED, "preempted")]
             )
         )
-        context = self._context([self._pose()])
+        context = self._context([self._pose(2.0, 3.0, yaw=0.4)])
 
-        result = executor.execute_staging_route(context, self._state(context))
+        with mock.patch(
+            "smart_factory_navigation.route_executor.rospy.Time.now",
+            return_value=rospy.Time(1.0),
+        ):
+            result = executor.execute_staging_route(
+                context, self._state(context)
+            )
 
         self.assertIsNone(result)
         self.assertEqual(1, len(preempted))
@@ -224,33 +364,6 @@ class RouteExecutorTest(unittest.TestCase):
             executor.execute_staging_route(context, self._state(context))
 
         self.assertEqual(error_codes.GOAL_UNAVAILABLE, raised.exception.error_code)
-
-    def test_constrained_pass_aligns_heading_without_private_setup(self):
-        executor, navigation, alignment, published, _aborted, _preempted = (
-            self._executor(
-                [
-                    (NavigationOutcome.PASSED, "inside pass radius"),
-                    (NavigationOutcome.SUCCEEDED, "goal reached"),
-                ],
-                {"~navigation/heading_constrained_waypoints": [1]},
-            )
-        )
-        alignment.align_heading.return_value = (
-            NavigationOutcome.SUCCEEDED,
-            "heading aligned",
-        )
-        context = self._context([self._pose(1.0), self._pose(2.0)])
-
-        with mock.patch(
-            "smart_factory_navigation.route_executor.rospy.sleep"
-        ):
-            executor.execute_staging_route(context, self._state(context))
-
-        self.assertEqual(1, navigation.cancel_calls)
-        alignment.align_heading.assert_called_once()
-        self.assertTrue(
-            any("aligning heading" in detail for _context, detail in published)
-        )
 
     def test_single_pose_api_retries_and_returns(self):
         executor, navigation, _alignment, _published, _aborted, _preempted = (
@@ -374,169 +487,6 @@ class RouteExecutorTest(unittest.TestCase):
                 alignment.align.assert_called_once_with(
                     context, recorder, pose, "alignment"
                 )
-
-    def _fitted_executor(self, outcomes, tracking):
-        executor, navigation, alignment, published, aborted, preempted = (
-            self._executor(outcomes)
-        )
-        executor._route_execution_mode = "fitted_path_lookahead"
-        executor._fitted_path = SimpleNamespace(
-            frame_id="map",
-            final_goal=(2.0, 3.0, 0.0),
-            total_length=1.0,
-            points=(SimpleNamespace(x=0.0, y=0.0, yaw=0.0),),
-        )
-        executor._lookahead_min = 0.20
-        executor._lookahead_max = 0.50
-        executor._lookahead_curvature_gain = 0.45
-        executor._projection_window = 1.0
-        executor._direct_segments = []
-        executor._heading_locks = []
-        executor._path_acquire_radius = 0.20
-        executor._path_control_frequency = 20.0
-        executor._route_timeout = 240.0
-        executor._cross_track_warn = 0.08
-        executor._cross_track_abort = 0.25
-        executor._progress_epsilon = 0.05
-        executor._progress_timeout = 15.0
-        executor._final_phase_distance = 0.30
-        executor._goal_update_distance = 0.12
-        executor._goal_update_period = 0.8
-        executor._localization = mock.Mock()
-        executor._localization.localized_xy.return_value = (0.0, 0.0)
-        executor._localization.pose_is_within_radius.return_value = True
-        executor._path_progress_publisher = mock.Mock()
-        executor._tracking_goal_publisher = mock.Mock()
-        executor._publish_fitted_reference_path = mock.Mock()
-        tracker = mock.Mock()
-        tracker.update.return_value = tracking
-        return (
-            executor,
-            navigation,
-            tracker,
-            published,
-            aborted,
-            preempted,
-        )
-
-    def test_public_fitted_route_requires_exact_final_goal_success(self):
-        tracking = SimpleNamespace(
-            progress_s=0.80,
-            cross_track_error=0.01,
-            lookahead=0.20,
-            target=SimpleNamespace(s=0.90, x=1.8, y=2.8, yaw=0.0),
-        )
-        executor, navigation, tracker, _published, aborted, preempted = (
-            self._fitted_executor(
-                [
-                    (NavigationOutcome.PASSED, "path start acquired"),
-                    (NavigationOutcome.SUCCEEDED, "exact goal reached"),
-                ],
-                tracking,
-            )
-        )
-        context = self._context([self._pose(2.0, 3.0)])
-
-        with mock.patch(
-            "smart_factory_navigation.route_executor.PathTracker",
-            return_value=tracker,
-        ), mock.patch(
-            "smart_factory_navigation.route_executor.time.monotonic",
-            return_value=0.0,
-        ), mock.patch(
-            "smart_factory_navigation.route_executor.rospy.is_shutdown",
-            return_value=False,
-        ), mock.patch(
-            "smart_factory_navigation.route_executor.rospy.Time.now",
-            return_value=rospy.Time(1.0),
-        ), mock.patch("smart_factory_navigation.route_executor.rospy.Rate"):
-            message = executor.execute_staging_route(
-                context, self._state(context)
-            )
-
-        self.assertIn("fitted path completed", message)
-        self.assertEqual(2, len(navigation.navigate_calls))
-        self.assertIsNotNone(navigation.navigate_calls[0].pass_condition)
-        self.assertIsNone(navigation.navigate_calls[1].pass_condition)
-        executor._publish_fitted_reference_path.assert_called_once_with()
-        executor._path_progress_publisher.publish.assert_called_once()
-        self.assertFalse(aborted)
-        self.assertFalse(preempted)
-
-    def test_public_fitted_route_cancels_and_aborts_cross_track_limit(self):
-        tracking = SimpleNamespace(
-            progress_s=0.10,
-            cross_track_error=0.25,
-            lookahead=0.20,
-            target=SimpleNamespace(s=0.30, x=0.3, y=0.0, yaw=0.0),
-        )
-        executor, navigation, tracker, _published, aborted, _preempted = (
-            self._fitted_executor(
-                [(NavigationOutcome.PASSED, "path start acquired")],
-                tracking,
-            )
-        )
-        context = self._context([self._pose(2.0, 3.0)])
-
-        with mock.patch(
-            "smart_factory_navigation.route_executor.PathTracker",
-            return_value=tracker,
-        ), mock.patch(
-            "smart_factory_navigation.route_executor.time.monotonic",
-            return_value=0.0,
-        ), mock.patch(
-            "smart_factory_navigation.route_executor.rospy.is_shutdown",
-            return_value=False,
-        ), mock.patch(
-            "smart_factory_navigation.route_executor.rospy.Time.now",
-            return_value=rospy.Time(1.0),
-        ), mock.patch("smart_factory_navigation.route_executor.rospy.Rate"):
-            result = executor.execute_staging_route(
-                context, self._state(context)
-            )
-
-        self.assertIsNone(result)
-        self.assertEqual(1, navigation.cancel_calls)
-        self.assertEqual(error_codes.NAVIGATION_ABORTED, aborted[-1][0])
-        self.assertIn("cross-track error 0.250m", aborted[-1][1])
-
-    def test_public_fitted_route_shutdown_cancels_without_terminal_callback(self):
-        tracking = SimpleNamespace(
-            progress_s=0.0,
-            cross_track_error=0.0,
-            lookahead=0.20,
-            target=SimpleNamespace(s=0.2, x=0.2, y=0.0, yaw=0.0),
-        )
-        executor, navigation, tracker, _published, aborted, preempted = (
-            self._fitted_executor(
-                [(NavigationOutcome.PASSED, "path start acquired")],
-                tracking,
-            )
-        )
-        context = self._context([self._pose(2.0, 3.0)])
-
-        with mock.patch(
-            "smart_factory_navigation.route_executor.PathTracker",
-            return_value=tracker,
-        ), mock.patch(
-            "smart_factory_navigation.route_executor.time.monotonic",
-            return_value=0.0,
-        ), mock.patch(
-            "smart_factory_navigation.route_executor.rospy.is_shutdown",
-            return_value=True,
-        ), mock.patch(
-            "smart_factory_navigation.route_executor.rospy.Time.now",
-            return_value=rospy.Time(1.0),
-        ), mock.patch("smart_factory_navigation.route_executor.rospy.Rate"):
-            result = executor.execute_staging_route(
-                context, self._state(context)
-            )
-
-        self.assertIsNone(result)
-        self.assertEqual(1, navigation.cancel_calls)
-        self.assertFalse(aborted)
-        self.assertFalse(preempted)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -44,6 +44,12 @@ and configuration files can be selected with `navigation_action_name`,
 uses the same `navigation_action_name` and waits up to
 `navigation_server_wait_timeout` seconds for it.
 
+Both `simulation.launch` and `full_competition.launch` load the fixed planner
+pair owned by `gazebo_nav`: `global_planner/GlobalPlanner` and
+`teb_local_planner/TebLocalPlannerROS`. Planner and costmap parameters are
+owned exclusively by `gazebo_nav/launch/config/move_base`; the task layer does
+not switch profiles or overwrite them while a run is active.
+
 Do not launch `simulation.launch` beside `full_competition.launch`: the former
 is a component-level debugging entry and both commands would otherwise request
 the same Gazebo/navigation nodes.

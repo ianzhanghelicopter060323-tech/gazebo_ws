@@ -88,7 +88,7 @@ class Seq35StressPlanTest(unittest.TestCase):
             [0.0, 0.3, 0.60, 1.8, 0.0],
         )
 
-    def test_grasp_acceptance_is_tighter_than_dwa_but_looser_than_direct_control(self):
+    def test_grasp_acceptance_is_tighter_than_teb_but_looser_than_direct_control(self):
         mission = yaml.safe_load(
             (
                 stress.WORKSPACE
@@ -101,20 +101,20 @@ class Seq35StressPlanTest(unittest.TestCase):
                 / "src/smart_factory_navigation/config/navigation.yaml"
             ).read_text()
         )
-        dwa = yaml.safe_load(
+        teb = yaml.safe_load(
             (
                 stress.WORKSPACE
-                / "src/gazebo_nav/launch/config/move_base/dwa_local_planner_params.yaml"
+                / "src/gazebo_nav/launch/config/move_base/teb_local_planner_params.yaml"
             ).read_text()
         )
         mission_tolerance = mission["pickup"]["alignment_tolerance"]
         direct_tolerance = navigation["pickup"]["direct_alignment_tolerance"]
-        dwa_tolerance = dwa["DWAPlannerROS"]["xy_goal_tolerance"]
+        teb_tolerance = teb["TebLocalPlannerROS"]["xy_goal_tolerance"]
         self.assertAlmostEqual(mission_tolerance, 0.010)
         self.assertAlmostEqual(direct_tolerance, 0.008)
-        self.assertAlmostEqual(dwa_tolerance, 0.040)
+        self.assertAlmostEqual(teb_tolerance, 0.040)
         self.assertGreater(mission_tolerance, direct_tolerance)
-        self.assertLess(mission_tolerance, dwa_tolerance)
+        self.assertLess(mission_tolerance, teb_tolerance)
 
     def test_target_motion_reports_translation_and_wrapped_yaw(self):
         scene = {

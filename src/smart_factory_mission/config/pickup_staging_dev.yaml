@@ -1,10 +1,9 @@
 # DEVELOPMENT-ONLY pickup staging route.
 #
 # The active poses below were captured from manual move_base goals and are sent
-# sequentially. An intermediate waypoint normally advances when the localized
-# base enters the configured pass radius; selected points may additionally gate
-# on yaw. Only the final waypoint requires move_base GoalStatus.SUCCEEDED and
-# therefore exact final position/orientation alignment.
+# sequentially. An intermediate waypoint advances when the localized base enters
+# the configured pass radius. The final seq35 waypoint uses the global
+# navigation/final_pass_radius together with navigation/final_yaw_tolerance.
 # yaw is calculated from each recorded planar quaternion with
 # yaw = 2 * atan2(orientation.z, orientation.w).
 # Coordinates follow the record order in docs/navi_pos.md. The fourth record is
@@ -18,7 +17,7 @@ pickup_staging:
   frame_id: map
   waypoints:
     # seq 1
-    - x: 0.9069627523422241
+    - x: 0.8869627523422241
       y: 0.006324544548988342
       yaw: -0.025351181626319885
     # seq 2
@@ -26,7 +25,7 @@ pickup_staging:
     #  y: 0.07854776084423065
     #  yaw: -0.34669366478919983
     # seq 3
-    - x: 1.1513876914978027
+    - x: 1.1713876914978027
       y: -0.08713756501674652
       yaw: -1.0079600811004639
     # seq 4 (source header repeats seq 1)
@@ -35,7 +34,7 @@ pickup_staging:
     #  yaw: -1.6639446020126343
     # seq 5
     - x: 1.2026703357696533
-      y: -0.28135257959365845
+      y: -0.15135257959365845
       yaw: -1.5980843305587769
     # seq 6
     - x: 1.198300838470459
@@ -78,12 +77,12 @@ pickup_staging:
       y: -0.007677830755710602
       yaw: 0.020619681105017662
     # seq 16
-    - x: 2.5215396308898926
-      y: -0.03775260388851166
+    - x: 2.5315396308898926
+      y: -0.06775260388851166
       yaw: -1.4098430871963501
     # seq 17
     - x: 2.6167458992004395
-      y: -0.2064671516418457
+      y: -0.2364671516418457
       yaw: -1.5845879316329956
     # seq 18
     - x: 2.616718292236328
@@ -95,28 +94,28 @@ pickup_staging:
     #  yaw: -2.376223087310791
     # seq 20
     # Current manual experiment coordinates from docs/navi_pos.md.
-    - x: 2.617481689453125
-      y: -0.93530017888259888
+    - x: 2.60
+      y: -0.90530017888259888
       yaw: 3.1183266639709473
     # seq 21
-    - x: 2.371951103210449
+    - x: 2.381951103210449
       y: -1.039335470199585
       yaw: -3.104994773864746
     # seq 22
-    - x: 0.7925417423248291
+    - x: 0.7525417423248291
       y: -1.024207353591919
       yaw: 2.759993314743042
     # seq 23
-    - x: 0.6656163334846497
-      y: -0.9078620672225952
+    - x: 0.6856163334846497
+      y: -0.7878620672225952
       yaw: 1.7913811206817627
     # seq 24
-    - x: 0.6553471031188965
+    - x: 0.653471031188965
       y: -0.7147330045700073
       yaw: 1.8590172529220581
     # seq 25
-    - x: 0.5888758897781372
-      y: -0.5474739074707031
+    - x: 0.6488758897781372
+      y: -0.5874739074707031
       yaw: 2.9282889366149902
     # seq 26
     #- x: 0.5421633720397949
@@ -143,15 +142,15 @@ pickup_staging:
     #  y: -0.916366457939148
     #  yaw: -2.945608377456665
     # seq 32
-    - x: -0.1535484313964844
-      y: -0.9695332050323486
+    - x: -0.1335484313964844
+      y: -0.9995332050323486
       yaw: -3.1115407943725586
     # seq 33
-    - x: -0.410312294960022
-      y: -0.9695332050323486
+    - x: -0.480312294960022
+      y: -0.9995332050323486
       yaw: -3.1115407943725586
     # seq 34
-    - x: -1.2533954572677612
+    - x: -1.3533954572677612
       y: -0.8547531890869141
       yaw: 1.6074262857437132
     # seq 345 (logical seq 34.5): guide the natural fit around the left side

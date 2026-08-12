@@ -1,16 +1,17 @@
+# Copied from ~/car's verified GlobalPlanner configuration.
 GlobalPlanner:
   allow_unknown: true
-  default_tolerance: 0.2
+  default_tolerance: 0.4
   visualize_potential: false
-  use_dijkstra: false
-  use_quadratic: true          # 使用二次近似，提高计算效率
-  use_grid_path: true          # 当前地图实测梯度提取会出现 NO PATH，保留稳定的网格路径
+  use_dijkstra: true
+  use_quadratic: true
+  use_grid_path: false
   old_navfn_behavior: false
 
   lethal_cost: 253
-  neutral_cost: 50             # 稍微降低中性代价，提升规划灵活性
+  neutral_cost: 66
   cost_factor: 0.55
-  publish_potential: false     # 关闭发布，减少CPU消耗
+  publish_potential: true
 
   orientation_mode: 0
   orientation_window_size: 1

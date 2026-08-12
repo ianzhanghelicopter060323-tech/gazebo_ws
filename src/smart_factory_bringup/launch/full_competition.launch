@@ -1,6 +1,7 @@
 <launch>
   <!-- Unified system entry point. Individual component launches remain reusable.
-       Gazebo ownership is delegated exactly once through simulation.launch. -->
+       Gazebo ownership is delegated exactly once through simulation.launch;
+       that component loads GlobalPlanner + TebLocalPlannerROS from gazebo_nav. -->
   <arg name="start_navigation" default="true"/>
   <arg name="start_gazebo" default="true"/>
   <arg name="gazebo_gui" default="true"/>
@@ -9,8 +10,6 @@
        default="$(find gazebo_nav)/config/rviz_default_config.rviz"/>
   <arg name="map_file"
        default="$(find gazebo_map)/maps/math_newest.yaml"/>
-  <arg name="global_inflation_radius" default="0.12"/>
-  <arg name="local_inflation_radius" default="0.18"/>
 
   <arg name="start_navigation_server" default="true"/>
   <arg name="navigation_action_name"
@@ -46,10 +45,6 @@
     <arg name="start_rviz" value="$(arg start_rviz)"/>
     <arg name="rviz_config" value="$(arg rviz_config)"/>
     <arg name="map_file" value="$(arg map_file)"/>
-    <arg name="global_inflation_radius"
-         value="$(arg global_inflation_radius)"/>
-    <arg name="local_inflation_radius"
-         value="$(arg local_inflation_radius)"/>
   </include>
 
   <!-- High-level navigation Action server. It consumes the move_base stack

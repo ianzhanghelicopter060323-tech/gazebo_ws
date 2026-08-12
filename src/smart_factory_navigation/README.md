@@ -31,9 +31,10 @@ roslaunch smart_factory_navigation navigation.launch
 ```
 
 The launch file loads `config/navigation.yaml` and the generated fitted path.
-Those runtime values match the former mission parameters, including
-`fitted_path_lookahead`; starting the node without that launch file intentionally
-uses the class defaults instead.
+Route execution preserves the reference polyline for visualization and sends
+its 30 generated execution waypoints to `move_base` one at a time. Intermediate
+points advance inside the configured 0.15 m pass radius. The final staging goal
+uses a 0.15 m position radius together with a 0.04 rad yaw tolerance.
 
 ## Python client API
 

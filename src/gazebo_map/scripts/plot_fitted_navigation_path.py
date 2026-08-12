@@ -244,9 +244,16 @@ def read_documented_route(path, active_sequences):
 def read_fit_constraints(path, active_sequences):
     """Read reference-path geometry constraints from navigation configuration."""
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    tracking = data.get("navigation", {}).get("path_tracking", {})
-    raw_linear = tracking.get("direct_segments", [])
-    raw_y_floors = tracking.get("fit_y_floor_segments", [])
+    navigation = data.get("navigation", {})
+    settings = navigation.get("fitted_waypoints", {})
+    legacy_tracking = navigation.get("path_tracking", {})
+    raw_linear = settings.get(
+        "direct_segments", legacy_tracking.get("direct_segments", [])
+    )
+    raw_y_floors = settings.get(
+        "fit_y_floor_segments",
+        legacy_tracking.get("fit_y_floor_segments", []),
+    )
     sequence_indices = {
         sequence: index for index, sequence in enumerate(active_sequences)
     }
@@ -280,6 +287,49 @@ def read_fit_constraints(path, active_sequences):
         validated_segments(raw_linear, "direct_segments"),
         validated_segments(raw_y_floors, "fit_y_floor_segments"),
     )
+
+
+def read_execution_waypoint_settings(path):
+    """Read the sequential fitted-waypoint generation settings."""
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    navigation = data.get("navigation", {})
+    settings = navigation.get("fitted_waypoints", {})
+    waypoint_count = settings.get("count", 30)
+    if isinstance(waypoint_count, bool) or not isinstance(waypoint_count, int):
+        raise ValueError("fitted_waypoints/count must be an integer")
+    result = {
+        "count": waypoint_count,
+        "chord_error": float(settings.get("chord_error", 0.05)),
+        "min_spacing": float(settings.get("min_spacing", 0.18)),
+        "max_spacing": float(settings.get("max_spacing", 0.50)),
+        "required_sequences": settings.get("required_sequences", []),
+        "pass_radius": float(
+            navigation.get("intermediate_pass_radius", 0.15)
+        ),
+    }
+    if not isinstance(result["required_sequences"], list) or any(
+        isinstance(sequence, bool)
+        or not isinstance(sequence, int)
+        or sequence <= 0
+        for sequence in result["required_sequences"]
+    ):
+        raise ValueError(
+            "fitted_waypoints/required_sequences must contain positive integers"
+        )
+    if len(set(result["required_sequences"])) != len(
+        result["required_sequences"]
+    ):
+        raise ValueError(
+            "fitted_waypoints/required_sequences must not contain duplicates"
+        )
+    if result["pass_radius"] <= 0.0:
+        raise ValueError("navigation/intermediate_pass_radius must be positive")
+    if result["min_spacing"] <= result["pass_radius"]:
+        raise ValueError(
+            "fitted waypoint minimum spacing must be greater than the "
+            "intermediate pass radius"
+        )
+    return result
 
 
 def chord_parameter(points):
@@ -501,6 +551,129 @@ def adaptive_samples(
     )
 
 
+def select_execution_waypoint_indices(
+    sample_arc,
+    samples,
+    waypoint_count,
+    chord_error,
+    minimum_spacing,
+    maximum_spacing,
+    required_indices=(),
+):
+    """Select an exact-size, curvature-aware subset of fitted path samples.
+
+    The dense adaptive samples remain the canonical reference polyline.  This
+    second layer is intentionally much smaller: each selected point is sent as
+    one ordinary move_base goal and must be passed before the next is sent.
+    Intervals are split where either their chord approximation is worst or
+    their arc span is longest, while keeping selected points far enough apart
+    to work with the configured intermediate pass radius.
+    """
+    sample_arc = np.asarray(sample_arc, dtype=float)
+    samples = np.asarray(samples, dtype=float)
+    waypoint_count = int(waypoint_count)
+    chord_error = float(chord_error)
+    minimum_spacing = float(minimum_spacing)
+    maximum_spacing = float(maximum_spacing)
+    if len(sample_arc) != len(samples):
+        raise ValueError("sample arc and point counts must match")
+    if waypoint_count < 2 or waypoint_count > len(samples):
+        raise ValueError(
+            "execution waypoint count must be between 2 and the fitted "
+            "sample count"
+        )
+    if chord_error <= 0.0:
+        raise ValueError("execution waypoint chord error must be positive")
+    if minimum_spacing <= 0.0:
+        raise ValueError("execution waypoint minimum spacing must be positive")
+    if maximum_spacing < minimum_spacing:
+        raise ValueError(
+            "execution waypoint maximum spacing must be no smaller than "
+            "minimum spacing"
+        )
+
+    def point_to_chord_distances(start, end, indices):
+        first = samples[start]
+        last = samples[end]
+        delta = last - first
+        length_squared = float(np.dot(delta, delta))
+        candidate_points = samples[indices]
+        if length_squared <= 1.0e-12:
+            return np.linalg.norm(candidate_points - first, axis=1)
+        fractions = np.clip(
+            np.dot(candidate_points - first, delta) / length_squared,
+            0.0,
+            1.0,
+        )
+        projections = first + fractions[:, None] * delta
+        return np.linalg.norm(candidate_points - projections, axis=1)
+
+    required_indices = list(required_indices)
+    if any(
+        isinstance(index, bool)
+        or not isinstance(index, (int, np.integer))
+        or index < 0
+        or index >= len(samples)
+        for index in required_indices
+    ):
+        raise ValueError("required execution waypoint index is invalid")
+    selected = sorted(set([0, len(samples) - 1] + required_indices))
+    if len(selected) > waypoint_count:
+        raise ValueError(
+            "required execution waypoints exceed the configured count"
+        )
+    selected_spacing = np.diff(sample_arc[selected])
+    if np.any(selected_spacing < minimum_spacing - 1.0e-9):
+        raise ValueError(
+            "required execution waypoints violate the minimum spacing"
+        )
+    while len(selected) < waypoint_count:
+        best = None
+        for start, end in zip(selected, selected[1:]):
+            candidates = np.arange(start + 1, end, dtype=int)
+            if not len(candidates):
+                continue
+            left_spacing = sample_arc[candidates] - sample_arc[start]
+            right_spacing = sample_arc[end] - sample_arc[candidates]
+            eligible = candidates[
+                (left_spacing >= minimum_spacing - 1.0e-9)
+                & (right_spacing >= minimum_spacing - 1.0e-9)
+            ]
+            if not len(eligible):
+                continue
+
+            errors = point_to_chord_distances(start, end, eligible)
+            error_position = int(np.argmax(errors))
+            error_index = int(eligible[error_position])
+            maximum_error = float(errors[error_position])
+            middle_arc = 0.5 * (sample_arc[start] + sample_arc[end])
+            middle_index = int(
+                eligible[int(np.argmin(np.abs(sample_arc[eligible] - middle_arc)))]
+            )
+            arc_span = float(sample_arc[end] - sample_arc[start])
+            error_score = maximum_error / chord_error
+            spacing_score = arc_span / maximum_spacing
+            split_index = (
+                error_index if error_score >= spacing_score else middle_index
+            )
+            score = max(error_score, spacing_score)
+            candidate = (score, arc_span, -start, split_index)
+            if best is None or candidate > best:
+                best = candidate
+
+        if best is None:
+            raise ValueError(
+                "cannot select {} execution waypoints with {:.3f} m minimum "
+                "spacing from {} fitted samples".format(
+                    waypoint_count, minimum_spacing, len(samples)
+                )
+            )
+        selected.append(best[3])
+        selected.sort()
+
+    return selected
+
+
 def export_path_config(
     output,
     route,
@@ -521,6 +694,12 @@ def export_path_config(
     minimum_map_clearance,
     linear_segments,
     y_floor_segments,
+    execution_waypoint_indices,
+    required_execution_sequences,
+    execution_chord_error,
+    execution_minimum_spacing,
+    execution_maximum_spacing,
+    intermediate_pass_radius,
 ):
     """Write the fitted runtime reference path and original-seq arc markers."""
     _positions, first, second = curve.evaluate(sample_parameter)
@@ -558,6 +737,19 @@ def export_path_config(
             }
         )
 
+    execution_waypoints = []
+    for waypoint_number, sample_index in enumerate(
+        execution_waypoint_indices, start=1
+    ):
+        waypoint = dict(points[sample_index])
+        waypoint["waypoint"] = waypoint_number
+        if waypoint_number == len(execution_waypoint_indices):
+            waypoint["yaw"] = float(records[-1][3])
+        execution_waypoints.append(waypoint)
+    execution_gaps = np.diff(
+        [waypoint["s"] for waypoint in execution_waypoints]
+    )
+
     data = {
         "fitted_path": {
             "configured": True,
@@ -587,10 +779,27 @@ def export_path_config(
                         occupied_samples or unknown_samples
                     ),
                 },
+                "execution_waypoint_selection": {
+                    "method": "greedy_chord_error_and_arc_spacing_with_required_sequences",
+                    "count": len(execution_waypoints),
+                    "required_sequences": [
+                        int(sequence)
+                        for sequence in required_execution_sequences
+                    ],
+                    "chord_error": float(execution_chord_error),
+                    "min_spacing": float(execution_minimum_spacing),
+                    "max_spacing": float(execution_maximum_spacing),
+                    "actual_min_spacing": float(np.min(execution_gaps)),
+                    "actual_max_spacing": float(np.max(execution_gaps)),
+                    "intermediate_pass_radius": float(
+                        intermediate_pass_radius
+                    ),
+                },
             },
             "active_sequences": sequences,
             "anchors": anchors,
             "points": points,
+            "execution_waypoints": execution_waypoints,
             "final_goal": {
                 "x": float(records[-1][1]),
                 "y": float(records[-1][2]),
@@ -699,10 +908,13 @@ def render_view(
     sequences,
     fitted_points,
     samples,
+    execution_waypoints,
+    intermediate_pass_radius,
     clearance_point,
     label_points,
     spawn_areas,
     delivery_goals,
+    label_all_execution_waypoints=False,
 ):
     left, top, right, bottom = crop
     nearest = getattr(Image, "Resampling", Image).NEAREST
@@ -722,6 +934,7 @@ def render_view(
     fitted_pixels = [transform(point) for point in fitted_points]
     original_pixels = [transform(point) for point in original_points]
     sample_pixels = [transform(point) for point in samples]
+    execution_pixels = [transform(point) for point in execution_waypoints]
 
     area_colors = {
         "far_navi": (70, 150, 255),
@@ -779,6 +992,22 @@ def render_view(
             outline=(0, 70, 85),
         )
 
+    pass_radius_pixels = intermediate_pass_radius / resolution * scale
+    pass_overlay = Image.new("RGBA", view.size, (0, 0, 0, 0))
+    pass_draw = ImageDraw.Draw(pass_overlay)
+    for x, y in execution_pixels[:-1]:
+        pass_draw.ellipse(
+            (
+                x - pass_radius_pixels,
+                y - pass_radius_pixels,
+                x + pass_radius_pixels,
+                y + pass_radius_pixels,
+            ),
+            outline=(245, 205, 20, 115),
+            width=max(1, scale // 3),
+        )
+    view = Image.alpha_composite(view.convert("RGBA"), pass_overlay).convert("RGB")
+    draw = ImageDraw.Draw(view)
     point_radius = max(3, scale - 1)
     for sequence, (x, y) in zip(sequences, original_pixels):
         draw.ellipse(
@@ -804,6 +1033,36 @@ def render_view(
         x, y = point
         radius = point_radius + max(3, scale // 2)
         draw.ellipse((x - radius, y - radius, x + radius, y + radius), outline=color, width=max(2, scale // 2))
+
+    # Draw executable goals last so points that coincide with original anchors
+    # remain visibly identifiable in the generated diagnostic PNG.
+    execution_radius = max(3, scale - 1)
+    for waypoint_number, (x, y) in enumerate(execution_pixels, start=1):
+        draw.polygon(
+            (
+                (x, y - execution_radius),
+                (x + execution_radius, y),
+                (x, y + execution_radius),
+                (x - execution_radius, y),
+            ),
+            fill=(250, 215, 25),
+            outline=(75, 55, 0),
+        )
+        if label_points and (
+            label_all_execution_waypoints
+            or
+            waypoint_number == 1
+            or waypoint_number == len(execution_pixels)
+            or waypoint_number % 5 == 0
+        ):
+            draw.text(
+                (x + execution_radius + 2, y + execution_radius),
+                "W{}".format(waypoint_number),
+                fill=(75, 55, 0),
+                font=load_font(max(10, scale + 3), bold=True),
+                stroke_width=2,
+                stroke_fill="white",
+            )
 
     heading_length = 0.45
     for label, goal_x, goal_y, goal_yaw, color in delivery_goals:
@@ -889,6 +1148,8 @@ def create_figure(
     records,
     fitted_points,
     samples,
+    execution_waypoints,
+    intermediate_pass_radius,
     clearance_point,
     diagnostics,
     spawn_areas,
@@ -896,23 +1157,56 @@ def create_figure(
 ):
     points = np.asarray([[record[1], record[2]] for record in records])
     sequences = [record[0] for record in records]
-    full = render_view(
+    resolution = metadata["resolution"]
+    origin_x, origin_y = metadata["origin"]
+    entry_points = np.asarray(
+        [
+            point
+            for sequence, point in zip(sequences, points)
+            if 14 <= sequence <= 18
+        ]
+    )
+    entry_margin = 0.35
+    entry_minimum = np.min(entry_points, axis=0) - entry_margin
+    entry_maximum = np.max(entry_points, axis=0) + entry_margin
+    entry_left = max(
+        0,
+        int(math.floor((entry_minimum[0] - origin_x) / resolution)),
+    )
+    entry_right = min(
+        map_image.width,
+        int(math.ceil((entry_maximum[0] - origin_x) / resolution)) + 1,
+    )
+    entry_top = max(
+        0,
+        map_image.height
+        - 1
+        - int(math.ceil((entry_maximum[1] - origin_y) / resolution)),
+    )
+    entry_bottom = min(
+        map_image.height,
+        map_image.height
+        - int(math.floor((entry_minimum[1] - origin_y) / resolution))
+        + 1,
+    )
+    entry_detail = render_view(
         map_image,
         metadata,
-        (0, 0, map_image.width, map_image.height),
-        2,
+        (entry_left, entry_top, entry_right, entry_bottom),
+        16,
         points,
         sequences,
         fitted_points,
         samples,
+        execution_waypoints,
+        intermediate_pass_radius,
         clearance_point,
-        False,
-        spawn_areas,
-        delivery_goals,
+        True,
+        [],
+        [],
+        label_all_execution_waypoints=True,
     )
 
-    resolution = metadata["resolution"]
-    origin_x, origin_y = metadata["origin"]
     margin = 0.55
     area_corners = np.asarray(
         [
@@ -927,7 +1221,10 @@ def create_figure(
             for _label, x, y, yaw, _color in delivery_goals
             for point in (
                 (x, y),
-                (x + 0.45 * math.cos(yaw), y + 0.45 * math.sin(yaw)),
+                (
+                    x + 0.45 * math.cos(yaw),
+                    y + 0.45 * math.sin(yaw),
+                ),
             )
         ]
     )
@@ -960,6 +1257,8 @@ def create_figure(
         sequences,
         fitted_points,
         samples,
+        execution_waypoints,
+        intermediate_pass_radius,
         clearance_point,
         True,
         spawn_areas,
@@ -967,26 +1266,44 @@ def create_figure(
     )
 
     margin_px = 24
-    header = 70
+    header = 100
     footer = 220
-    width = full.width + zoom.width + 3 * margin_px
-    height = header + max(full.height, zoom.height) + footer
+    width = entry_detail.width + zoom.width + 3 * margin_px
+    height = header + max(entry_detail.height, zoom.height) + footer
     canvas = Image.new("RGB", (width, height), "white")
-    canvas.paste(full, (margin_px, header))
-    canvas.paste(zoom, (full.width + 2 * margin_px, header))
+    canvas.paste(entry_detail, (margin_px, header))
+    canvas.paste(zoom, (entry_detail.width + 2 * margin_px, header))
     draw = ImageDraw.Draw(canvas)
     draw.text(
         (margin_px, 16),
-        "Fitted pickup-staging path and delivery navigation goals on math_newest.pgm",
+        "Fitted pickup-staging path with sequential move_base goals on math_newest.pgm",
         fill=(20, 20, 20),
         font=load_font(26, bold=True),
     )
-    legend_y = header + max(full.height, zoom.height) + 18
+    draw.text(
+        (margin_px, 65),
+        "Seq 14-18 channel-entry detail",
+        fill=(35, 35, 35),
+        font=load_font(18, bold=True),
+    )
+    draw.text(
+        (entry_detail.width + 2 * margin_px, 65),
+        "Full fitted route",
+        fill=(35, 35, 35),
+        font=load_font(18, bold=True),
+    )
+    legend_y = header + max(entry_detail.height, zoom.height) + 18
     legend = [
         ("active input points / original seq", (35, 90, 210)),
         ("original active-point polyline", (235, 139, 28)),
         ("constrained fitted path", (210, 35, 45)),
         ("curvature-adaptive path samples", (0, 185, 210)),
+        (
+            "{} sequential goals / r={:.2f} m".format(
+                len(execution_waypoints), intermediate_pass_radius
+            ),
+            (250, 215, 25),
+        ),
         ("0.11 m centerline envelope", (255, 150, 150)),
         ("minimum-clearance location", (220, 0, 180)),
         ("far_navi cube spawn region", (70, 150, 255)),
@@ -1005,11 +1322,19 @@ def create_figure(
             y += 32
         draw.line((x, y + 9, x + 28, y + 9), fill=color, width=6)
         draw.text((x + 36, y), label, fill=(25, 25, 25), font=load_font(16))
-        x += 330
+        x += 500
 
-    max_curvature, min_radius, clearance, sample_count, max_shift = diagnostics
+    (
+        max_curvature,
+        min_radius,
+        clearance,
+        sample_count,
+        execution_count,
+        max_shift,
+    ) = diagnostics
     summary = (
         f"inputs={len(records)}  samples={sample_count}  "
+        f"sequential goals={execution_count}  "
         f"max curvature={max_curvature:.2f} 1/m  min radius={min_radius:.3f} m  "
         f"min map clearance={clearance:.2f} m  max anchor shift={max_shift:.3f} m"
     )
@@ -1057,7 +1382,9 @@ def main():
         type=Path,
         default=workspace
         / "src/smart_factory_mission/config/delivery_goals.yaml",
-        help="render the cone preparation pose and three workshop goals",
+        help=(
+            "render the cone preparation pose and three workshop goals"
+        ),
     )
     parser.add_argument(
         "--route-doc",
@@ -1125,9 +1452,23 @@ def main():
     linear_segments, y_floor_segments = read_fit_constraints(
         args.mission_config, sequences
     )
+    execution_settings = read_execution_waypoint_settings(
+        args.mission_config
+    )
     sequence_indices = {
         sequence: index for index, sequence in enumerate(sequences)
     }
+    missing_required_sequences = [
+        sequence
+        for sequence in execution_settings["required_sequences"]
+        if sequence not in sequence_indices
+    ]
+    if missing_required_sequences:
+        raise ValueError(
+            "required execution seq has no active route anchor: {}".format(
+                missing_required_sequences
+            )
+        )
     fixed_indices = set()
     for start, end in linear_segments + y_floor_segments:
         fixed_indices.add(sequence_indices[start])
@@ -1166,6 +1507,27 @@ def main():
         args.max_sample_spacing,
         required_parameters=parameter,
     )
+    execution_waypoint_indices = select_execution_waypoint_indices(
+        sample_arc,
+        samples,
+        execution_settings["count"],
+        execution_settings["chord_error"],
+        execution_settings["min_spacing"],
+        execution_settings["max_spacing"],
+        required_indices=[
+            int(
+                np.argmin(
+                    np.abs(
+                        sample_parameter
+                        - parameter[sequence_indices[sequence]]
+                    )
+                )
+            )
+            for sequence in execution_settings["required_sequences"]
+            if sequence in sequence_indices
+        ],
+    )
+    execution_waypoints = samples[execution_waypoint_indices]
 
     metadata = map_metadata(args.map_yaml)
     map_image = Image.open(metadata["image"]).convert("L")
@@ -1199,6 +1561,12 @@ def main():
             clearance,
             linear_segments,
             y_floor_segments,
+            execution_waypoint_indices,
+            execution_settings["required_sequences"],
+            execution_settings["chord_error"],
+            execution_settings["min_spacing"],
+            execution_settings["max_spacing"],
+            execution_settings["pass_radius"],
         )
 
     maximum_curvature = float(np.max(np.abs(fitted_curvature)))
@@ -1210,12 +1578,15 @@ def main():
         records,
         fitted,
         samples,
+        execution_waypoints,
+        execution_settings["pass_radius"],
         fitted[clearance_index],
         (
             maximum_curvature,
             minimum_radius,
             clearance,
             len(samples),
+            len(execution_waypoints),
             maximum_shift,
         ),
         spawn_areas,
@@ -1253,7 +1624,20 @@ def main():
         )
     )
     print(f"linear_segments={linear_segments} y_floor_segments={y_floor_segments}")
-    print(f"active_points={len(records)} adaptive_samples={len(samples)}")
+    execution_arcs = sample_arc[execution_waypoint_indices]
+    execution_gaps = np.diff(execution_arcs)
+    print(
+        f"active_points={len(records)} adaptive_samples={len(samples)} "
+        f"execution_waypoints={len(execution_waypoints)}"
+    )
+    print(
+        "execution_waypoint_spacing=min:{:.3f} max:{:.3f} "
+        "pass_radius={:.3f}".format(
+            float(np.min(execution_gaps)),
+            float(np.max(execution_gaps)),
+            execution_settings["pass_radius"],
+        )
+    )
     print(
         "max_anchor_shift={:.4f} max_curvature={:.3f} "
         "min_radius={:.3f} min_speed_derivative={:.3f}".format(

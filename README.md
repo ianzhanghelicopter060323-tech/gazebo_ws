@@ -103,7 +103,8 @@ rosrun smart_factory_tests send_navigation_task.py \
 
 ## 配置与地图
 
-- 导航参数：`src/gazebo_nav/launch/config/`
+- 导航参数：`src/gazebo_nav/launch/config/move_base/`（当前固定使用
+  `GlobalPlanner + TebLocalPlannerROS`）
 - 路线执行与定位参数：`src/smart_factory_navigation/config/navigation.yaml`
 - 拟合路径：`src/smart_factory_navigation/config/pickup_staging_fitted_path.yaml`
 - 当前地图：`src/gazebo_map/maps/math_newest.yaml`

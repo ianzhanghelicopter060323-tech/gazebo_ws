@@ -23,7 +23,7 @@ delivery:
     - target_class: 1
       name: daily workshop
       x: 0.9615546464920044
-      y: -1.5215368270874023
+      y: -1.5715368270874023
       yaw: 1.5825541019439697
       position_tolerance: 0.04
       yaw_tolerance_deg: 5.0

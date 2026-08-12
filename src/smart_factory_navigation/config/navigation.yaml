@@ -3,56 +3,34 @@
 navigation:
   action_name: /move_base
   server_wait_timeout: 10.0
-  goal_timeout: 60.0
+  # Allow one difficult move_base segment up to six wall-clock minutes before
+  # navigation retry/abort handling takes over. The stress runner keeps its
+  # separate eight-minute whole-task ceiling.
+  goal_timeout: 360.0
   max_retries: 1
-  route_execution_mode: fitted_path_lookahead
-  path_tracking:
-    path_topic: /sim_task/reference_path
-    tracking_goal_topic: /sim_task/tracking_goal
-    progress_topic: /sim_task/path_progress
-    control_frequency: 20.0
-    # Keep path tracking at 20 Hz, but do not forward and log every control
-    # sample through both navigation and mission Action servers.
-    progress_feedback_frequency: 2.0
-    acquire_radius: 0.20
-    lookahead_min: 0.20
-    lookahead_max: 0.50
-    lookahead_curvature_gain: 0.45
-    projection_window: 1.0
-    goal_update_distance: 0.12
-    goal_update_period: 0.8
-    cross_track_warn: 0.08
-    cross_track_abort: 0.25
-    progress_timeout: 15.0
-    progress_epsilon: 0.05
-    final_phase_distance: 0.30
-    route_timeout: 240.0
+  # Generate and follow 30 fitted navigation goals sequentially. Intermediate
+  # goals advance on a position-only radius; seq35 also checks final yaw.
+  fitted_waypoints:
+    count: 30
+    chord_error: 0.05
+    # The current 63-point reference needs 0.16 m to preserve its tightest
+    # bends while still keeping every next goal outside the 0.15 m pass radius.
+    min_spacing: 0.16
+    max_spacing: 0.50
+    # Keep the channel-entry anchors in the 30 executable goals. This prevents
+    # the global selector from skipping the final approach point before seq 16.
+    required_sequences: [15, 16, 17]
+    # Offline-only geometry constraints used by the path/PNG generator.
     direct_segments:
       - [21, 22]
-    # Retained for exact deployment-config parity; consumed by the offline path
-    # fitter, not by the runtime RouteExecutor.
     fit_y_floor_segments:
       - [20, 21]
-    heading_locks:
-      - start_seq: 16
-        full_lock_seq: 17
-        end_seq: 20
-        direction_start_seq: 17
-        direction_end_seq: 18
-        release_distance: 0.12
-      - start_seq: 20
-        full_lock_seq: 21
-        end_seq: 22
-        direction_start_seq: 21
-        direction_end_seq: 22
-        release_distance: 0.12
-  intermediate_pass_radius: 0.20
-  heading_constrained_waypoints: []
-  intermediate_yaw_tolerance: 0.25
-  heading_alignment_timeout: 8.0
-  heading_alignment_kp: 1.0
-  heading_alignment_min_angular_speed: 0.40
-  heading_alignment_max_angular_speed: 0.45
+  intermediate_pass_radius: 0.15
+  # Canonical global position radius for the final pickup staging goal (seq35).
+  # Formal tasks still require final yaw alignment; the position-only bypass is
+  # owned exclusively by the pre-navigation stress-test client.
+  final_pass_radius: 0.15
+  final_yaw_tolerance: 0.04
   cmd_vel_topic: /cmd_vel
 
 localization:
