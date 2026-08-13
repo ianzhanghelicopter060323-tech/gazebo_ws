@@ -42,6 +42,7 @@ class RecorderTriggerTest(unittest.TestCase):
             task_id="trial_001",
             start_progress=7.8585,
             start_stage=None,
+            start_immediately=False,
             output_dir=Path(output_dir),
             encoding="zlib",
             world_name="default",
@@ -120,6 +121,21 @@ class RecorderTriggerTest(unittest.TestCase):
             recorder._publish_control.assert_called_once()
             self.assertEqual(recorder._manifest["trigger_task_state"], 5)
             self.assertIsNone(recorder._manifest["trigger_progress_m"])
+
+    @mock.patch.object(recording.rospy, "loginfo")
+    def test_can_start_immediately_without_task_state(self, _loginfo):
+        with tempfile.TemporaryDirectory() as output_dir:
+            recorder = self.make_recorder(output_dir)
+            recorder._args.start_progress = None
+            recorder._args.start_immediately = True
+
+            recorder._start_recording()
+
+            recorder._publish_control.assert_called_once()
+            self.assertTrue(recorder._recording)
+            self.assertEqual(recorder._manifest["status"], "recording")
+            self.assertIsNone(recorder._manifest["trigger_task_state"])
+            self.assertIsNone(recorder._manifest["started_sim_time"])
 
 
 class RecordingNormalizationTest(unittest.TestCase):

@@ -2,6 +2,7 @@
 
 import math
 import threading
+import time
 import types
 import unittest
 from unittest import mock
@@ -76,6 +77,22 @@ class ContactStreamShutdownTest(unittest.TestCase):
         recorder._contact_thread.join.assert_called_once_with(timeout=1.0)
         self.assertEqual(recorder._contact_stream_status, "stopped")
         self.assertEqual(recorder._contact_stream_error, "")
+
+
+class ModelStateSamplingTest(unittest.TestCase):
+    def test_drops_raw_messages_before_deserialization_between_samples(self):
+        recorder = recording.ConeTrialRecorder.__new__(
+            recording.ConeTrialRecorder
+        )
+        recorder._lock = threading.RLock()
+        recorder._initial = {"cone_10": {}}
+        recorder._last_model_sample = time.monotonic()
+        recorder._args = types.SimpleNamespace(sample_period=10.0)
+
+        with mock.patch.object(recording, "ModelStates") as model_states:
+            recorder._models_callback(types.SimpleNamespace(_buff=b"unused"))
+
+        model_states.assert_not_called()
 
 
 if __name__ == "__main__":

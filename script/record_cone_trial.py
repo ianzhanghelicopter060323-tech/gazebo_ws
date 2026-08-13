@@ -212,8 +212,17 @@ class ConeTrialRecorder:
             self._contact_stream_status = "disabled"
         else:
             self._start_contact_stream()
+        # gazebo_ros publishes ModelStates at the physics update rate (about
+        # 1000 Hz in this world).  Asking rospy to deserialize every message
+        # cost nearly half a CPU core even though this recorder samples at
+        # only 20 Hz, which in turn starved gzclient under WSLg.  Receive the
+        # serialized payload as AnyMsg and deserialize only accepted samples.
         rospy.Subscriber(
-            "/gazebo/model_states", ModelStates, self._models_callback, queue_size=1
+            "/gazebo/model_states",
+            rospy.AnyMsg,
+            self._models_callback,
+            queue_size=1,
+            buff_size=2**20,
         )
         rospy.Subscriber(
             "/sim_task/state", TaskState, self._task_state_callback, queue_size=100
@@ -316,11 +325,8 @@ class ConeTrialRecorder:
             event["phase_counts"][phase] = event["phase_counts"].get(phase, 0) + 1
 
     def _models_callback(self, message):
-        poses = dict(zip(message.name, message.pose))
-        if not all(name in poses for name in CONE_NAMES):
-            return
+        sample_time = time.monotonic()
         with self._lock:
-            sample_time = time.monotonic()
             if (
                 self._initial
                 and self._last_model_sample is not None
@@ -328,6 +334,18 @@ class ConeTrialRecorder:
             ):
                 return
             self._last_model_sample = sample_time
+
+        # Unit tests and direct callers may still supply an already decoded
+        # ModelStates object.  Live ROS traffic arrives as AnyMsg.
+        if hasattr(message, "_buff"):
+            decoded = ModelStates()
+            decoded.deserialize(message._buff)
+            message = decoded
+
+        poses = dict(zip(message.name, message.pose))
+        if not all(name in poses for name in CONE_NAMES):
+            return
+        with self._lock:
             current = {
                 name: pose_dict(poses[name])
                 for name in SCENE_NAMES

@@ -126,6 +126,57 @@ class RouteExecutor:
                     self._fitted_waypoint_count,
                 )
             )
+        orientation_required_sequences = rospy.get_param(
+            "~navigation/fitted_waypoints/orientation_required_sequences", []
+        )
+        if not isinstance(orientation_required_sequences, list) or any(
+            isinstance(sequence, bool)
+            or not isinstance(sequence, int)
+            or sequence <= 0
+            for sequence in orientation_required_sequences
+        ):
+            raise ValueError(
+                "navigation/fitted_waypoints/orientation_required_sequences "
+                "must contain positive integers"
+            )
+        if len(set(orientation_required_sequences)) != len(
+            orientation_required_sequences
+        ):
+            raise ValueError(
+                "navigation/fitted_waypoints/orientation_required_sequences "
+                "must not contain duplicates"
+            )
+        self._orientation_yaw_tolerance = float(
+            rospy.get_param(
+                "~navigation/fitted_waypoints/orientation_yaw_tolerance", 0.15
+            )
+        )
+        if not 0.0 < self._orientation_yaw_tolerance <= math.pi:
+            raise ValueError(
+                "navigation/fitted_waypoints/orientation_yaw_tolerance must "
+                "be in (0, pi]"
+            )
+        source_sequences = [
+            waypoint.source_seq
+            for waypoint in self._fitted_path.execution_waypoints
+        ]
+        self._orientation_required_waypoint_indices = set()
+        for sequence in orientation_required_sequences:
+            matching_indices = [
+                index
+                for index, source_sequence in enumerate(source_sequences)
+                if source_sequence == sequence
+            ]
+            if len(matching_indices) != 1:
+                raise ValueError(
+                    "orientation-required seq {} must identify exactly one "
+                    "fitted execution waypoint; regenerate the fitted path".format(
+                        sequence
+                    )
+                )
+            self._orientation_required_waypoint_indices.add(
+                matching_indices[0]
+            )
 
         self._base_alignment = BaseAlignmentController(
             localization=self._localization,
@@ -408,10 +459,16 @@ class RouteExecutor:
         context.pickup_staging_goals = execution_goals
         rospy.loginfo(
             "task=%s executing %d fitted waypoints sequentially with %.2fm "
-            "intermediate radius and %.2fm/%.3frad final tolerances",
+            "intermediate radius, orientation-required indices=%s at %.3frad, "
+            "and %.2fm/%.3frad final tolerances",
             context.task_id,
             len(execution_goals),
             self._intermediate_pass_radius,
+            sorted(
+                index + 1
+                for index in self._orientation_required_waypoint_indices
+            ),
+            self._orientation_yaw_tolerance,
             self._final_pass_radius,
             self._final_yaw_tolerance,
         )
@@ -426,6 +483,9 @@ class RouteExecutor:
             context.retry_count = 0
             waypoint_number = waypoint_index + 1
             is_final_waypoint = waypoint_number == waypoint_count
+            orientation_required = (
+                waypoint_index in self._orientation_required_waypoint_indices
+            )
             while context.retry_count <= self._max_retries:
                 state_machine.transition(
                     states.NAVIGATE_TO_PICKUP_STAGING,
@@ -438,6 +498,14 @@ class RouteExecutor:
                     pass_condition = (
                         lambda waypoint=waypoint:
                         self.final_waypoint_is_passed(waypoint)
+                    )
+                elif orientation_required:
+                    pass_condition = (
+                        lambda waypoint=waypoint: self._pose_is_within_tolerances(
+                            waypoint,
+                            self._intermediate_pass_radius,
+                            self._orientation_yaw_tolerance,
+                        )
                     )
                 elif not is_final_waypoint:
                     pass_condition = (
@@ -473,6 +541,14 @@ class RouteExecutor:
                         # The final goal has no successor, so cancel it before
                         # the mission proceeds to perception.
                         self._navigation.cancel_goal()
+                    elif orientation_required:
+                        waypoint_status = (
+                            "position and heading aligned within {:.2f} m and "
+                            "{:.3f} rad"
+                        ).format(
+                            self._intermediate_pass_radius,
+                            self._orientation_yaw_tolerance,
+                        )
                     else:
                         waypoint_status = (
                             "passed within {:.2f} m; advancing without "

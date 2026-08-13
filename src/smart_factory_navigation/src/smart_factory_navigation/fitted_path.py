@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import math
+from typing import Optional
 
 
 class PathConfigError(ValueError):
@@ -14,6 +15,7 @@ class PathPoint:
     x: float
     y: float
     yaw: float
+    source_seq: Optional[int] = None
 
 
 def _finite_float(value, label):
@@ -40,11 +42,19 @@ def _path_points(raw_points, collection_label):
                     collection_label, index
                 )
             )
+        source_seq = raw.get("source_seq")
+        if source_seq is not None and (
+            isinstance(source_seq, bool)
+            or not isinstance(source_seq, int)
+            or source_seq <= 0
+        ):
+            raise PathConfigError("point source_seq must be a positive integer")
         point = PathPoint(
             s=_finite_float(raw.get("s"), "point s"),
             x=_finite_float(raw.get("x"), "point x"),
             y=_finite_float(raw.get("y"), "point y"),
             yaw=_finite_float(raw.get("yaw"), "point yaw"),
+            source_seq=source_seq,
         )
         if previous_s is not None and point.s <= previous_s:
             raise PathConfigError(

@@ -93,7 +93,11 @@ class RouteExecutorTest(unittest.TestCase):
             "configured": True,
             "frame_id": "map",
             "points": points,
-            "execution_waypoints": list(points),
+            "execution_waypoints": [
+                dict(points[0], source_seq=1),
+                dict(points[1], source_seq=17),
+                dict(points[2], source_seq=35),
+            ],
             "final_goal": {"x": 2.0, "y": 3.0, "yaw": 0.4},
         }
 
@@ -240,6 +244,46 @@ class RouteExecutorTest(unittest.TestCase):
         self.assertIsNone(navigation.navigate_calls[2].pass_condition)
         self.assertEqual(0, navigation.cancel_calls)
         self.assertFalse(aborted)
+
+    def test_only_seq17_requires_position_and_heading_together(self):
+        executor, navigation, *_ = self._executor(
+            [
+                (NavigationOutcome.PASSED, "seq1 aligned"),
+                (NavigationOutcome.PASSED, "seq17 aligned"),
+                (NavigationOutcome.SUCCEEDED, "final reached"),
+            ],
+            {
+                "~navigation/intermediate_pass_radius": 0.15,
+                "~navigation/fitted_waypoints/orientation_required_sequences": [
+                    17,
+                ],
+                "~navigation/fitted_waypoints/orientation_yaw_tolerance": 0.15,
+            },
+        )
+        executor._publish_fitted_reference_path = mock.Mock()
+        executor.waypoint_is_passed = mock.Mock(return_value=True)
+        executor._pose_is_within_tolerances = mock.Mock(return_value=True)
+        final_goal = self._pose(2.0, 3.0, yaw=0.4)
+        context = self._context([final_goal])
+
+        with mock.patch(
+            "smart_factory_navigation.route_executor.rospy.Time.now",
+            return_value=rospy.Time(1.0),
+        ):
+            executor.execute_staging_route(context, self._state(context))
+
+        self.assertTrue(navigation.navigate_calls[0].pass_condition())
+        self.assertTrue(navigation.navigate_calls[1].pass_condition())
+        self.assertEqual(
+            [
+                mock.call(navigation.navigate_calls[1].pose, 0.15, 0.15),
+            ],
+            executor._pose_is_within_tolerances.call_args_list,
+        )
+        executor.waypoint_is_passed.assert_called_once_with(
+            navigation.navigate_calls[0].pose
+        )
+        self.assertEqual({1}, executor._orientation_required_waypoint_indices)
 
     def test_negative_final_pass_radius_is_rejected(self):
         with self.assertRaisesRegex(

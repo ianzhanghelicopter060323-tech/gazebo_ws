@@ -92,18 +92,18 @@ def parse_args(argv):
         "--gui",
         dest="gui",
         action="store_true",
-        help=(
-            "show the normal hardware-accelerated Gazebo GUI "
-            "(default; recording remains server-side)"
-        ),
+        help="show the hardware-accelerated Gazebo GUI",
     )
     display.add_argument(
         "--headless",
         dest="gui",
         action="store_false",
-        help="do not start gzclient; Gazebo state recording remains enabled",
+        help=(
+            "do not start gzclient (default); Gazebo state recording "
+            "remains enabled"
+        ),
     )
-    parser.set_defaults(gui=True)
+    parser.set_defaults(gui=False)
     parser.add_argument("--startup-timeout", type=float, default=90.0)
     parser.add_argument("--startup-settle", type=float, default=8.0)
     parser.add_argument("--task-timeout", type=float, default=480.0)
@@ -324,27 +324,37 @@ def start_cone_monitor(args, record, round_dir):
         raise
 
 
-def start_gazebo_world_recorder(args, record, recording_round_dir):
+def start_gazebo_world_recorder(
+    args,
+    record,
+    recording_round_dir,
+    start_stage=5,
+    start_immediately=False,
+):
     recording_round_dir.mkdir(parents=True, exist_ok=False)
     ready_path = recording_round_dir / ".gazebo_world_recorder.ready"
     recorder_log_path = recording_round_dir / "gazebo_world_recorder.log"
     recorder_log = recorder_log_path.open("w", encoding="utf-8")
-    command = ros_command(
-        [
-            "python3",
-            str(GAZEBO_RECORDER_SCRIPT),
-            "--output-dir",
-            str(recording_round_dir),
-            "--round",
-            str(record["round"]),
-            "--task-id",
-            record["task_id"],
-            "--start-stage",
-            "5",
-            "--ready-file",
-            str(ready_path),
-        ]
-    )
+    recorder_arguments = [
+        "python3",
+        str(GAZEBO_RECORDER_SCRIPT),
+        "--output-dir",
+        str(recording_round_dir),
+        "--round",
+        str(record["round"]),
+        "--task-id",
+        record["task_id"],
+    ]
+    if start_immediately:
+        recorder_arguments.append("--start-immediately")
+    else:
+        if start_stage is None:
+            raise AutomationError(
+                "start_stage is required unless start_immediately is enabled"
+            )
+        recorder_arguments.extend(["--start-stage", str(start_stage)])
+    recorder_arguments.extend(["--ready-file", str(ready_path)])
+    command = ros_command(recorder_arguments)
     process = None
     try:
         process = subprocess.Popen(

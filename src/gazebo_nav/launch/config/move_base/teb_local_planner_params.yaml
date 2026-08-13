@@ -19,7 +19,7 @@ TebLocalPlannerROS:
   is_footprint_dynamic: false
   footprint_model:
     type: polygon
-    vertices: [[0.090, -0.090], [0.090, 0.090], [-0.090, 0.090], [-0.090, -0.090]]
+    vertices: [[0.08, -0.08], [0.08, 0.08], [-0.08, 0.08], [-0.08, -0.08]]
 
   xy_goal_tolerance: 0.04
   # Exact 0.04 rad alignment caused intermediate waypoints that had already
@@ -82,8 +82,25 @@ TebLocalPlannerROS:
   weight_viapoint: 20.0
   weight_adapt_factor: 2.0
 
+  # Keep the 100-round pre-navigation baseline on the stable single-band TEB.
+  # The aggressive HCP values below remain recorded but are inactive until a
+  # cone-zone-only profile or adaptive planner mode is introduced.
   enable_homotopy_class_planning: false
   enable_multithreading: true
+  max_number_classes: 3
+  roadmap_graph_no_samples: 20
+  roadmap_graph_area_width: 2.5
+
+  # Prefer candidates with real obstacle clearance. Keep global-plan
+  # via-points as guidance for the initial class only so other topologies can
+  # move to a genuinely different corridor in the cone zone.
+  selection_obst_cost_scale: 5.0
+  selection_viapoint_cost_scale: 0.5
+  selection_prefer_initial_plan: 0.95
+  selection_cost_hysteresis: 1.0
+  switching_blocking_period: 1.0
+  viapoints_all_candidates: false
+
   shrink_horizon_backup: true
   shrink_horizon_min_duration: 10.0
   oscillation_recovery: true

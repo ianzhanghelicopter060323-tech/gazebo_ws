@@ -50,8 +50,13 @@ class FailureClassificationTest(unittest.TestCase):
 
 
 class ArgumentDefaultsTest(unittest.TestCase):
-    def test_gazebo_gui_and_hardware_launch_are_enabled_by_default(self):
+    def test_gazebo_gui_is_disabled_by_default(self):
         args = trials.parse_args([])
+
+        self.assertFalse(args.gui)
+
+    def test_gui_explicitly_enables_gazebo_gui(self):
+        args = trials.parse_args(["--gui"])
 
         self.assertTrue(args.gui)
 

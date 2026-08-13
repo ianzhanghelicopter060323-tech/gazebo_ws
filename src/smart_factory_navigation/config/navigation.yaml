@@ -17,9 +17,16 @@ navigation:
     # bends while still keeping every next goal outside the 0.15 m pass radius.
     min_spacing: 0.16
     max_spacing: 0.50
-    # Keep the channel-entry anchors in the 30 executable goals. This prevents
-    # the global selector from skipping the final approach point before seq 16.
-    required_sequences: [15, 16, 17]
+    # Keep the channel-entry turn in the 30 executable goals. Seq 15 remains a
+    # fitted-path anchor, but is not forced into the execution subset: after
+    # the current seq 16 adjustment their fitted arc separation is only about
+    # 0.05 m, below both the 0.16 m goal-spacing rule and 0.15 m pass radius.
+    required_sequences: [16, 17]
+    # This fitted-route anchor advances only after both position and heading
+    # are correct, fixing the heading before entering the narrow channel.
+    # Seq 1 remains a normal position-only intermediate waypoint.
+    orientation_required_sequences: [17]
+    orientation_yaw_tolerance: 0.15
     # Offline-only geometry constraints used by the path/PNG generator.
     direct_segments:
       - [21, 22]

@@ -39,6 +39,23 @@ class FittedPathTest(unittest.TestCase):
         self.assertAlmostEqual(2.0, path.execution_waypoints[1].x)
         self.assertEqual((2.0, 1.0, 1.0), path.final_goal)
 
+    def test_loads_execution_waypoint_source_sequence(self):
+        config = path_config()
+        config["execution_waypoints"][0]["source_seq"] = 1
+        config["execution_waypoints"][1]["source_seq"] = 17
+
+        path = FittedPath.from_config(config)
+
+        self.assertEqual(1, path.execution_waypoints[0].source_seq)
+        self.assertEqual(17, path.execution_waypoints[1].source_seq)
+
+    def test_rejects_invalid_execution_waypoint_source_sequence(self):
+        config = path_config()
+        config["execution_waypoints"][0]["source_seq"] = 0
+
+        with self.assertRaisesRegex(PathConfigError, "source_seq"):
+            FittedPath.from_config(config)
+
     def test_rejects_non_monotonic_reference_arc(self):
         config = path_config()
         config["points"][2]["s"] = 1.0

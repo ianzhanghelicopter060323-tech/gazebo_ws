@@ -6,6 +6,7 @@ import csv
 import datetime as dt
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -16,6 +17,13 @@ import time
 WORKSPACE = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_ROOT = WORKSPACE / "data" / "35seq_fix" / "end_to_end_test"
 DEFAULT_CONE_VIDEO_ROOT = WORKSPACE / "data" / "cone_zone" / "end_to_end_test"
+DEFAULT_CONE_STRESS_ROOT = (
+    WORKSPACE / "data" / "cone_zone" / "end_to_end_test" / "conse_stress"
+)
+DEFAULT_FIXED_CONE_E2E_ROOT = (
+    WORKSPACE / "data" / "cone_zone" / "end_to_end_stress"
+)
+DEFAULT_PRE_NAVIGATION_ROOT = WORKSPACE / "data" / "pre_navigation_test"
 DEFAULT_LOGS_ROOT = WORKSPACE / "script" / "logs"
 ROUND_PATTERN = re.compile(r"round_(\d+)$")
 RECORDING_FILES = (
@@ -35,7 +43,8 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(
         description=(
             "remove legacy Gazebo world recordings after a correct successful "
-            "grasp, and cone-test world recordings only after a fully error-free round"
+            "grasp, and navigation/cone-test world recordings only after a "
+            "fully error-free round"
         )
     )
     parser.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT)
@@ -46,6 +55,21 @@ def parse_args(argv):
         type=Path,
         default=DEFAULT_CONE_VIDEO_ROOT,
     )
+    parser.add_argument(
+        "--cone-stress-root",
+        type=Path,
+        default=DEFAULT_CONE_STRESS_ROOT,
+    )
+    parser.add_argument(
+        "--pre-navigation-root",
+        type=Path,
+        default=DEFAULT_PRE_NAVIGATION_ROOT,
+    )
+    parser.add_argument(
+        "--fixed-cone-e2e-root",
+        type=Path,
+        default=DEFAULT_FIXED_CONE_E2E_ROOT,
+    )
     parser.add_argument("--logs-root", type=Path, default=DEFAULT_LOGS_ROOT)
     parser.add_argument(
         "--run",
@@ -53,7 +77,7 @@ def parse_args(argv):
         dest="runs",
         help=(
             "process only this recording run directory name; may be repeated "
-            "(default: scan all recognized runs under both roots)"
+            "(default: scan all recognized runs under every root)"
         ),
     )
     parser.add_argument(
@@ -64,7 +88,7 @@ def parse_args(argv):
     parser.add_argument(
         "--watch",
         action="store_true",
-        help="keep scanning both roots for newly completed rounds",
+        help="keep scanning all recording roots for newly completed rounds",
     )
     parser.add_argument(
         "--interval",
@@ -91,6 +115,14 @@ def parse_strict_int(value):
         return None
 
 
+def parse_strict_float(value):
+    try:
+        result = float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
+
+
 def log_run_name(photo_run_name):
     prefix, separator, seed = photo_run_name.rpartition("_seed")
     if not separator or not prefix.startswith("grasp_trials_") or not seed.isdigit():
@@ -107,6 +139,29 @@ def cone_log_run_name(video_run_name):
     ):
         return None
     return prefix
+
+
+def cone_stress_log_run_name(recording_run_name):
+    if not re.fullmatch(r"cone_move_stress_\d{8}_\d{6}", recording_run_name):
+        return None
+    return recording_run_name
+
+
+def fixed_cone_e2e_log_run_name(recording_run_name):
+    if not re.fullmatch(
+        r"fixed_cone_e2e_stress_\d{8}_\d{6}(?:_[A-Za-z0-9][A-Za-z0-9_.-]*)?",
+        recording_run_name,
+    ):
+        return None
+    return recording_run_name
+
+
+def pre_navigation_log_run_name(recording_run_name):
+    if not re.fullmatch(
+        r"pre_navigation_trials_\d{8}_\d{6}_ros\d+", recording_run_name
+    ):
+        return None
+    return recording_run_name
 
 
 def load_trial_rows(csv_path):
@@ -299,6 +354,222 @@ def evaluate_cone_video_round(run_dir, round_dir, row):
     return result
 
 
+def evaluate_fixed_cone_e2e_round(run_dir, round_dir, row):
+    result = evaluate_cone_video_round(run_dir, round_dir, row)
+    result["dataset"] = "fixed_cone_e2e_world"
+    return result
+
+
+def cone_stress_recording_checks(round_dir, row):
+    """Require a clean delivery-only navigation before deleting its recording."""
+    recording_path = round_dir / "gazebo_world_state.log"
+    manifest_path = round_dir / "gazebo_world_recording.json"
+    manifest = load_json(manifest_path)
+    recording_size = (
+        recording_path.stat().st_size if recording_path.is_file() else 0
+    )
+    expected_path = str(recording_path.resolve())
+    manifest_output = manifest.get("recording_file") if manifest else None
+    manifest_size = parse_strict_int(manifest.get("size_bytes")) if manifest else None
+    csv_size = (
+        parse_strict_int(row.get("gazebo_recording_size_bytes")) if row else None
+    )
+    return (
+        (row is not None, "trial_result_missing"),
+        (parse_strict_bool(row.get("success")) is True if row else False,
+         "navigation_not_successful"),
+        (row.get("status") == "navigation_completed" if row else False,
+         "navigation_status_not_completed"),
+        (parse_strict_int(row.get("completed_stage")) == 17 if row else False,
+         "completed_stage_not_arrived_delivery"),
+        (parse_strict_int(row.get("error_code")) == 0 if row else False,
+         "navigation_error_code_not_zero"),
+        (parse_strict_bool(row.get("navigation_failure")) is False
+         if row else False, "navigation_failed_or_unknown"),
+        (
+            (
+                parse_strict_bool(row.get("profile_switched")) is True
+                or (
+                    parse_strict_bool(row.get("profile_switching_required"))
+                    is False
+                    and row.get("planner_mode") == "fixed_teb"
+                )
+            )
+            if row
+            else False,
+            "automatic_profile_switch_missing",
+        ),
+        (parse_strict_bool(row.get("cone_collision")) is False if row else False,
+         "cone_collision_or_unknown"),
+        (row.get("cone_monitor_status") == "complete" if row else False,
+         "cone_monitor_incomplete"),
+        (row.get("contact_stream_status") in {"stopped", "disabled"}
+         if row else False, "contact_stream_incomplete"),
+        (row.get("gazebo_recording_status") == "complete" if row else False,
+         "gazebo_recording_incomplete"),
+        (manifest is not None, "gazebo_recording_manifest_invalid"),
+        (manifest.get("status") == "complete" if manifest else False,
+         "gazebo_recording_manifest_incomplete"),
+        (manifest.get("task_id") == row.get("task_id")
+         if manifest and row else False, "gazebo_recording_task_mismatch"),
+        (row.get("gazebo_recording_path") == expected_path if row else False,
+         "gazebo_recording_csv_path_mismatch"),
+        (manifest_output == recording_path.name,
+         "gazebo_recording_manifest_path_mismatch"),
+        (recording_size > 0, "gazebo_recording_missing_or_empty"),
+        (manifest_size == recording_size,
+         "gazebo_recording_manifest_size_mismatch"),
+        (csv_size == recording_size, "gazebo_recording_csv_size_mismatch"),
+    )
+
+
+def evaluate_cone_stress_round(run_dir, round_dir, row):
+    candidates = recording_candidates(round_dir, CONE_RECORDING_FILES)
+    result = base_result("cone_move_stress_world", run_dir, round_dir, candidates)
+    checks = cone_stress_recording_checks(round_dir, row)
+    failed = next((reason for passed, reason in checks if not passed), None)
+    result.update(
+        {
+            "navigation_success": (
+                parse_strict_bool(row.get("success")) if row else None
+            ),
+            "navigation_status": row.get("status") if row else None,
+            "navigation_failure": (
+                parse_strict_bool(row.get("navigation_failure")) if row else None
+            ),
+            "profile_switched": (
+                parse_strict_bool(row.get("profile_switched")) if row else None
+            ),
+            "planner_mode": row.get("planner_mode") if row else None,
+            "profile_switching_required": (
+                parse_strict_bool(row.get("profile_switching_required"))
+                if row
+                else None
+            ),
+            "cone_collision": (
+                parse_strict_bool(row.get("cone_collision")) if row else None
+            ),
+            "cone_monitor_status": row.get("cone_monitor_status") if row else None,
+            "contact_stream_status": (
+                row.get("contact_stream_status") if row else None
+            ),
+            "gazebo_recording_status": (
+                row.get("gazebo_recording_status") if row else None
+            ),
+            "eligible_for_recording_deletion": failed is None,
+            "reason": failed or "round_completed_without_detected_errors",
+        }
+    )
+    return result
+
+
+def pre_navigation_recording_checks(round_dir, row):
+    """Require a position-accepted seq35 arrival and a complete recording."""
+    recording_path = round_dir / "gazebo_world_state.log"
+    manifest_path = round_dir / "gazebo_world_recording.json"
+    manifest = load_json(manifest_path)
+    recording_size = (
+        recording_path.stat().st_size if recording_path.is_file() else 0
+    )
+    expected_path = str(recording_path.resolve())
+    manifest_output = manifest.get("recording_file") if manifest else None
+    manifest_size = parse_strict_int(manifest.get("size_bytes")) if manifest else None
+    csv_size = (
+        parse_strict_int(row.get("gazebo_recording_size_bytes")) if row else None
+    )
+    completed_waypoints = (
+        parse_strict_int(row.get("completed_waypoints")) if row else None
+    )
+    waypoint_count = parse_strict_int(row.get("waypoint_count")) if row else None
+    final_error = (
+        parse_strict_float(row.get("final_position_error_m")) if row else None
+    )
+    final_tolerance = (
+        parse_strict_float(row.get("final_position_tolerance_m"))
+        if row else None
+    )
+    start_condition = manifest.get("start_condition", {}) if manifest else {}
+    return (
+        (row is not None, "trial_result_missing"),
+        (parse_strict_bool(row.get("success")) is True if row else False,
+         "navigation_not_successful"),
+        (row.get("status") == "navigation_completed" if row else False,
+         "navigation_status_not_completed"),
+        (parse_strict_int(row.get("error_code")) == 0 if row else False,
+         "navigation_error_code_not_zero"),
+        (parse_strict_int(row.get("server_error_code")) == 0
+         if row else False, "navigation_server_error_code_not_zero"),
+        (parse_strict_bool(row.get("yaw_alignment_required")) is False
+         if row else False, "final_yaw_requirement_not_disabled"),
+        (row.get("acceptance_mode") in {
+            "position_tolerance", "move_base_succeeded"
+         } if row else False, "seq35_acceptance_missing"),
+        (waypoint_count is not None and waypoint_count > 0,
+         "waypoint_count_invalid"),
+        (completed_waypoints == waypoint_count,
+         "route_waypoints_incomplete"),
+        (final_error is not None and final_tolerance is not None
+         and final_tolerance > 0.0 and final_error <= final_tolerance + 1.0e-9,
+         "seq35_position_tolerance_not_met"),
+        (row.get("gazebo_recording_status") == "complete" if row else False,
+         "gazebo_recording_incomplete"),
+        (manifest is not None, "gazebo_recording_manifest_invalid"),
+        (manifest.get("status") == "complete" if manifest else False,
+         "gazebo_recording_manifest_incomplete"),
+        (start_condition.get("type") == "immediate",
+         "gazebo_recording_start_condition_invalid"),
+        (manifest.get("task_id") == row.get("task_id")
+         if manifest and row else False, "gazebo_recording_task_mismatch"),
+        (row.get("gazebo_recording_path") == expected_path if row else False,
+         "gazebo_recording_csv_path_mismatch"),
+        (manifest_output == recording_path.name,
+         "gazebo_recording_manifest_path_mismatch"),
+        (recording_size > 0, "gazebo_recording_missing_or_empty"),
+        (manifest_size == recording_size,
+         "gazebo_recording_manifest_size_mismatch"),
+        (csv_size == recording_size, "gazebo_recording_csv_size_mismatch"),
+    )
+
+
+def evaluate_pre_navigation_round(run_dir, round_dir, row):
+    candidates = recording_candidates(round_dir, RECORDING_FILES)
+    result = base_result("pre_navigation_world", run_dir, round_dir, candidates)
+    checks = pre_navigation_recording_checks(round_dir, row)
+    failed = next((reason for passed, reason in checks if not passed), None)
+    result.update(
+        {
+            "navigation_success": (
+                parse_strict_bool(row.get("success")) if row else None
+            ),
+            "navigation_status": row.get("status") if row else None,
+            "error_code": parse_strict_int(row.get("error_code")) if row else None,
+            "server_error_code": (
+                parse_strict_int(row.get("server_error_code"))
+                if row else None
+            ),
+            "acceptance_mode": row.get("acceptance_mode") if row else None,
+            "yaw_alignment_required": (
+                parse_strict_bool(row.get("yaw_alignment_required"))
+                if row else None
+            ),
+            "final_position_error_m": (
+                parse_strict_float(row.get("final_position_error_m"))
+                if row else None
+            ),
+            "final_position_tolerance_m": (
+                parse_strict_float(row.get("final_position_tolerance_m"))
+                if row else None
+            ),
+            "gazebo_recording_status": (
+                row.get("gazebo_recording_status") if row else None
+            ),
+            "eligible_for_recording_deletion": failed is None,
+            "reason": failed or "seq35_navigation_completed_without_errors",
+        }
+    )
+    return result
+
+
 def selected_run_dirs(data_root, requested_runs, name_parser=log_run_name):
     if requested_runs:
         return [data_root / name for name in requested_runs]
@@ -339,6 +610,10 @@ def process_root(
                 print("[KEEP] {}: unrecognized run name".format(run_dir))
             continue
         trials_csv = logs_root / source_log_run / "trials.csv"
+        if not trials_csv.is_file() and (run_dir / "trials.csv").is_file():
+            # Newer runners mirror their result table beside the recordings so
+            # cleanup remains possible when --log-dir uses a custom path.
+            trials_csv = run_dir / "trials.csv"
         try:
             trial_rows = load_trial_rows(trials_csv)
         except CleanupError as exc:
@@ -394,14 +669,43 @@ def process(args, emit=True):
     data_root = args.data_root.expanduser().resolve()
     cone_root_arg = getattr(args, "cone_video_root", None)
     cone_root = cone_root_arg.expanduser().resolve() if cone_root_arg else None
+    stress_root_arg = getattr(args, "cone_stress_root", None)
+    stress_root = (
+        stress_root_arg.expanduser().resolve() if stress_root_arg else None
+    )
+    pre_navigation_root_arg = getattr(args, "pre_navigation_root", None)
+    pre_navigation_root = (
+        pre_navigation_root_arg.expanduser().resolve()
+        if pre_navigation_root_arg else None
+    )
+    fixed_cone_e2e_root_arg = getattr(args, "fixed_cone_e2e_root", None)
+    fixed_cone_e2e_root = (
+        fixed_cone_e2e_root_arg.expanduser().resolve()
+        if fixed_cone_e2e_root_arg
+        else None
+    )
     logs_root = args.logs_root.expanduser().resolve()
     if not logs_root.is_dir():
         raise CleanupError("logs root does not exist: {}".format(logs_root))
-    available_roots = [root for root in (data_root, cone_root) if root and root.is_dir()]
+    available_roots = [
+        root
+        for root in (
+            data_root,
+            cone_root,
+            stress_root,
+            pre_navigation_root,
+            fixed_cone_e2e_root,
+        )
+        if root and root.is_dir()
+    ]
     if not available_roots:
         raise CleanupError(
-            "no recording root exists (checked {} and {})".format(
-                data_root, cone_root or "disabled"
+            "no recording root exists (checked {}, {}, {}, {}, and {})".format(
+                data_root,
+                cone_root or "disabled",
+                stress_root or "disabled",
+                pre_navigation_root or "disabled",
+                fixed_cone_e2e_root or "disabled",
             )
         )
 
@@ -414,7 +718,54 @@ def process(args, emit=True):
         results.extend(process_root(
             cone_root, logs_root, args.runs, args.apply, cone_log_run_name,
             evaluate_cone_video_round, CONE_RECORDING_FILES, emit))
-    report_root = cone_root if cone_root is not None and cone_root.is_dir() else data_root
+    if stress_root is not None and stress_root.is_dir():
+        results.extend(process_root(
+            stress_root, logs_root, args.runs, args.apply,
+            cone_stress_log_run_name, evaluate_cone_stress_round,
+            CONE_RECORDING_FILES, emit))
+    if pre_navigation_root is not None and pre_navigation_root.is_dir():
+        results.extend(process_root(
+            pre_navigation_root, logs_root, args.runs, args.apply,
+            pre_navigation_log_run_name, evaluate_pre_navigation_round,
+            RECORDING_FILES, emit))
+    if fixed_cone_e2e_root is not None and fixed_cone_e2e_root.is_dir():
+        results.extend(process_root(
+            fixed_cone_e2e_root, logs_root, args.runs, args.apply,
+            fixed_cone_e2e_log_run_name, evaluate_fixed_cone_e2e_round,
+            CONE_RECORDING_FILES, emit))
+    report_root = None
+    if args.runs:
+        # A targeted cleanup report belongs beside the selected run.  This is
+        # especially important when all legacy/default roots exist: choosing a
+        # fixed priority would otherwise place the audit in an unrelated root.
+        report_root = next(
+            (
+                root
+                for root in (
+                    fixed_cone_e2e_root,
+                    pre_navigation_root,
+                    stress_root,
+                    cone_root,
+                    data_root,
+                )
+                if root is not None
+                and root.is_dir()
+                and any((root / run_name).is_dir() for run_name in args.runs)
+            ),
+            None,
+        )
+    if report_root is None:
+        report_root = next(
+            root
+            for root in (
+                stress_root,
+                cone_root,
+                data_root,
+                pre_navigation_root,
+                fixed_cone_e2e_root,
+            )
+            if root is not None and root.is_dir()
+        )
     return report_root, results
 
 
@@ -502,7 +853,9 @@ def watch(args):
     mode = "DELETE" if args.apply else "DRY RUN"
     try:
         print(
-            "Watching legacy and cone-video roots every {:.1f}s "
+            "Watching legacy, cone-video, cone-stress, pre-navigation, and "
+            "fixed-cone end-to-end "
+            "roots every {:.1f}s "
             "(mode={}, pid={}). Press Ctrl-C to stop.".format(
                 args.interval, mode, os.getpid()), flush=True)
         try:

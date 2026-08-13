@@ -177,7 +177,10 @@ def _signal_identities(identities, sig):
 
 
 def read_ros_run_id():
-    return_code, output = run_owned(["rosparam", "get", "/run_id"], timeout=3.0)
+    # A newly started GUI simulation can briefly saturate the CPU while
+    # Gazebo loads meshes. Three seconds was too tight for an otherwise healthy
+    # ROS master and caused a needless full relaunch.
+    return_code, output = run_owned(["rosparam", "get", "/run_id"], timeout=10.0)
     if return_code != 0 or not output.strip():
         raise AutomationError("ROS master did not provide /run_id")
     return output.strip().strip("'\"")
@@ -252,6 +255,11 @@ def run_owned(arguments, timeout, stdout=subprocess.PIPE):
                 timeout, shlex.join([str(arg) for arg in arguments])
             )
         )
+    except BaseException:
+        # Do not leave an action client alive after Ctrl-C/SystemExit. A later
+        # isolated trial may reuse the same ROS_MASTER_URI.
+        stop_process_group(process, interrupt_timeout=2.0)
+        raise
     return process.returncode, output or ""
 
 
@@ -271,9 +279,15 @@ def wait_for_ros(label, arguments, deadline, required_text=None):
                 arguments, timeout=max(0.5, min(5.0, remaining))
             )
             last_output = output.strip()
-            if return_code == 0 and (
-                required_text is None or required_text in output
-            ):
+            if required_text is None:
+                required_output_present = True
+            elif isinstance(required_text, str):
+                required_output_present = required_text in output
+            else:
+                required_output_present = all(
+                    str(fragment) in output for fragment in required_text
+                )
+            if return_code == 0 and required_output_present:
                 return
         except AutomationError as exc:
             last_output = str(exc)
@@ -642,13 +656,14 @@ def launch_simulation(
     fitted_path_config=None,
     mission_config=None,
     start_perception=True,
+    navigation_config=None,
 ):
     command = [
         "roslaunch",
         "smart_factory_bringup",
         "full_competition.launch",
         "gazebo_gui:={}".format("true" if gui else "false"),
-        "start_rviz:=false",
+        "start_rviz:={}".format("true" if gui else "false"),
         "start_perception:={}".format("true" if start_perception else "false"),
     ]
     if goal_config is not None:
@@ -659,6 +674,10 @@ def launch_simulation(
         )
     if mission_config is not None:
         command.append("mission_config:={}".format(mission_config))
+    if navigation_config is not None:
+        command.append(
+            "navigation_config:={}".format(navigation_config)
+        )
     return subprocess.Popen(
         ros_command(command),
         cwd=str(WORKSPACE),

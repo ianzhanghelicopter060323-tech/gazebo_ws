@@ -5,7 +5,7 @@ local_costmap:
   # Keep the hard collision model slightly tighter than TEB's obstacle
   # constraint.  The 0.01 m costmap padding gives an effective axis-aligned
   # half-width of 0.09 m; TEB uses the same body polygon plus 0.02 m clearance.
-  footprint: [[0.095, -0.095], [0.095, 0.095], [-0.095, 0.095], [-0.095, -0.095]]
+  footprint: [[0.08, -0.08], [0.08, 0.08], [-0.08, 0.08], [-0.08, -0.08]]
 
   footprint_padding: 0.01
   update_frequency: 10

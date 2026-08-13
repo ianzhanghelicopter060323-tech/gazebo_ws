@@ -36,6 +36,11 @@ def parse_args(argv):
         type=int,
         help="TaskState value that starts recording (for example 5 for navigation)",
     )
+    trigger.add_argument(
+        "--start-immediately",
+        action="store_true",
+        help="start recording as soon as the recorder is initialized",
+    )
     parser.add_argument("--ready-file", type=Path, required=True)
     parser.add_argument("--world-name", default="default")
     parser.add_argument(
@@ -64,7 +69,10 @@ class GazeboWorldRecorder:
         self._shutdown_complete = False
         self._manifest_path = args.output_dir / "gazebo_world_recording.json"
         self._state_log_path = args.output_dir / "gazebo_world_state.log"
-        if args.start_stage is not None:
+        if getattr(args, "start_immediately", False):
+            start_condition = {"type": "immediate"}
+            waiting_status = "starting_immediately"
+        elif args.start_stage is not None:
             start_condition = {
                 "type": "task_stage",
                 "task_state": args.start_stage,
@@ -100,10 +108,14 @@ class GazeboWorldRecorder:
         }
         args.output_dir.mkdir(parents=True, exist_ok=True)
         self._write_manifest()
-        self._subscriber = rospy.Subscriber(
-            args.state_topic, TaskState, self._state_callback, queue_size=100
-        )
+        self._subscriber = None
+        if not getattr(args, "start_immediately", False):
+            self._subscriber = rospy.Subscriber(
+                args.state_topic, TaskState, self._state_callback, queue_size=100
+            )
         rospy.on_shutdown(self.shutdown)
+        if getattr(args, "start_immediately", False):
+            self._start_recording()
         args.ready_file.write_text(
             dt.datetime.now().astimezone().isoformat(timespec="milliseconds") + "\n",
             encoding="utf-8",
@@ -155,6 +167,9 @@ class GazeboWorldRecorder:
             if progress is None or progress < self._args.start_progress:
                 return
 
+        self._start_recording(message=message, progress=progress)
+
+    def _start_recording(self, message=None, progress=None):
         with self._lock:
             if self._recording or self._start_attempted:
                 return
@@ -180,16 +195,24 @@ class GazeboWorldRecorder:
             self._recording = True
             self._manifest["status"] = "recording"
             self._manifest["trigger_progress_m"] = progress
-            self._manifest["trigger_task_state"] = int(message.state)
+            self._manifest["trigger_task_state"] = (
+                None if message is None else int(message.state)
+            )
             self._manifest["started_at"] = (
                 dt.datetime.now().astimezone().isoformat(timespec="milliseconds")
             )
-            self._manifest["started_sim_time"] = {
-                "secs": int(message.header.stamp.secs),
-                "nsecs": int(message.header.stamp.nsecs),
-            }
+            self._manifest["started_sim_time"] = (
+                None
+                if message is None
+                else {
+                    "secs": int(message.header.stamp.secs),
+                    "nsecs": int(message.header.stamp.nsecs),
+                }
+            )
             self._write_manifest()
-        if self._args.start_stage is not None:
+        if getattr(self._args, "start_immediately", False):
+            rospy.loginfo("Gazebo world recording started immediately")
+        elif self._args.start_stage is not None:
             rospy.loginfo(
                 "Gazebo world recording started at task state %d", message.state
             )
@@ -280,7 +303,9 @@ class GazeboWorldRecorder:
         if not was_recording:
             with self._lock:
                 if self._manifest["status"] in {
-                    "waiting_for_seq34", "waiting_for_task_stage"
+                    "waiting_for_seq34",
+                    "waiting_for_task_stage",
+                    "starting_immediately",
                 }:
                     self._manifest["status"] = "not_started_trigger_not_reached"
                 self._manifest["stopped_at"] = (

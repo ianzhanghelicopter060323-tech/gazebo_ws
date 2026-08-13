@@ -1,0 +1,842 @@
+{
+  "schema_version": 1,
+  "description": "Fixed end-to-end cone scenarios reproduced from source rounds 25 through 30.",
+  "source_run": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260811_074704",
+  "replay_policy": "Only cone_10 through cone_19 are repositioned after normal world startup; car3 and cubes are not teleported.",
+  "templates": [
+    {
+      "template_id": "source_round_025",
+      "source_round": 25,
+      "source_task_id": "cone_e2e_025_1786411463",
+      "target_class": "electronics",
+      "source_monitor": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260811_074704/round_025/cone_trial.json",
+      "cones": {
+        "cone_10": {
+          "position": {
+            "x": 1.76902,
+            "y": -1.93686,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_11": {
+          "position": {
+            "x": 1.66299,
+            "y": -2.58458,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_12": {
+          "position": {
+            "x": -1.56029,
+            "y": -2.89505,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_13": {
+          "position": {
+            "x": -0.978225,
+            "y": -1.89055,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_14": {
+          "position": {
+            "x": 0.100511,
+            "y": -1.83279,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_15": {
+          "position": {
+            "x": 0.992346,
+            "y": -2.05702,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_16": {
+          "position": {
+            "x": -0.596058,
+            "y": -2.42995,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_17": {
+          "position": {
+            "x": 0.393055,
+            "y": -2.43312,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_18": {
+          "position": {
+            "x": 2.33627,
+            "y": -1.48586,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_19": {
+          "position": {
+            "x": -1.63389,
+            "y": -1.65165,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        }
+      }
+    },
+    {
+      "template_id": "source_round_026",
+      "source_round": 26,
+      "source_task_id": "cone_e2e_026_1786411650",
+      "target_class": "food",
+      "source_monitor": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260811_074704/round_026/cone_trial.json",
+      "cones": {
+        "cone_10": {
+          "position": {
+            "x": 1.99355,
+            "y": -1.86436,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_11": {
+          "position": {
+            "x": -0.951613,
+            "y": -2.55512,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_12": {
+          "position": {
+            "x": 1.50313,
+            "y": -2.33339,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_13": {
+          "position": {
+            "x": 0.112802,
+            "y": -1.90868,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_14": {
+          "position": {
+            "x": -1.68997,
+            "y": -1.52319,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_15": {
+          "position": {
+            "x": -1.52998,
+            "y": -2.23717,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_16": {
+          "position": {
+            "x": -0.551958,
+            "y": -1.81377,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_17": {
+          "position": {
+            "x": 0.380186,
+            "y": -2.47746,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_18": {
+          "position": {
+            "x": 2.32674,
+            "y": -2.84019,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_19": {
+          "position": {
+            "x": -0.250843,
+            "y": -3.0011,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        }
+      }
+    },
+    {
+      "template_id": "source_round_027",
+      "source_round": 27,
+      "source_task_id": "cone_e2e_027_1786411922",
+      "target_class": "electronics",
+      "source_monitor": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260811_074704/round_027/cone_trial.json",
+      "cones": {
+        "cone_10": {
+          "position": {
+            "x": 0.398706,
+            "y": -1.79767,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_11": {
+          "position": {
+            "x": 0.271729,
+            "y": -2.96238,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_12": {
+          "position": {
+            "x": -0.358121,
+            "y": -2.14995,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_13": {
+          "position": {
+            "x": 1.73646,
+            "y": -2.83049,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_14": {
+          "position": {
+            "x": -1.5755,
+            "y": -1.75033,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_15": {
+          "position": {
+            "x": 1.51855,
+            "y": -1.82863,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_16": {
+          "position": {
+            "x": -1.12744,
+            "y": -2.52295,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_17": {
+          "position": {
+            "x": 2.45477,
+            "y": -2.80809,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_18": {
+          "position": {
+            "x": 2.31671,
+            "y": -1.63506,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_19": {
+          "position": {
+            "x": -0.353907,
+            "y": -2.87035,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        }
+      }
+    },
+    {
+      "template_id": "source_round_028",
+      "source_round": 28,
+      "source_task_id": "cone_e2e_028_1786412191",
+      "target_class": "daily",
+      "source_monitor": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260811_074704/round_028/cone_trial.json",
+      "cones": {
+        "cone_10": {
+          "position": {
+            "x": 0.754358,
+            "y": -2.47837,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_11": {
+          "position": {
+            "x": 0.250617,
+            "y": -3.00153,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_12": {
+          "position": {
+            "x": 1.52841,
+            "y": -1.9866,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_13": {
+          "position": {
+            "x": -0.395418,
+            "y": -1.86209,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_14": {
+          "position": {
+            "x": -0.073097,
+            "y": -2.43744,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_15": {
+          "position": {
+            "x": 2.17979,
+            "y": -1.70789,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_16": {
+          "position": {
+            "x": -1.16192,
+            "y": -2.53541,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_17": {
+          "position": {
+            "x": -1.61034,
+            "y": -3.00207,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_18": {
+          "position": {
+            "x": -1.67571,
+            "y": -2.02016,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_19": {
+          "position": {
+            "x": -1.08547,
+            "y": -1.78719,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        }
+      }
+    },
+    {
+      "template_id": "source_round_029",
+      "source_round": 29,
+      "source_task_id": "cone_e2e_029_1786412414",
+      "target_class": "daily",
+      "source_monitor": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260811_074704/round_029/cone_trial.json",
+      "cones": {
+        "cone_10": {
+          "position": {
+            "x": 1.56901,
+            "y": -2.15062,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_11": {
+          "position": {
+            "x": 0.179075,
+            "y": -2.10682,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_12": {
+          "position": {
+            "x": 0.882134,
+            "y": -2.41516,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_13": {
+          "position": {
+            "x": -1.65911,
+            "y": -2.02051,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_14": {
+          "position": {
+            "x": -1.00238,
+            "y": -2.57703,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_15": {
+          "position": {
+            "x": 2.05748,
+            "y": -2.65965,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_16": {
+          "position": {
+            "x": -1.69974,
+            "y": -2.6781,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_17": {
+          "position": {
+            "x": 0.012984,
+            "y": -2.99403,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_18": {
+          "position": {
+            "x": -1.04919,
+            "y": -1.90371,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_19": {
+          "position": {
+            "x": 2.16008,
+            "y": -1.68762,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        }
+      }
+    },
+    {
+      "template_id": "source_round_030",
+      "source_round": 30,
+      "source_task_id": "cone_e2e_030_1786412598",
+      "target_class": "food",
+      "source_monitor": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260811_074704/round_030/cone_trial.json",
+      "cones": {
+        "cone_10": {
+          "position": {
+            "x": -0.155061,
+            "y": -2.5526,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_11": {
+          "position": {
+            "x": 2.41019,
+            "y": -1.63844,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_12": {
+          "position": {
+            "x": 1.46397,
+            "y": -3.01763,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_13": {
+          "position": {
+            "x": -0.794734,
+            "y": -2.75132,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_14": {
+          "position": {
+            "x": -0.772852,
+            "y": -2.05,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_15": {
+          "position": {
+            "x": 0.491948,
+            "y": -2.09113,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_16": {
+          "position": {
+            "x": 0.133752,
+            "y": -1.51482,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_17": {
+          "position": {
+            "x": -1.59369,
+            "y": -2.62867,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_18": {
+          "position": {
+            "x": 2.1337,
+            "y": -2.87678,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        },
+        "cone_19": {
+          "position": {
+            "x": 1.58515,
+            "y": -1.56559,
+            "z": 0.0
+          },
+          "orientation": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0,
+            "w": 1.0
+          }
+        }
+      }
+    }
+  ]
+}

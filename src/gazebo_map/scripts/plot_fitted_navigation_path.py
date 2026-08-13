@@ -303,6 +303,12 @@ def read_execution_waypoint_settings(path):
         "min_spacing": float(settings.get("min_spacing", 0.18)),
         "max_spacing": float(settings.get("max_spacing", 0.50)),
         "required_sequences": settings.get("required_sequences", []),
+        "orientation_required_sequences": settings.get(
+            "orientation_required_sequences", []
+        ),
+        "orientation_yaw_tolerance": float(
+            settings.get("orientation_yaw_tolerance", 0.15)
+        ),
         "pass_radius": float(
             navigation.get("intermediate_pass_radius", 0.15)
         ),
@@ -321,6 +327,27 @@ def read_execution_waypoint_settings(path):
     ):
         raise ValueError(
             "fitted_waypoints/required_sequences must not contain duplicates"
+        )
+    if not isinstance(result["orientation_required_sequences"], list) or any(
+        isinstance(sequence, bool)
+        or not isinstance(sequence, int)
+        or sequence <= 0
+        for sequence in result["orientation_required_sequences"]
+    ):
+        raise ValueError(
+            "fitted_waypoints/orientation_required_sequences must contain "
+            "positive integers"
+        )
+    if len(set(result["orientation_required_sequences"])) != len(
+        result["orientation_required_sequences"]
+    ):
+        raise ValueError(
+            "fitted_waypoints/orientation_required_sequences must not contain "
+            "duplicates"
+        )
+    if not 0.0 < result["orientation_yaw_tolerance"] <= math.pi:
+        raise ValueError(
+            "fitted_waypoints/orientation_yaw_tolerance must be in (0, pi]"
         )
     if result["pass_radius"] <= 0.0:
         raise ValueError("navigation/intermediate_pass_radius must be positive")
@@ -696,6 +723,8 @@ def export_path_config(
     y_floor_segments,
     execution_waypoint_indices,
     required_execution_sequences,
+    orientation_required_sequences,
+    orientation_yaw_tolerance,
     execution_chord_error,
     execution_minimum_spacing,
     execution_maximum_spacing,
@@ -737,12 +766,34 @@ def export_path_config(
             }
         )
 
+    sequence_by_sample_index = {}
+    route_yaw_by_sequence = {}
+    for record, anchor_parameter in zip(records, parameter):
+        sample_index = int(
+            np.argmin(np.abs(sample_parameter - anchor_parameter))
+        )
+        if abs(sample_parameter[sample_index] - anchor_parameter) > 1.0e-8:
+            raise ValueError(
+                "active route seq {} is missing from fitted samples".format(
+                    record[0]
+                )
+            )
+        sequence = int(record[0])
+        sequence_by_sample_index[sample_index] = sequence
+        route_yaw_by_sequence[sequence] = float(record[3])
+
+    orientation_required_sequences = set(orientation_required_sequences)
     execution_waypoints = []
     for waypoint_number, sample_index in enumerate(
         execution_waypoint_indices, start=1
     ):
         waypoint = dict(points[sample_index])
         waypoint["waypoint"] = waypoint_number
+        source_sequence = sequence_by_sample_index.get(sample_index)
+        if source_sequence is not None:
+            waypoint["source_seq"] = source_sequence
+            if source_sequence in orientation_required_sequences:
+                waypoint["yaw"] = route_yaw_by_sequence[source_sequence]
         if waypoint_number == len(execution_waypoint_indices):
             waypoint["yaw"] = float(records[-1][3])
         execution_waypoints.append(waypoint)
@@ -786,6 +837,13 @@ def export_path_config(
                         int(sequence)
                         for sequence in required_execution_sequences
                     ],
+                    "orientation_required_sequences": sorted(
+                        int(sequence)
+                        for sequence in orientation_required_sequences
+                    ),
+                    "orientation_yaw_tolerance": float(
+                        orientation_yaw_tolerance
+                    ),
                     "chord_error": float(execution_chord_error),
                     "min_spacing": float(execution_minimum_spacing),
                     "max_spacing": float(execution_maximum_spacing),
@@ -1469,6 +1527,31 @@ def main():
                 missing_required_sequences
             )
         )
+    missing_orientation_sequences = [
+        sequence
+        for sequence in execution_settings["orientation_required_sequences"]
+        if sequence not in sequence_indices
+    ]
+    if missing_orientation_sequences:
+        raise ValueError(
+            "orientation-required seq has no active route anchor: {}".format(
+                missing_orientation_sequences
+            )
+        )
+    selectable_orientation_sequences = set(
+        execution_settings["required_sequences"]
+    ) | {sequences[0], sequences[-1]}
+    unselected_orientation_sequences = sorted(
+        set(execution_settings["orientation_required_sequences"])
+        - selectable_orientation_sequences
+    )
+    if unselected_orientation_sequences:
+        raise ValueError(
+            "orientation-required seq must also be a required execution seq "
+            "or a route endpoint: {}".format(
+                unselected_orientation_sequences
+            )
+        )
     fixed_indices = set()
     for start, end in linear_segments + y_floor_segments:
         fixed_indices.add(sequence_indices[start])
@@ -1563,6 +1646,8 @@ def main():
             y_floor_segments,
             execution_waypoint_indices,
             execution_settings["required_sequences"],
+            execution_settings["orientation_required_sequences"],
+            execution_settings["orientation_yaw_tolerance"],
             execution_settings["chord_error"],
             execution_settings["min_spacing"],
             execution_settings["max_spacing"],

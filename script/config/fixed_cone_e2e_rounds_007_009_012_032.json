@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "description": "Fixed daily-delivery failure scenarios from source rounds 007, 009, 012 and 032.",
+  "source_run": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260812_034919",
+  "replay_policy": "Only cone_10 through cone_19 are restored after normal world startup; car3 and pickup cubes are not teleported.",
+  "templates": [
+    {
+      "template_id": "source_round_007",
+      "source_round": 7,
+      "source_task_id": "cone_e2e_007_1786479281",
+      "target_class": "daily",
+      "source_monitor": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260812_034919/round_007/cone_trial.json",
+      "cones": {
+        "cone_10": {"position": {"x": -0.982132, "y": -2.126050, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_11": {"position": {"x": 1.853210, "y": -2.228990, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_12": {"position": {"x": -0.050002, "y": -1.734260, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_13": {"position": {"x": -0.605525, "y": -2.838310, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_14": {"position": {"x": -0.179745, "y": -2.387260, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_15": {"position": {"x": 1.741230, "y": -2.951460, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_16": {"position": {"x": 1.264320, "y": -2.031240, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_17": {"position": {"x": 1.834240, "y": -1.602480, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_18": {"position": {"x": 0.192374, "y": -3.000830, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_19": {"position": {"x": -1.585850, "y": -2.334270, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}}
+      }
+    },
+    {
+      "template_id": "source_round_009",
+      "source_round": 9,
+      "source_task_id": "cone_e2e_009_1786479874",
+      "target_class": "daily",
+      "source_monitor": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260812_034919/round_009/cone_trial.json",
+      "cones": {
+        "cone_10": {"position": {"x": 0.222467, "y": -2.188390, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_11": {"position": {"x": 1.947340, "y": -2.588160, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_12": {"position": {"x": 2.353040, "y": -1.581340, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_13": {"position": {"x": -1.021200, "y": -2.748310, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_14": {"position": {"x": -0.198820, "y": -1.728070, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_15": {"position": {"x": -0.331781, "y": -2.621600, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_16": {"position": {"x": 1.174290, "y": -2.056760, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_17": {"position": {"x": -1.650530, "y": -2.279400, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_18": {"position": {"x": -1.575260, "y": -1.600400, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_19": {"position": {"x": -0.839259, "y": -1.702440, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}}
+      }
+    },
+    {
+      "template_id": "source_round_012",
+      "source_round": 12,
+      "source_task_id": "cone_e2e_012_1786480661",
+      "target_class": "daily",
+      "source_monitor": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260812_034919/round_012/cone_trial.json",
+      "cones": {
+        "cone_10": {"position": {"x": 0.252062, "y": -2.121270, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_11": {"position": {"x": -1.697930, "y": -3.007730, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_12": {"position": {"x": 1.734640, "y": -2.577620, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_13": {"position": {"x": 0.089343, "y": -3.009120, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_14": {"position": {"x": 1.700460, "y": -1.848210, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_15": {"position": {"x": -1.083780, "y": -1.927710, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_16": {"position": {"x": -0.289494, "y": -1.606410, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_17": {"position": {"x": -0.640576, "y": -2.852730, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_18": {"position": {"x": -1.644970, "y": -2.246920, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_19": {"position": {"x": 2.486650, "y": -2.720150, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}}
+      }
+    },
+    {
+      "template_id": "source_round_032",
+      "source_round": 32,
+      "source_task_id": "cone_e2e_032_1786485571",
+      "target_class": "daily",
+      "source_monitor": "/home/ianichinose/gazebo_ws/script/logs/end_to_end_cone_trials_20260812_034919/round_032/cone_trial.json",
+      "cones": {
+        "cone_10": {"position": {"x": 0.171464, "y": -2.957690, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_11": {"position": {"x": -0.685043, "y": -1.732790, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_12": {"position": {"x": 2.492390, "y": -1.639360, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_13": {"position": {"x": -1.455740, "y": -1.518500, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_14": {"position": {"x": 0.610633, "y": -2.370500, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_15": {"position": {"x": 1.723970, "y": -1.912220, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_16": {"position": {"x": 2.254040, "y": -2.728150, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_17": {"position": {"x": -1.068780, "y": -2.877500, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_18": {"position": {"x": 0.369035, "y": -1.757840, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}},
+        "cone_19": {"position": {"x": -1.672770, "y": -2.150190, "z": 0.0}, "orientation": {"x": 0.0, "y": 0.0, "z": 0.0, "w": 1.0}}
+      }
+    }
+  ]
+}
