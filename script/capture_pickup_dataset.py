@@ -657,6 +657,7 @@ def launch_simulation(
     mission_config=None,
     start_perception=True,
     navigation_config=None,
+    spawn_calibration_cubes=None,
 ):
     command = [
         "roslaunch",
@@ -677,6 +678,12 @@ def launch_simulation(
     if navigation_config is not None:
         command.append(
             "navigation_config:={}".format(navigation_config)
+        )
+    if spawn_calibration_cubes is not None:
+        command.append(
+            "spawn_calibration_cubes:={}".format(
+                "true" if spawn_calibration_cubes else "false"
+            )
         )
     return subprocess.Popen(
         ros_command(command),

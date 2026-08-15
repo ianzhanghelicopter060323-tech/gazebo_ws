@@ -30,12 +30,13 @@
     <!-- The same planner pair is used by the standalone simulation and by
          smart_factory_bringup/full_competition.launch. -->
     <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
-    <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS"/>
+    <param name="base_local_planner" value="smart_factory_adaptive_teb/AdaptiveTebLocalPlannerROS"/>
 
     <rosparam file="$(find gazebo_nav)/launch/config/move_base/costmap_common_params.yaml" command="load" ns="global_costmap" />
     <rosparam file="$(find gazebo_nav)/launch/config/move_base/costmap_common_params.yaml" command="load" ns="local_costmap" />
     <rosparam file="$(find gazebo_nav)/launch/config/move_base/global_planner_params.yaml" command="load" />
     <rosparam file="$(find gazebo_nav)/launch/config/move_base/teb_local_planner_params.yaml" command="load" />
+    <rosparam file="$(find gazebo_nav)/launch/config/move_base/adaptive_teb_params.yaml" command="load" />
     <rosparam file="$(find gazebo_nav)/launch/config/move_base/local_costmap_params.yaml" command="load" />
     <rosparam file="$(find gazebo_nav)/launch/config/move_base/global_costmap_params.yaml" command="load" />
     <rosparam file="$(find gazebo_nav)/launch/config/move_base/move_base_params.yaml" command="load" />

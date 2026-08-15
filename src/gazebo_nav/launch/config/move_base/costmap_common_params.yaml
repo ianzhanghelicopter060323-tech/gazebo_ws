@@ -20,10 +20,14 @@ obstacle_layer:
 
 inflation_layer:
   enabled: true
-  cost_scaling_factor: 15.0
-  # Shared/global default. local_costmap_params.yaml narrows only its own
-  # inflation layer to 0.18 m without changing the global path costmap.
-  inflation_radius: 0.20
+  # Global planning uses a wider, more slowly decaying soft-cost band so the
+  # official GlobalPlanner prefers the wider side of a cone/wall passage.
+  # local_costmap_params.yaml overrides both values to preserve local motion.
+  cost_scaling_factor: 7.5
+  # 全局规划保留绕行偏好，同时给锥桶密集入口留下可达通道；局部代价地图另有独立覆盖。
+  # 0.33m在source-round-009的入口第一滚动点曾限制路径推进；回调至
+  # 0.30m释放进入空间。防撞底线仍由avoidance footprint和TEB硬净距负责。
+  inflation_radius: 0.30
 
 static_layer:
   enabled: true

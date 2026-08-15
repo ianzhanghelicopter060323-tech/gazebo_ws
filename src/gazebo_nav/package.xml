@@ -63,6 +63,7 @@
   <exec_depend>move_base</exec_depend>
   <exec_depend>roslaunch</exec_depend>
   <exec_depend>rviz</exec_depend>
+  <exec_depend>smart_factory_adaptive_teb</exec_depend>
   <exec_depend>teb_local_planner</exec_depend>
 
 

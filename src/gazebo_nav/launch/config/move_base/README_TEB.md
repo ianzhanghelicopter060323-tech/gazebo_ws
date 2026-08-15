@@ -13,8 +13,9 @@
   `0.09 m`；
 - TEB：使用同一组 `±0.08 m` polygon，并设置 `min_obstacle_dist: 0.02 m`，有效
   硬约束约为 `0.10 m`，略大于 local costmap 的最终碰撞模型；
-- global costmap 保持 `inflation_radius: 0.20 m`，local costmap 单独使用
-  `0.18 m`；二者的 `cost_scaling_factor` 均为 `15.0`。
+- global costmap 使用 `inflation_radius: 0.35 m`、
+  `cost_scaling_factor: 7.5`，让全局路径更偏好宽通道；local costmap 显式覆盖为
+  `0.18 m`、`15.0`，避免改变已验证的局部运动代价场。
 
 这种拆分允许 GlobalPlanner 生成路径，但局部 costmap 的最终可行性检查和 TEB
 优化使用一致的几何边界。当前局部边界有意比原 DWA 的 `0.144 m` 放宽；规则允许轻微

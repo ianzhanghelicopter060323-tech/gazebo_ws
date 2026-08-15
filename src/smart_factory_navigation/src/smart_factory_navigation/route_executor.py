@@ -71,6 +71,14 @@ class RouteExecutor:
         self._max_retries = int(
             rospy.get_param("~navigation/max_retries", 1)
         )
+        self._goal_cancel_timeout = float(
+            rospy.get_param("~navigation/goal_cancel_timeout", 2.0)
+        )
+        if (
+            not math.isfinite(self._goal_cancel_timeout)
+            or self._goal_cancel_timeout <= 0.0
+        ):
+            raise ValueError("navigation/goal_cancel_timeout must be positive")
 
         self._intermediate_pass_radius = float(
             rospy.get_param(
@@ -210,6 +218,28 @@ class RouteExecutor:
         """Stop any active move_base goal and direct base command."""
         self._navigation.cancel_goal()
         self._base_alignment.stop()
+
+    def _cancel_goal_and_wait_for_inactive(self):
+        """Finish a tolerance-pass handoff before external make_plan calls.
+
+        Action cancellation is asynchronous.  Returning while move_base is
+        still ACTIVE/PREEMPTING makes its public make_plan service reject the
+        rolling delivery selector even though the candidate itself is valid.
+        """
+        self._navigation.cancel_goal()
+        deadline = time.monotonic() + self._goal_cancel_timeout
+        while self._navigation.get_state() in self.ACTIVE_NAVIGATION_STATES:
+            if self._preempt_requested() or rospy.is_shutdown():
+                raise RouteNavigationPreempted(
+                    "task was preempted while cancelling the move_base goal"
+                )
+            if time.monotonic() >= deadline:
+                raise RouteNavigationFailure(
+                    error_codes.NAVIGATION_ABORTED,
+                    "move_base remained active for more than {:.1f}s after "
+                    "goal cancellation".format(self._goal_cancel_timeout),
+                )
+            time.sleep(0.02)
 
     @staticmethod
     def _quaternion_yaw(quaternion):
@@ -394,7 +424,7 @@ class RouteExecutor:
                 NavigationOutcome.PASSED,
             ):
                 if last_outcome == NavigationOutcome.PASSED:
-                    self._navigation.cancel_goal()
+                    self._cancel_goal_and_wait_for_inactive()
                 context.retry_count = 0
                 return
             if last_outcome == NavigationOutcome.PREEMPTED:

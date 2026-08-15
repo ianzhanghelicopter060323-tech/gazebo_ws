@@ -1,0 +1,243 @@
+# Adaptive local-planner parameters. move_base initializes the wrapper with the
+# plugin instance name "AdaptiveTebLocalPlannerROS", so the selector and both
+# wrapped TEB instances must live below that exact namespace. Both profiles are
+# loaded at startup; runtime selection never rewrites parameters or global plan.
+AdaptiveTebLocalPlannerROS:
+  # Read by the wrapper before either child is initialized. This prevents a
+  # namespace typo from silently launching two default-configured TEBs.
+  configuration_version: 1
+
+  selector:
+    # 激光输入有效性：数据缺失、超时或束数不足时不输出速度。
+    scan_topic: /scan # 自适应选择器的核心传感器输入
+    lidar_timeout: 0.25 # 激光消息最大允许延迟，单位s
+    scan_startup_grace: 2.0 # 启动阶段暂缓打印激光缺失警告
+    minimum_beams: 360 # 一帧激光至少包含的束数
+
+    # 点簇识别：把相邻激光点组合成障碍，再筛选锥桶类紧凑障碍。
+    detection_min_range: 0.08 # 忽略过近的异常点，单位m
+    detection_max_range: 1.50 # selector最远分析距离，单位m
+    cluster_gap: 0.07 # 相邻点超过该距离即分为两个点簇
+    cluster_min_points: 5 # 有效点簇所需的最少激光点数
+    compact_cluster_min_span: 0.06 # 紧凑障碍最小尺寸，过滤噪点
+    # The cone mesh is inch-scaled by 10. At the 0.0874 m laser plane its
+    # tapered body is about 0.38 m wide, so 0.45 m includes the cone while
+    # still rejecting long wall clusters in the analyzer regression test.
+    compact_cluster_max_span: 0.45 # 紧凑障碍最大尺寸，用于排除长墙
+
+    # Analyze only the next part of the official GlobalPlanner path. The
+    # plugin reads this path but never changes, republishes, or replaces it.
+    plan_lookahead_distance: 1.20 # 只分析机器人前方该长度的官方全局路径
+    corridor_half_width: 0.30 # 全局路径单侧检测宽度，总走廊宽0.60m
+    # Live source-round-007 diagnostics put threatening cones roughly
+    # 0.17--0.27 m from the official path. These deliberately aggressive V2
+    # thresholds react before the useful decision window closes.
+    two_cluster_clearance: 0.35 # 两个以上点簇时的路径威胁触发距离
+    one_cluster_clearance: 0.30 # 单个点簇时的路径威胁触发距离
+    # 仅在路径威胁已消失时于目标附近回baseline；滚动中间点附近仍有
+    # 锥桶证据时保持avoidance，避免目标交接瞬间缩小footprint。
+    goal_baseline_distance: 0.35
+
+    # 模式切换滞回：避免单帧噪声导致baseline/avoidance反复跳变。
+    entry_window_frames: 8 # 进入判断所统计的最近激光帧数
+    entry_required_frames: 5 # 8帧中至少5帧有证据才进入avoidance
+    exit_clear_frames: 20 # 连续20帧无威胁才退出avoidance
+    # Hysteresis prevents rapid single/multi-topology toggling.
+    minimum_avoidance_duration: 2.5 # avoidance最短保持时间，单位s
+    baseline_cooldown: 2.0 # 回到baseline后的再次进入冷却时间
+
+    # An infeasible baseline may request HCP early only when the same scan
+    # confirms a compact obstacle close to the official path.
+    baseline_failures_before_fallback: 2 # baseline连续失败次数达到后允许紧急切换
+    failure_fallback_clearance: 0.18 # 紧急切换仍要求障碍足够靠近路径
+
+  # 配置已经过100轮导航验证的单拓扑TEB参数，非必要勿动。
+  baseline:
+    odom_topic: odom
+    map_frame: map
+
+    # 运动能力：保持100轮前序导航验证过的速度与加速度。
+    max_vel_x: 0.9 # 最大纵向速度，单位m/s
+    max_vel_y: 0.9 # 全向底盘最大横向速度，单位m/s
+    max_vel_x_backwards: 0.9
+    max_vel_theta: 1.6 # 最大角速度，单位rad/s
+    acc_lim_x: 1.3 # 纵向加速度上限
+    acc_lim_y: 1.3 # 横向加速度上限
+    acc_lim_theta: 4.0 # 角加速度上限
+    min_turning_radius: 0.0
+
+    is_footprint_dynamic: false
+    footprint_model: # footprint配置
+      type: polygon
+      vertices: [[0.08, -0.08], [0.08, 0.08], [-0.08, 0.08], [-0.08, -0.08]] # 0.16m方形碰撞外形
+
+    xy_goal_tolerance: 0.04 # 目标位置允许误差，单位m
+    # 0.12 rad可能早于任务层0.04 rad终态检查返回成功，使RGB-D视角偏斜。
+    # 0.10 rad已完成四场景首轮回归；继续收紧到0.08 rad验证识别视角，
+    # 若发生停滞则修正终点控制/目标交接，不再通过放宽容差规避。
+    yaw_goal_tolerance: 0.08
+    free_goal_vel: false
+
+    teb_autosize: true
+    dt_ref: 0.10 # 轨迹时间离散间隔；越小越精细、计算量越大
+    dt_hysteresis: 0.02 # 时间离散重采样滞回
+    min_samples: 5 # 一条TEB轨迹至少包含的位姿数
+    max_samples: 500
+    global_plan_overwrite_orientation: true
+    global_plan_viapoint_sep: 0.10 # 全局路径引导点间距；越小越贴原路径
+    via_points_ordered: true
+    max_global_plan_lookahead_dist: 1.3 # 局部优化每次读取的全局路径长度
+    force_reinit_new_goal_dist: 1.0
+    feasibility_check_no_poses: 5 # 检查轨迹前5个位姿是否碰撞
+    publish_feedback: false
+    allow_init_with_backwards_motion: false
+    exact_arc_length: true
+
+    # 障碍约束：footprint外缘仍需保留硬净距，并在外层施加软代价。
+    min_obstacle_dist: 0.02 # footprint到障碍的最小硬净距，单位m
+    inflation_dist: 0.08 # 软膨胀影响距离，鼓励但不强制远离障碍
+    include_costmap_obstacles: true
+    costmap_obstacles_behind_robot_dist: 0.5
+    include_dynamic_obstacles: false
+    legacy_obstacle_association: false
+    obstacle_association_force_inclusion_factor: 2.0
+    obstacle_association_cutoff_factor: 5.0
+    obstacle_poses_affected: 30 # 单个障碍影响的相邻轨迹位姿数量
+    costmap_converter_plugin: ""
+    costmap_converter_spin_thread: true
+    costmap_converter_rate: 5.0
+
+    no_inner_iterations: 5 # 每轮图优化的内部迭代次数
+    no_outer_iterations: 4 # 外层重建/优化次数
+    optimization_activate: true
+    optimization_verbose: false
+    penalty_epsilon: 0.02
+    weight_max_vel_x: 2.0
+    weight_max_vel_y: 2.0
+    weight_max_vel_theta: 1.0
+    weight_acc_lim_x: 1.0
+    weight_acc_lim_y: 1.0
+    weight_acc_lim_theta: 1.0
+    weight_kinematics_nh: 1.0
+    weight_kinematics_forward_drive: 0.0
+    weight_kinematics_turning_radius: 0.0
+    weight_optimaltime: 1.0 # 偏好耗时短轨迹的权重
+    weight_shortest_path: 0.0 # 几何最短路径偏好关闭
+    weight_obstacle: 100.0 # 违反最小障碍距离的惩罚权重
+    weight_inflation: 0.2 # 进入软膨胀区的惩罚权重
+    weight_viapoint: 20.0 # 跟随官方全局路径引导点的权重
+    weight_adapt_factor: 2.0
+
+    enable_homotopy_class_planning: false # 前序导航固定为稳定单拓扑
+    enable_multithreading: true
+    max_number_classes: 3
+    roadmap_graph_no_samples: 20
+    roadmap_graph_area_width: 2.5
+    selection_obst_cost_scale: 5.0
+    selection_viapoint_cost_scale: 0.5
+    selection_prefer_initial_plan: 0.95
+    selection_cost_hysteresis: 1.0
+    switching_blocking_period: 1.0
+    viapoints_all_candidates: false
+
+    shrink_horizon_backup: true # 不可行时缩短规划视野进行恢复
+    shrink_horizon_min_duration: 10.0
+    oscillation_recovery: true
+
+  # 锥桶区特化参数配置，采用多拓扑。
+  # 与baseline分开加载；只由实时激光证据选择，不在运行时修改ROS参数。
+  avoidance:
+    odom_topic: odom
+    map_frame: map
+
+    # 当前速度保持与baseline一致；如锥桶区修正不及时可单独降低。
+    max_vel_x: 0.55 # 锥桶区降速，给拓扑选择和轨迹跟踪留下修正时间
+    # 保留全向避障所需的横移能力，但低于0.55m/s纵向速度；避免车辆
+    # 把横移当成主要运动方式，同时不锁死入口处的大侧向绕行。
+    max_vel_y: 0.35
+    max_vel_x_backwards: 0.9
+    max_vel_theta: 1.6 # 最大角速度
+    acc_lim_x: 0.9 # 降低锥桶区纵向速度突变
+    acc_lim_y: 0.70 # 平缓横向修正，优先沿全局路径切线前进
+    acc_lim_theta: 4.0 # 角加速度上限
+    min_turning_radius: 0.0
+
+    is_footprint_dynamic: false
+    footprint_model: # footprint改大以适应锥桶区
+      type: polygon
+      # 当前最大半边长0.15m，实验标签必须使用avoidfp_0p15。
+      # 较小参考值：[[0.08,-0.08],[0.08,0.08],[-0.08,0.08],[-0.08,-0.08]]
+      vertices: [[0.15, -0.15], [0.15, 0.15], [-0.15, 0.15], [-0.15, -0.15]] # 0.30m保守方形外形
+
+    xy_goal_tolerance: 0.04 # 目标位置允许误差
+    yaw_goal_tolerance: 0.12 # 锥桶区可以保持较大的方向tolerance
+    free_goal_vel: false
+
+    teb_autosize: true
+    dt_ref: 0.10 # 轨迹的精细程度，同时影响计算量
+    dt_hysteresis: 0.02
+    min_samples: 5 # 轨迹至少包含5个节点
+    max_samples: 500
+    global_plan_overwrite_orientation: true
+    global_plan_viapoint_sep: 0.10 # 越小越贴近全局路径
+    via_points_ordered: true
+    max_global_plan_lookahead_dist: 1.8 # 扩大HCP前瞻范围，更早发现绕行拓扑
+    force_reinit_new_goal_dist: 1.0
+    feasibility_check_no_poses: 10 # 提前检查更长的局部轨迹，减少晚发现碰撞后的急停振荡
+    publish_feedback: false
+    allow_init_with_backwards_motion: false
+    exact_arc_length: true
+
+    # 两次 source_round_009 碰撞时，锥桶中心到 avoidance footprint
+    # 外缘的实测余量约为0.098m；取0.10m作为硬净距覆盖物理锥桶底座。
+    # 旧stage24的0.10m曾卡在第4个滚动点，现由提前handoff避免该阶段。
+    min_obstacle_dist: 0.10 # footprint外缘的最小硬净距
+    inflation_dist: 0.16 # 软避障区保持已验证值，避免过远绕行和控制耗时
+    include_costmap_obstacles: true
+    costmap_obstacles_behind_robot_dist: 0.5
+    include_dynamic_obstacles: false
+    legacy_obstacle_association: false
+    obstacle_association_force_inclusion_factor: 2.0
+    obstacle_association_cutoff_factor: 5.0
+    obstacle_poses_affected: 30 # 障碍影响的相邻轨迹位姿数量
+    costmap_converter_plugin: ""
+    costmap_converter_spin_thread: true
+    costmap_converter_rate: 5.0
+
+    # 多拓扑会同时优化多条候选轨迹；控制单周期计算量，避免15Hz控制环退化为秒级。
+    no_inner_iterations: 4 # 每条候选轨迹的内部优化迭代次数
+    no_outer_iterations: 3 # 重建并再次优化轨迹的外层次数
+    optimization_activate: true
+    optimization_verbose: false
+    penalty_epsilon: 0.02
+    weight_max_vel_x: 2.0
+    weight_max_vel_y: 2.0
+    weight_max_vel_theta: 1.0
+    weight_acc_lim_x: 1.0
+    weight_acc_lim_y: 1.0
+    weight_acc_lim_theta: 1.0
+    weight_kinematics_nh: 1.0
+    weight_kinematics_forward_drive: 0.0
+    weight_kinematics_turning_radius: 0.0
+    weight_optimaltime: 1.0 # 越大越偏好耗时短的轨迹
+    weight_shortest_path: 0.0 # 几何最短路径偏好保持关闭
+    weight_obstacle: 100.0 # 硬障碍距离惩罚权重
+    weight_inflation: 2.0 # stage25软膨胀权重，不扩大硬禁止区
+    weight_viapoint: 10.0 # 越小越允许局部轨迹远离全局路径
+    weight_adapt_factor: 2.0
+
+    enable_homotopy_class_planning: true # 开启多拓扑
+    enable_multithreading: true
+    max_number_classes: 3 # 宽路、窄路及备用路线已够用，同时限制计算开销
+    roadmap_graph_no_samples: 20 # 保留侧向路线探索，减少每周期图搜索规模
+    roadmap_graph_area_width: 2.5 # 候选路线搜索宽度
+    selection_obst_cost_scale: 15.0 # 候选比较时放大障碍代价，偏向更宽路线
+    selection_viapoint_cost_scale: 0.2 # 减弱贴合全局路径中间点的选择偏好
+    selection_prefer_initial_plan: 0.95 # 给全局路径所属初始拓扑5%的代价优惠
+    selection_cost_hysteresis: 0.85 # 新路线至少约好15%才允许替换当前拓扑
+    switching_blocking_period: 4.0 # 换路后保持4s，给当前拓扑充分绕行时间
+    viapoints_all_candidates: false
+
+    shrink_horizon_backup: true # HCP不可行时允许缩短规划视野恢复
+    shrink_horizon_min_duration: 10.0
+    oscillation_recovery: true

@@ -32,6 +32,9 @@ DELIVERY_CLASS_COLORS = {
     2: (40, 115, 225),
 }
 DELIVERY_ENTRY_COLOR = (145, 45, 190)
+PICKUP_STATION_COLOR = (0, 125, 165)
+PICKUP_TRANSITION_COLOR = (225, 105, 20)
+PICKUP_APPROACH_COLOR = (115, 70, 185)
 
 
 def read_cube_spawn_areas(path):
@@ -135,6 +138,54 @@ def read_delivery_navigation_goals(path):
         )
     goals.extend(by_class[target_class] for target_class in sorted(by_class))
     return goals
+
+
+def read_pickup_navigation_goals(path):
+    """Read conditional seq35-37 observation and transition poses."""
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    pickup = data.get("pickup") if isinstance(data, dict) else None
+    if not isinstance(pickup, dict) or pickup.get("enabled") is not True:
+        raise ValueError("pickup navigation is not enabled")
+    if pickup.get("frame_id") != "map":
+        raise ValueError("pickup navigation goals must use the map frame")
+    raw_stations = pickup.get("stations")
+    if not isinstance(raw_stations, list) or len(raw_stations) != 3:
+        raise ValueError("pickup.stations must contain exactly seq35, seq36, seq37")
+
+    def pose(raw, label):
+        if not isinstance(raw, dict) or any(
+            key not in raw for key in ("x", "y", "yaw")
+        ):
+            raise ValueError("{} must contain x, y, and yaw".format(label))
+        values = tuple(float(raw[key]) for key in ("x", "y", "yaw"))
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("{} contains a non-finite value".format(label))
+        return values
+
+    stations = []
+    for raw in raw_stations:
+        if not isinstance(raw, dict):
+            raise ValueError("pickup station must be a mapping")
+        number = int(raw.get("number", 0))
+        transition = raw.get("transition_pose")
+        stations.append(
+            (
+                number,
+                *pose(raw, "seq{} observation pose".format(number)),
+                None
+                if transition is None
+                else pose(transition, "seq{} transition pose".format(number)),
+            )
+        )
+    if [station[0] for station in stations] != [35, 36, 37]:
+        raise ValueError("pickup stations must be ordered exactly 35, 36, 37")
+    if stations[0][4] is not None or any(
+        station[4] is None for station in stations[1:]
+    ):
+        raise ValueError(
+            "seq35 must have no transition; seq36 and seq37 must each have one"
+        )
+    return stations
 
 
 def read_active_route(path):
@@ -971,6 +1022,7 @@ def render_view(
     clearance_point,
     label_points,
     spawn_areas,
+    pickup_stations,
     delivery_goals,
     label_all_execution_waypoints=False,
 ):
@@ -1122,6 +1174,137 @@ def render_view(
                 stroke_fill="white",
             )
 
+    # Conditional pickup navigation is executed after the fitted route ends at
+    # seq35. Draw each turn-completion target and its axis-aligned final leg so
+    # this runtime-only route remains visible without activating it in the
+    # fitted staging YAML.
+    station_by_number = {station[0]: station for station in pickup_stations}
+    for number, goal_x, goal_y, _goal_yaw, transition in pickup_stations:
+        if transition is None:
+            continue
+        previous = station_by_number[number - 1]
+        transition_x, transition_y, _transition_yaw = transition
+        previous_pixel = transform((previous[1], previous[2]))
+        transition_pixel = transform((transition_x, transition_y))
+        goal_pixel = transform((goal_x, goal_y))
+        draw.line(
+            (*previous_pixel, *transition_pixel),
+            fill=PICKUP_TRANSITION_COLOR,
+            width=max(3, scale // 2),
+        )
+        draw.line(
+            (*transition_pixel, *goal_pixel),
+            fill=PICKUP_APPROACH_COLOR,
+            width=max(4, scale // 2 + 1),
+        )
+
+    heading_length = 0.18
+    for number, goal_x, goal_y, goal_yaw, transition in pickup_stations:
+        goal_x_px, goal_y_px = transform((goal_x, goal_y))
+        heading_x, heading_y = transform(
+            (
+                goal_x + heading_length * math.cos(goal_yaw),
+                goal_y + heading_length * math.sin(goal_yaw),
+            )
+        )
+        draw.line(
+            (goal_x_px, goal_y_px, heading_x, heading_y),
+            fill=PICKUP_STATION_COLOR,
+            width=max(3, scale // 2),
+        )
+        station_radius = max(4, scale)
+        draw.ellipse(
+            (
+                goal_x_px - station_radius,
+                goal_y_px - station_radius,
+                goal_x_px + station_radius,
+                goal_y_px + station_radius,
+            ),
+            fill=PICKUP_STATION_COLOR,
+            outline="white",
+            width=max(2, scale // 3),
+        )
+        if label_points:
+            station_label = "seq{} obs".format(number)
+            station_font = load_font(max(11, scale + 4), bold=True)
+            station_text_width, station_text_height = draw.textsize(
+                station_label, font=station_font
+            )
+            if number == 36:
+                station_label_position = (
+                    goal_x_px - station_text_width / 2.0,
+                    goal_y_px - station_radius - station_text_height - 8,
+                )
+            elif number == 37:
+                station_label_position = (
+                    goal_x_px - station_radius - station_text_width - 8,
+                    goal_y_px + station_radius + 3,
+                )
+            else:
+                station_label_position = (
+                    goal_x_px + station_radius + 8,
+                    goal_y_px + station_radius + 5,
+                )
+            draw.text(
+                station_label_position,
+                station_label,
+                fill=PICKUP_STATION_COLOR,
+                font=station_font,
+                stroke_width=2,
+                stroke_fill="white",
+            )
+
+        if transition is None:
+            continue
+        transition_x, transition_y, transition_yaw = transition
+        x, y = transform((transition_x, transition_y))
+        arrow_x, arrow_y = transform(
+            (
+                transition_x + heading_length * math.cos(transition_yaw),
+                transition_y + heading_length * math.sin(transition_yaw),
+            )
+        )
+        draw.line(
+            (x, y, arrow_x, arrow_y),
+            fill=PICKUP_TRANSITION_COLOR,
+            width=max(3, scale // 2),
+        )
+        transition_radius = max(4, scale)
+        draw.polygon(
+            (
+                (x, y - transition_radius),
+                (x + transition_radius, y),
+                (x, y + transition_radius),
+                (x - transition_radius, y),
+            ),
+            fill=PICKUP_TRANSITION_COLOR,
+            outline="white",
+        )
+        if label_points:
+            transition_label = "{}-{} turn".format(number - 1, number)
+            transition_font = load_font(max(11, scale + 4), bold=True)
+            transition_text_width, transition_text_height = draw.textsize(
+                transition_label, font=transition_font
+            )
+            if number == 36:
+                transition_label_position = (
+                    x - transition_radius - transition_text_width - 8,
+                    y + transition_radius + 3,
+                )
+            else:
+                transition_label_position = (
+                    x + transition_radius + 8,
+                    y - transition_radius - transition_text_height - 6,
+                )
+            draw.text(
+                transition_label_position,
+                transition_label,
+                fill=PICKUP_TRANSITION_COLOR,
+                font=transition_font,
+                stroke_width=2,
+                stroke_fill="white",
+            )
+
     heading_length = 0.45
     for label, goal_x, goal_y, goal_yaw, color in delivery_goals:
         x, y = transform((goal_x, goal_y))
@@ -1211,6 +1394,7 @@ def create_figure(
     clearance_point,
     diagnostics,
     spawn_areas,
+    pickup_stations,
     delivery_goals,
 ):
     points = np.asarray([[record[1], record[2]] for record in records])
@@ -1262,6 +1446,7 @@ def create_figure(
         True,
         [],
         [],
+        [],
         label_all_execution_waypoints=True,
     )
 
@@ -1286,7 +1471,74 @@ def create_figure(
             )
         ]
     )
-    crop_points = np.vstack((fitted_points, area_corners, delivery_crop_points))
+    pickup_crop_values = []
+    for _number, x, y, yaw, transition in pickup_stations:
+        pickup_crop_values.extend(
+            (
+                (x, y),
+                (
+                    x + 0.18 * math.cos(yaw),
+                    y + 0.18 * math.sin(yaw),
+                ),
+            )
+        )
+        if transition:
+            transition_x, transition_y, transition_yaw = transition
+            pickup_crop_values.extend(
+                (
+                    (transition_x, transition_y),
+                    (
+                        transition_x
+                        + 0.18 * math.cos(transition_yaw),
+                        transition_y
+                        + 0.18 * math.sin(transition_yaw),
+                    ),
+                )
+            )
+    pickup_crop_points = np.asarray(pickup_crop_values)
+    pickup_detail_points = np.vstack((area_corners, pickup_crop_points))
+    pickup_detail_margin = 0.25
+    pickup_minimum = np.min(pickup_detail_points, axis=0) - pickup_detail_margin
+    pickup_maximum = np.max(pickup_detail_points, axis=0) + pickup_detail_margin
+    pickup_left = max(
+        0, int(math.floor((pickup_minimum[0] - origin_x) / resolution))
+    )
+    pickup_right = min(
+        map_image.width,
+        int(math.ceil((pickup_maximum[0] - origin_x) / resolution)) + 1,
+    )
+    pickup_top = max(
+        0,
+        map_image.height
+        - 1
+        - int(math.ceil((pickup_maximum[1] - origin_y) / resolution)),
+    )
+    pickup_bottom = min(
+        map_image.height,
+        map_image.height
+        - int(math.floor((pickup_minimum[1] - origin_y) / resolution))
+        + 1,
+    )
+    pickup_detail = render_view(
+        map_image,
+        metadata,
+        (pickup_left, pickup_top, pickup_right, pickup_bottom),
+        16,
+        points,
+        sequences,
+        fitted_points,
+        samples,
+        execution_waypoints,
+        intermediate_pass_radius,
+        clearance_point,
+        True,
+        spawn_areas,
+        pickup_stations,
+        [],
+    )
+    crop_points = np.vstack(
+        (fitted_points, area_corners, pickup_crop_points, delivery_crop_points)
+    )
     minimum = np.min(crop_points, axis=0) - margin
     maximum = np.max(crop_points, axis=0) + margin
     left = max(0, int(math.floor((minimum[0] - origin_x) / resolution)))
@@ -1320,21 +1572,30 @@ def create_figure(
         clearance_point,
         True,
         spawn_areas,
+        [],
         delivery_goals,
     )
 
     margin_px = 24
     header = 100
-    footer = 220
-    width = entry_detail.width + zoom.width + 3 * margin_px
-    height = header + max(entry_detail.height, zoom.height) + footer
+    footer = 270
+    detail_gap = 58
+    left_column_width = max(entry_detail.width, pickup_detail.width)
+    left_column_height = entry_detail.height + detail_gap + pickup_detail.height
+    width = left_column_width + zoom.width + 3 * margin_px
+    content_height = max(left_column_height, zoom.height)
+    height = header + content_height + footer
     canvas = Image.new("RGB", (width, height), "white")
     canvas.paste(entry_detail, (margin_px, header))
-    canvas.paste(zoom, (entry_detail.width + 2 * margin_px, header))
+    pickup_title_y = header + entry_detail.height + 18
+    pickup_view_y = pickup_title_y + 40
+    canvas.paste(pickup_detail, (margin_px, pickup_view_y))
+    full_view_x = left_column_width + 2 * margin_px
+    canvas.paste(zoom, (full_view_x, header))
     draw = ImageDraw.Draw(canvas)
     draw.text(
         (margin_px, 16),
-        "Fitted pickup-staging path with sequential move_base goals on math_newest.pgm",
+        "Fitted staging path and conditional pickup approaches on math_newest.pgm",
         fill=(20, 20, 20),
         font=load_font(26, bold=True),
     )
@@ -1345,12 +1606,18 @@ def create_figure(
         font=load_font(18, bold=True),
     )
     draw.text(
-        (entry_detail.width + 2 * margin_px, 65),
+        (margin_px, pickup_title_y),
+        "Seq 35-37 pickup transitions and straight approaches",
+        fill=(35, 35, 35),
+        font=load_font(18, bold=True),
+    )
+    draw.text(
+        (full_view_x, 65),
         "Full fitted route",
         fill=(35, 35, 35),
         font=load_font(18, bold=True),
     )
-    legend_y = header + max(entry_detail.height, zoom.height) + 18
+    legend_y = header + content_height + 18
     legend = [
         ("active input points / original seq", (35, 90, 210)),
         ("original active-point polyline", (235, 139, 28)),
@@ -1367,6 +1634,9 @@ def create_figure(
         ("far_navi cube spawn region", (70, 150, 255)),
         ("mid cube spawn region", (255, 190, 30)),
         ("close_navi cube spawn region", (55, 190, 115)),
+        ("pickup observation pose / heading", PICKUP_STATION_COLOR),
+        ("pickup turn-completion target", PICKUP_TRANSITION_COLOR),
+        ("straight pickup approach leg", PICKUP_APPROACH_COLOR),
         ("cone preparation pose / heading", DELIVERY_ENTRY_COLOR),
         ("food workshop goal / heading", DELIVERY_CLASS_COLORS[0]),
         ("daily workshop goal / heading", DELIVERY_CLASS_COLORS[1]),
@@ -1445,6 +1715,16 @@ def main():
         ),
     )
     parser.add_argument(
+        "--pickup-config",
+        type=Path,
+        default=workspace
+        / "src/smart_factory_mission/config/mission.yaml",
+        help=(
+            "render seq35-37 observation poses and their conditional "
+            "turn-completion targets"
+        ),
+    )
+    parser.add_argument(
         "--route-doc",
         type=Path,
         help=(
@@ -1506,6 +1786,7 @@ def main():
         records = route_records
     sequences = [record[0] for record in records]
     spawn_areas = read_cube_spawn_areas(args.cube_spawn_script)
+    pickup_stations = read_pickup_navigation_goals(args.pickup_config)
     delivery_goals = read_delivery_navigation_goals(args.delivery_goals)
     linear_segments, y_floor_segments = read_fit_constraints(
         args.mission_config, sequences
@@ -1675,6 +1956,7 @@ def main():
             maximum_shift,
         ),
         spawn_areas,
+        pickup_stations,
         delivery_goals,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -1690,6 +1972,14 @@ def main():
             [
                 (label, x, y, yaw)
                 for label, x, y, yaw, _color in delivery_goals
+            ]
+        )
+    )
+    print(
+        "pickup_navigation_goals={}".format(
+            [
+                (number, x, y, yaw, transition)
+                for number, x, y, yaw, transition in pickup_stations
             ]
         )
     )

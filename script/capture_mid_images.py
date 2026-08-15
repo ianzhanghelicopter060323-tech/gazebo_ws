@@ -16,7 +16,7 @@ if __name__ == "__main__":
                 "36",
                 "--route-end-pose",
                 "-1.395",
-                "-0.235",
+                "-0.320",
                 "1.5691910264536908",
                 "--skip-view-alignment",
                 "--count",

@@ -31,16 +31,32 @@ class CandidateStation:
     yaw: float
     scan_positions: tuple
     supplemental_scan_positions: tuple = ()
+    supplemental_pose: tuple = ()
+    transition_pose: tuple = ()
 
-    def pose(self, frame_id):
+    @staticmethod
+    def _pose(frame_id, x, y, yaw):
         goal = PoseStamped()
         goal.header.frame_id = frame_id
         goal.header.stamp = rospy.Time.now()
-        goal.pose.position.x = self.x
-        goal.pose.position.y = self.y
-        goal.pose.orientation.z = math.sin(self.yaw / 2.0)
-        goal.pose.orientation.w = math.cos(self.yaw / 2.0)
+        goal.pose.position.x = x
+        goal.pose.position.y = y
+        goal.pose.orientation.z = math.sin(yaw / 2.0)
+        goal.pose.orientation.w = math.cos(yaw / 2.0)
         return goal
+
+    def pose(self, frame_id):
+        return self._pose(frame_id, self.x, self.y, self.yaw)
+
+    def transition_goal(self, frame_id):
+        if not self.transition_pose:
+            return None
+        return self._pose(frame_id, *self.transition_pose)
+
+    def supplemental_goal(self, frame_id):
+        if not self.supplemental_pose:
+            return None
+        return self._pose(frame_id, *self.supplemental_pose)
 
 
 class PickupPipeline:
@@ -103,12 +119,39 @@ class PickupPipeline:
                     "station {} supplemental_scan_positions must be empty or "
                     "contain five values".format(number)
                 )
+            def optional_pose(key):
+                raw_pose = raw.get(key)
+                if raw_pose is None:
+                    return ()
+                if not isinstance(raw_pose, dict) or any(
+                    field not in raw_pose for field in ("x", "y", "yaw")
+                ):
+                    raise ValueError(
+                        "station {} {} must contain x, y, and yaw".format(
+                            number, key
+                        )
+                    )
+                return tuple(
+                    float(raw_pose[field]) for field in ("x", "y", "yaw")
+                )
+
+            supplemental_pose = optional_pose("supplemental_pose")
+            transition = optional_pose("transition_pose")
+            if bool(supplemental_scan) != bool(supplemental_pose):
+                raise ValueError(
+                    "station {} supplemental_pose and "
+                    "supplemental_scan_positions must be configured together".format(
+                        number
+                    )
+                )
             values = (
                 float(raw["x"]),
                 float(raw["y"]),
                 float(raw["yaw"]),
                 *(float(value) for value in scan),
                 *(float(value) for value in supplemental_scan),
+                *supplemental_pose,
+                *transition,
             )
             if not all(math.isfinite(value) for value in values):
                 raise ValueError("station {} contains non-finite values".format(number))
@@ -120,6 +163,8 @@ class PickupPipeline:
                     values[2],
                     tuple(float(value) for value in scan),
                     tuple(float(value) for value in supplemental_scan),
+                    supplemental_pose=supplemental_pose,
+                    transition_pose=transition,
                 )
             )
         return tuple(stations)
@@ -156,7 +201,14 @@ class PickupPipeline:
         except rospy.ROSException:
             return False
 
-    def _observe(self, station, require_classification, state_machine, preempt):
+    def _observe(
+        self,
+        station,
+        require_classification,
+        state_machine,
+        navigate,
+        preempt,
+    ):
         if preempt():
             raise PickupPreempted("task preempted before cube observation")
         last_message = "no perception response"
@@ -167,6 +219,21 @@ class PickupPipeline:
             )
 
         for pose_index, (pose_name, positions) in enumerate(observation_poses):
+            if pose_index > 0:
+                rospy.logwarn(
+                    "seq%d primary observation exhausted after %d attempts; "
+                    "navigating to the supplemental base and arm pose",
+                    station.number,
+                    self._recognition_retries + 1,
+                )
+                navigate(
+                    station.supplemental_goal(self._frame_id),
+                    states.NAVIGATE_TO_PICKUP_CANDIDATE,
+                    "seq{} primary observation failed after {} attempts; "
+                    "navigating to the supplemental observation pose".format(
+                        station.number, self._recognition_retries + 1
+                    ),
+                )
             state_machine.transition(
                 states.OBSERVE_PICKUP_CANDIDATE,
                 "moving arm to seq{} {} camera observation pose".format(
@@ -183,12 +250,6 @@ class PickupPipeline:
                     ),
                 )
 
-            if pose_index > 0:
-                rospy.logwarn(
-                    "seq%d primary observation exhausted; retrying from the "
-                    "supplemental arm pose",
-                    station.number,
-                )
             for attempt in range(self._recognition_retries + 1):
                 if preempt():
                     raise PickupPreempted("task preempted during cube recognition")
@@ -248,6 +309,17 @@ class PickupPipeline:
     def _choose_target(self, context, state_machine, navigate, preempt):
         for index, station in enumerate(self._stations):
             if index > 0:
+                transition_goal = station.transition_goal(self._frame_id)
+                if transition_goal is not None:
+                    previous_number = self._stations[index - 1].number
+                    navigate(
+                        transition_goal,
+                        states.NAVIGATE_TO_PICKUP_CANDIDATE,
+                        "navigating to seq{}-{} transition pose and completing "
+                        "the entry heading".format(
+                            previous_number, station.number
+                        ),
+                    )
                 navigate(
                     station.pose(self._frame_id),
                     states.NAVIGATE_TO_PICKUP_CANDIDATE,
@@ -259,6 +331,7 @@ class PickupPipeline:
                 station,
                 require_classification=(station.number != 37),
                 state_machine=state_machine,
+                navigate=navigate,
                 preempt=preempt,
             )
             if station.number == 37 or response.detected_class == context.target_class:

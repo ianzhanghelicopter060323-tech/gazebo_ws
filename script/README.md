@@ -1,3 +1,20 @@
+# seq35 单次观察位导航
+
+`run_seq35_observation_once.py` 每次只启动一轮，按正式位置和朝向
+约束沿拟合路径导航到 seq35，并在识别、抓取与锥桶区之前停止。
+默认显示 Gazebo/RViz 和六个橘色标定方块，到达后保持仿真，按
+Ctrl+C 关闭：
+
+```bash
+python3 script/run_seq35_observation_once.py
+```
+
+如果只需自动验证一轮并在到达后立即关闭：
+
+```bash
+python3 script/run_seq35_observation_once.py --headless --exit-after-arrival
+```
+
 # 拾取区观察点数据集自动采集
 
 脚本按下面的顺序重复运行，直到输出目录中存在 40 张匹配图片：
@@ -45,7 +62,7 @@ data/navi_far_tri_try/far_auto_%04i.png
 ```
 
 当前 `capture_mid_images.py` 在脚本内独立配置 seq 36 终点
-`(-1.395, -0.355, 1.5691910264536908)`，并使用机械臂观察位姿
+`(-1.395, -0.320, 1.5691910264536908)`，并使用机械臂观察位姿
 `[0.0, 0.0, 0.55, 2.10, 0.0]`。脚本每次启动时在本次日志目录内
 生成仅到 seq 36 的临时目标配置和拟合路径，不修改工作区中的
 `src/smart_factory_mission/config/pickup_staging_dev.yaml` 或
@@ -152,6 +169,51 @@ python3 script/play_gazebo_world_log.py \
 `spawn_cubes.py`，也不要把 Gazebo 真值反馈给导航逻辑。
 
 ## Gazebo 录制监测与清理
+
+### 100 轮锥桶区前端到端可靠性测试
+
+`run_pre_cone_e2e_trials.py` 每轮启动全新的完整仿真，由原始
+`car3/scripts/spawn_cubes.py` 重新随机分配三个物块的区域和区域内坐标，任务类别也
+按记录下来的随机种子独立随机选择。测试覆盖起点导航、物块识别、候选点切换、视觉
+对齐和抓取，生成的私有任务配置固定在 `OBJECT_GRASPED` 结束，因此不会进入锥桶区：
+
+```bash
+cd /home/ianichinose/gazebo_ws
+python3 script/run_pre_cone_e2e_trials.py
+```
+
+默认执行 100 轮、无 Gazebo GUI，并从任务提交前开始录制可回放的 Gazebo 世界状态。
+录像及镜像的 `trials.csv`、`summary.json` 保存到：
+
+```text
+/home/ianichinose/gazebo_ws/data/teb_pre_cone/
+  pre_cone_e2e_trials_<时间>_seed<随机种子>/
+    round_NNN/gazebo_world_state.log
+    round_NNN/gazebo_world_recording.json
+    round_NNN/gazebo_world_recorder.log
+```
+
+每轮还会在日志目录保存三个物块的真实随机位置 `cube_scene.json`。默认把连续 90 秒
+没有任务阶段或细节进展、导航超时/中止以及对齐失败标记为 `stuck=True`；识别结果会
+与 Gazebo 中目标物块所在的 35/36/37 号位置核对。只检查配置与随机任务序列可运行：
+
+```bash
+python3 script/run_pre_cone_e2e_trials.py --dry-run --seed 20260815
+```
+
+测试启动并打印本轮目录名后，可另开终端只监测该次运行，持续删除既没有卡住、也没有
+识别失效的轮次录像：
+
+```bash
+python3 script/prune_successful_gazebo_recordings.py \
+  --watch --apply \
+  --run pre_cone_e2e_trials_<时间>_seed<随机种子>
+```
+
+锥桶区前测试的清理采用失败关闭策略：只有 `stuck=False`、
+`recognition_failure=False`、随机物块场景已核验且录像清单完整一致时才删除。任一判据
+缺失或未知都会保留录像。该策略只清理三个 Gazebo 录像文件，不删除逐轮日志、
+`cube_scene.json`、`trials.csv` 或汇总文件。
 
 `prune_successful_gazebo_recordings.py` 会同时监测原有 seq35 世界状态录制目录和
 上述锥桶测试录像目录。默认只预览，不删除：

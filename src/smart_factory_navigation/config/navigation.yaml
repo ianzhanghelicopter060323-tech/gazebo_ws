@@ -8,8 +8,13 @@ navigation:
   # separate eight-minute whole-task ceiling.
   goal_timeout: 360.0
   max_retries: 1
-  # Generate and follow 30 fitted navigation goals sequentially. Intermediate
-  # goals advance on a position-only radius; seq35 also checks final yaw.
+  # A tolerance-pass cancels its action before the delivery selector calls
+  # /move_base/make_plan. Wait for move_base to leave ACTIVE/PREEMPTING so the
+  # public planning service does not reject an otherwise valid request.
+  goal_cancel_timeout: 2.0
+  # Generate a 30-point fitted reference and follow its executable goals.
+  # Intermediate goals normally advance on a position-only radius; configured
+  # anchors and seq35 additionally check yaw.
   fitted_waypoints:
     count: 30
     chord_error: 0.05
@@ -21,11 +26,15 @@ navigation:
     # fitted-path anchor, but is not forced into the execution subset: after
     # the current seq 16 adjustment their fitted arc separation is only about
     # 0.05 m, below both the 0.16 m goal-spacing rule and 0.15 m pass radius.
-    required_sequences: [16, 17]
-    # This fitted-route anchor advances only after both position and heading
-    # are correct, fixing the heading before entering the narrow channel.
-    # Seq 1 remains a normal position-only intermediate waypoint.
-    orientation_required_sequences: [17]
+    required_sequences: [1, 16, 17, 18, 21, 22]
+    # These fitted-route anchors advance only after both position and heading
+    # are correct. Seq1 establishes the eastbound heading before the first turn.
+    # Seq17 and seq18 both require position and heading before leaving the
+    # narrow outbound corridor. Seq21 starts the 180-degree turn and must
+    # satisfy both position and
+    # heading. Seq22 remains a required coordinate, but advances on the normal
+    # intermediate pass radius so its following turn is not over-constrained.
+    orientation_required_sequences: [1, 17, 18, 21]
     orientation_yaw_tolerance: 0.15
     # Offline-only geometry constraints used by the path/PNG generator.
     direct_segments:

@@ -1,0 +1,24 @@
+{
+  "round": 2,
+  "task_id": "fixed_cone_e2e_002_a01_1786704551",
+  "world_name": "default",
+  "state_topic": "/sim_task/state",
+  "start_condition": {
+    "type": "task_stage",
+    "task_state": 5,
+    "task_state_name": "NAVIGATE_TO_PICKUP_STAGING"
+  },
+  "status": "complete",
+  "recording_file": "gazebo_world_state.log",
+  "encoding": "zlib",
+  "trigger_progress_m": null,
+  "started_at": "2026-08-14T18:49:55.737+08:00",
+  "started_sim_time": {
+    "secs": 118,
+    "nsecs": 274000000
+  },
+  "stopped_at": "2026-08-14T18:51:59.279+08:00",
+  "size_bytes": 18971477,
+  "error": "",
+  "trigger_task_state": 5
+}

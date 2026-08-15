@@ -44,6 +44,9 @@ DEFAULT_RECORDING_ROOT = (
 )
 SCENE_HELPER = WORKSPACE / "script" / "_setup_cone_move_stress_scene.py"
 NAVIGATION_HELPER = WORKSPACE / "script" / "_run_cone_move_navigation.py"
+ADAPTIVE_DIAGNOSTICS_RECORDER = (
+    WORKSPACE / "script" / "record_adaptive_teb_diagnostics.py"
+)
 GLOBAL_COSTMAP_CONFIG = (
     WORKSPACE
     / "src"
@@ -72,14 +75,29 @@ MOVE_BASE_CONFIG = GLOBAL_COSTMAP_CONFIG.with_name("move_base_params.yaml")
 TEB_LOCAL_PLANNER_CONFIG = GLOBAL_COSTMAP_CONFIG.with_name(
     "teb_local_planner_params.yaml"
 )
+ADAPTIVE_TEB_CONFIG = GLOBAL_COSTMAP_CONFIG.with_name(
+    "adaptive_teb_params.yaml"
+)
+DELIVERY_GOALS_CONFIG = (
+    WORKSPACE
+    / "src"
+    / "smart_factory_mission"
+    / "config"
+    / "delivery_goals.yaml"
+)
+ADAPTIVE_TEB_PLUGIN = (
+    "smart_factory_adaptive_teb/AdaptiveTebLocalPlannerROS"
+)
 NAVIGATION_CONFIG_FILES = (
     e2e.MISSION_CONFIG,
+    DELIVERY_GOALS_CONFIG,
     GLOBAL_COSTMAP_CONFIG,
     GLOBAL_PLANNER_CONFIG,
     COSTMAP_COMMON_CONFIG,
     LOCAL_COSTMAP_CONFIG,
     MOVE_BASE_CONFIG,
     TEB_LOCAL_PLANNER_CONFIG,
+    ADAPTIVE_TEB_CONFIG,
 )
 RUNTIME_PARAMETER_NAMES = (
     "/smart_factory_navigation/navigation/goal_timeout",
@@ -91,6 +109,7 @@ RUNTIME_PARAMETER_NAMES = (
     "/move_base/local_costmap/footprint",
     "/move_base/local_costmap/footprint_padding",
     "/move_base/local_costmap/inflation_layer/inflation_radius",
+    "/move_base/local_costmap/inflation_layer/cost_scaling_factor",
     "/move_base/GlobalPlanner/cost_factor",
     "/move_base/GlobalPlanner/neutral_cost",
     "/move_base/GlobalPlanner/use_dijkstra",
@@ -111,6 +130,9 @@ RUNTIME_PARAMETER_NAMES = (
     "/move_base/TebLocalPlannerROS/viapoints_all_candidates",
     "/move_base/TebLocalPlannerROS/footprint_model/type",
     "/move_base/TebLocalPlannerROS/footprint_model/vertices",
+    # Capture the complete selector and both immutable child profiles in one
+    # document so adaptive runs remain exactly reproducible.
+    "/move_base/AdaptiveTebLocalPlannerROS",
 )
 EXPECTED_SOURCE_ROUNDS = (7, 9, 12, 32)
 DEFAULT_SOURCE_ROUNDS = EXPECTED_SOURCE_ROUNDS
@@ -124,7 +146,25 @@ CSV_FIELDS = (
         "infrastructure_retry_count",
     )
     + e2e.CSV_FIELDS[1:]
-    + ("case_file", "scene_measurement_file", "navigation_parameter_file")
+    + (
+        "case_file",
+        "scene_measurement_file",
+        "navigation_parameter_file",
+        "adaptive_monitor_file",
+        "adaptive_monitor_status",
+        "adaptive_mode_event_count",
+        "adaptive_diagnostic_sample_count",
+        "adaptive_avoidance_entries",
+        "adaptive_avoidance_used",
+        "adaptive_avoidance_command_samples",
+        "adaptive_avoidance_failure_recovery_samples",
+        "adaptive_avoidance_infeasible_samples",
+        "adaptive_baseline_fallback_events",
+        "adaptive_baseline_fallback_samples",
+        "adaptive_baseline_infeasible_samples",
+        "adaptive_both_planners_infeasible_samples",
+        "adaptive_minimum_plan_clearance_m",
+    )
 )
 
 
@@ -204,6 +244,9 @@ def parse_args(argv):
         help="print the current task stage at this wall-clock interval",
     )
     parser.add_argument("--monitor-ready-timeout", type=float, default=15.0)
+    parser.add_argument(
+        "--adaptive-monitor-ready-timeout", type=float, default=15.0
+    )
     parser.add_argument(
         "--gazebo-recording-ready-timeout", type=float, default=15.0
     )
@@ -395,6 +438,7 @@ def validate_args(args):
         "scene_timeout",
         "task_progress_timeout",
         "status_interval",
+        "adaptive_monitor_ready_timeout",
     ):
         if getattr(args, name) <= 0.0:
             raise AutomationError("--{} must be positive".format(name.replace("_", "-")))
@@ -403,6 +447,7 @@ def validate_args(args):
         args.templates.expanduser().resolve(),
         SCENE_HELPER,
         NAVIGATION_HELPER,
+        ADAPTIVE_DIAGNOSTICS_RECORDER,
         *NAVIGATION_CONFIG_FILES,
     ):
         if not path.is_file():
@@ -435,6 +480,22 @@ def new_record(
             "navigation_parameter_file": str(
                 round_dir / "navigation_parameters.json"
             ),
+            "adaptive_monitor_file": str(
+                round_dir / "adaptive_teb_diagnostics.json"
+            ),
+            "adaptive_monitor_status": "not_started",
+            "adaptive_mode_event_count": 0,
+            "adaptive_diagnostic_sample_count": 0,
+            "adaptive_avoidance_entries": 0,
+            "adaptive_avoidance_used": False,
+            "adaptive_avoidance_command_samples": 0,
+            "adaptive_avoidance_failure_recovery_samples": 0,
+            "adaptive_avoidance_infeasible_samples": 0,
+            "adaptive_baseline_fallback_events": 0,
+            "adaptive_baseline_fallback_samples": 0,
+            "adaptive_baseline_infeasible_samples": 0,
+            "adaptive_both_planners_infeasible_samples": 0,
+            "adaptive_minimum_plan_clearance_m": None,
         }
     )
     return record
@@ -540,6 +601,44 @@ def _label_number(value):
     return float(value.replace("p", "."))
 
 
+def configured_avoidance_footprint_half_extent():
+    """Read the declared avoidance polygon before starting Gazebo."""
+    try:
+        document = yaml.safe_load(ADAPTIVE_TEB_CONFIG.read_text(encoding="utf-8"))
+        vertices = document["AdaptiveTebLocalPlannerROS"]["avoidance"][
+            "footprint_model"
+        ]["vertices"]
+        half_extent = max(
+            max(abs(finite(point[0], "avoidance footprint x")),
+                abs(finite(point[1], "avoidance footprint y")))
+            for point in vertices
+        )
+    except (OSError, yaml.YAMLError, KeyError, TypeError, IndexError) as exc:
+        raise AutomationError(
+            "cannot read avoidance footprint from {}: {}".format(
+                ADAPTIVE_TEB_CONFIG, exc
+            )
+        )
+    if half_extent <= 0.0:
+        raise AutomationError("adaptive avoidance footprint must be positive")
+    return half_extent
+
+
+def validate_source_experiment_label(label):
+    """Catch a stale footprint label before opening Gazebo/RViz."""
+    match = re.search(r"(?:^|_)avoidfp_([0-9]+p[0-9]+)(?:_|$)", label)
+    if match is None:
+        return
+    encoded = _label_number(match.group(1))
+    configured = configured_avoidance_footprint_half_extent()
+    if not math.isclose(encoded, configured, rel_tol=0.0, abs_tol=1.0e-9):
+        raise AutomationError(
+            "experiment label avoidance footprint half-extent={} does not "
+            "match {} value={}; Gazebo was not started and no task was "
+            "submitted".format(encoded, ADAPTIVE_TEB_CONFIG, configured)
+        )
+
+
 def validate_runtime_experiment_label(label, parameters):
     """Reject recognized label tokens that disagree with loaded ROS params."""
     if not label:
@@ -586,14 +685,50 @@ def validate_runtime_experiment_label(label, parameters):
         parameters["/move_base/GlobalPlanner/use_dijkstra"]
     ):
         mismatches.append("label requests Dijkstra but use_dijkstra=false")
+    teb_plugins = {
+        "teb_local_planner/TebLocalPlannerROS",
+        ADAPTIVE_TEB_PLUGIN,
+    }
     if re.search(r"(?:^|_)teb(?:_|$)", label) and parameters.get(
         "/move_base/base_local_planner"
-    ) != "teb_local_planner/TebLocalPlannerROS":
+    ) not in teb_plugins:
         mismatches.append(
             "label requests TEB but base_local_planner={}".format(
                 parameters.get("/move_base/base_local_planner")
             )
         )
+    if re.search(r"(?:^|_)adaptive(?:_|$)", label) and parameters.get(
+        "/move_base/base_local_planner"
+    ) != ADAPTIVE_TEB_PLUGIN:
+        mismatches.append(
+            "label requests adaptive TEB but base_local_planner={}".format(
+                parameters.get("/move_base/base_local_planner")
+            )
+        )
+
+    footprint_match = re.search(
+        r"(?:^|_)avoidfp_([0-9]+p[0-9]+)(?:_|$)", label
+    )
+    if footprint_match is not None:
+        adaptive = parameters.get("/move_base/AdaptiveTebLocalPlannerROS")
+        try:
+            vertices = adaptive["avoidance"]["footprint_model"]["vertices"]
+            actual_half_extent = max(
+                max(abs(float(point[0])), abs(float(point[1])))
+                for point in vertices
+            )
+        except (KeyError, TypeError, ValueError, IndexError):
+            mismatches.append("adaptive avoidance footprint is unavailable")
+        else:
+            encoded = _label_number(footprint_match.group(1))
+            if not math.isclose(
+                encoded, actual_half_extent, rel_tol=0.0, abs_tol=1.0e-9
+            ):
+                mismatches.append(
+                    "avoidance footprint half-extent label={} runtime={}".format(
+                        encoded, actual_half_extent
+                    )
+                )
 
     if mismatches:
         raise AutomationError(
@@ -601,6 +736,111 @@ def validate_runtime_experiment_label(label, parameters):
                 "; ".join(mismatches)
             )
         )
+
+
+def adaptive_planner_enabled(parameters):
+    return (
+        parameters.get("/move_base/base_local_planner")
+        == ADAPTIVE_TEB_PLUGIN
+    )
+
+
+def start_adaptive_diagnostics_monitor(args, record, round_dir):
+    """Start a per-round recorder and require the plugin's latched mode topic."""
+    ready_path = round_dir / ".adaptive_teb_monitor.ready"
+    monitor_log_path = round_dir / "adaptive_teb_monitor.log"
+    monitor_log = monitor_log_path.open("w", encoding="utf-8")
+    command = e2e.ros_command(
+        [
+            "python3",
+            str(ADAPTIVE_DIAGNOSTICS_RECORDER),
+            "--output",
+            record["adaptive_monitor_file"],
+            "--ready-file",
+            str(ready_path),
+            "--round",
+            str(record["round"]),
+            "--task-id",
+            record["task_id"],
+        ]
+    )
+    process = None
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=str(WORKSPACE),
+            stdout=monitor_log,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+        deadline = time.monotonic() + args.adaptive_monitor_ready_timeout
+        while time.monotonic() < deadline:
+            if ready_path.is_file():
+                record["adaptive_monitor_status"] = "monitoring"
+                return process, monitor_log, ready_path
+            if process.poll() is not None:
+                raise AutomationError(
+                    "adaptive TEB monitor exited during startup; see {}".format(
+                        monitor_log_path
+                    )
+                )
+            time.sleep(0.1)
+        raise AutomationError(
+            "adaptive TEB mode topic was unavailable for {:.1f}s; see {}".format(
+                args.adaptive_monitor_ready_timeout, monitor_log_path
+            )
+        )
+    except Exception:
+        stop_process_group(process, interrupt_timeout=3.0)
+        monitor_log.close()
+        raise
+
+
+def add_adaptive_diagnostics_result(record):
+    if record["adaptive_monitor_status"] == "disabled":
+        return
+    path = Path(record["adaptive_monitor_file"])
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        record["adaptive_monitor_status"] = "manifest_unavailable"
+        return
+    if (
+        payload.get("status") != "complete"
+        or payload.get("task_id") != record["task_id"]
+        or payload.get("round") != record["round"]
+    ):
+        record["adaptive_monitor_status"] = "manifest_invalid"
+        return
+    summary = payload.get("summary")
+    if not isinstance(summary, dict):
+        record["adaptive_monitor_status"] = "manifest_invalid"
+        return
+    record["adaptive_monitor_status"] = "complete"
+    mappings = {
+        "adaptive_mode_event_count": "mode_event_count",
+        "adaptive_diagnostic_sample_count": "diagnostic_sample_count",
+        "adaptive_avoidance_entries": "avoidance_entries",
+        "adaptive_avoidance_used": "avoidance_used",
+        "adaptive_avoidance_command_samples": "avoidance_command_samples",
+        "adaptive_avoidance_failure_recovery_samples": (
+            "avoidance_failure_recovery_samples"
+        ),
+        "adaptive_avoidance_infeasible_samples": (
+            "avoidance_infeasible_samples"
+        ),
+        "adaptive_baseline_fallback_events": "baseline_fallback_events",
+        "adaptive_baseline_fallback_samples": "baseline_fallback_samples",
+        "adaptive_baseline_infeasible_samples": "baseline_infeasible_samples",
+        "adaptive_both_planners_infeasible_samples": (
+            "both_planners_infeasible_samples"
+        ),
+        "adaptive_minimum_plan_clearance_m": "minimum_plan_clearance_m",
+    }
+    for record_key, summary_key in mappings.items():
+        if summary_key in summary:
+            record[record_key] = summary[summary_key]
 
 
 def _task_state_snapshot(task_id):
@@ -704,6 +944,9 @@ def run_trial(args, plan, output_dir, recording_run_dir, attempt=1):
     recorder_process = None
     recorder_log = None
     recorder_ready = None
+    adaptive_process = None
+    adaptive_log = None
+    adaptive_ready = None
     phase = "startup"
 
     with Path(record["log_file"]).open("w", encoding="utf-8") as log_file:
@@ -746,6 +989,8 @@ def run_trial(args, plan, output_dir, recording_run_dir, attempt=1):
             validate_runtime_experiment_label(
                 args.experiment_label, runtime_parameters
             )
+            if not adaptive_planner_enabled(runtime_parameters):
+                record["adaptive_monitor_status"] = "disabled"
 
             phase = "scene_setup"
             announce_phase(round_number, phase, started, "restoring fixed cones")
@@ -797,6 +1042,13 @@ def run_trial(args, plan, output_dir, recording_run_dir, attempt=1):
             monitor_process, monitor_log, monitor_ready = e2e.start_cone_monitor(
                 args, record, round_dir
             )
+
+            if adaptive_planner_enabled(runtime_parameters):
+                phase = "adaptive_monitor_startup"
+                announce_phase(round_number, phase, started)
+                adaptive_process, adaptive_log, adaptive_ready = (
+                    start_adaptive_diagnostics_monitor(args, record, round_dir)
+                )
 
             phase = "task"
             announce_phase(
@@ -903,35 +1155,48 @@ def run_trial(args, plan, output_dir, recording_run_dir, attempt=1):
             e2e.append_section(log_file, "automation error", str(exc))
         finally:
             try:
-                stop_process_group(monitor_process, interrupt_timeout=6.0)
-                if monitor_log is not None:
-                    monitor_log.close()
-                if monitor_ready is not None:
+                stop_process_group(adaptive_process, interrupt_timeout=6.0)
+                if adaptive_log is not None:
+                    adaptive_log.close()
+                if adaptive_ready is not None:
                     try:
-                        monitor_ready.unlink()
+                        adaptive_ready.unlink()
                     except FileNotFoundError:
                         pass
             finally:
                 try:
-                    stop_process_group(recorder_process, interrupt_timeout=12.0)
-                    if recorder_log is not None:
-                        recorder_log.close()
-                    if recorder_ready is not None:
+                    stop_process_group(monitor_process, interrupt_timeout=6.0)
+                    if monitor_log is not None:
+                        monitor_log.close()
+                    if monitor_ready is not None:
                         try:
-                            recorder_ready.unlink()
+                            monitor_ready.unlink()
                         except FileNotFoundError:
                             pass
                 finally:
                     try:
-                        stop_owned_launch(launch_process, launch_run_id)
-                    finally:
-                        record["duration_seconds"] = round(
-                            time.monotonic() - started, 3
+                        stop_process_group(
+                            recorder_process, interrupt_timeout=12.0
                         )
+                        if recorder_log is not None:
+                            recorder_log.close()
+                        if recorder_ready is not None:
+                            try:
+                                recorder_ready.unlink()
+                            except FileNotFoundError:
+                                pass
+                    finally:
+                        try:
+                            stop_owned_launch(launch_process, launch_run_id)
+                        finally:
+                            record["duration_seconds"] = round(
+                                time.monotonic() - started, 3
+                            )
 
     monitor, monitor_error = e2e.load_monitor(record)
     e2e.add_monitor_result(record, monitor, monitor_error)
     e2e.add_gazebo_recording_result(record)
+    add_adaptive_diagnostics_result(record)
     return record
 
 
@@ -943,6 +1208,7 @@ def is_retryable_infrastructure_failure(record):
         "scene_setup_error",
         "gazebo_recording_startup_error",
         "cone_monitor_startup_error",
+        "adaptive_monitor_startup_error",
     }:
         return True
     return (
@@ -957,6 +1223,17 @@ def infrastructure_retries_exhausted(record, attempt, startup_retries):
         attempt > startup_retries
         and is_retryable_infrastructure_failure(record)
     )
+
+
+def is_fatal_batch_failure(record):
+    """Reject a batch whose declared experiment no longer matches its config.
+
+    Continuing after this error used to relaunch every remaining scenario
+    without ever submitting a task. In GUI mode that looked like Gazebo was
+    frozen at the start pose, while a manual task (which bypassed this guard)
+    still moved the robot.
+    """
+    return record["status"] == "configuration_validation_error"
 
 
 def make_summary(results, requested_rounds, plans):
@@ -993,6 +1270,18 @@ def make_summary(results, requested_rounds, plans):
             "cone_collision_rounds": sum(
                 bool(record["cone_collision"]) for record in selected
             ),
+            "adaptive_avoidance_rounds": sum(
+                bool(record.get("adaptive_avoidance_used"))
+                for record in selected
+            ),
+            "adaptive_avoidance_entries": sum(
+                int(record.get("adaptive_avoidance_entries", 0))
+                for record in selected
+            ),
+            "adaptive_baseline_fallback_events": sum(
+                int(record.get("adaptive_baseline_fallback_events", 0))
+                for record in selected
+            ),
             "tuning_issue_rounds": len(issue_rounds),
             "requires_further_tuning": bool(issue_rounds),
         }
@@ -1001,6 +1290,8 @@ def make_summary(results, requested_rounds, plans):
         or record["status"] == "result_unavailable"
         or record["cone_monitor_status"] != "complete"
         or record["gazebo_recording_status"] not in {"complete", "disabled"}
+        or record.get("adaptive_monitor_status", "disabled")
+        not in {"complete", "disabled"}
         for record in results
     )
     completed = len(results) == requested_rounds
@@ -1026,6 +1317,25 @@ def make_summary(results, requested_rounds, plans):
         ),
         "cone_collision_rounds": sum(
             bool(record["cone_collision"]) for record in results
+        ),
+        "adaptive_avoidance_rounds": sum(
+            bool(record.get("adaptive_avoidance_used")) for record in results
+        ),
+        "adaptive_avoidance_entries": sum(
+            int(record.get("adaptive_avoidance_entries", 0))
+            for record in results
+        ),
+        "adaptive_baseline_fallback_events": sum(
+            int(record.get("adaptive_baseline_fallback_events", 0))
+            for record in results
+        ),
+        "adaptive_avoidance_infeasible_samples": sum(
+            int(record.get("adaptive_avoidance_infeasible_samples", 0))
+            for record in results
+        ),
+        "adaptive_both_planners_infeasible_samples": sum(
+            int(record.get("adaptive_both_planners_infeasible_samples", 0))
+            for record in results
         ),
         "gazebo_recording_complete_rounds": sum(
             record["gazebo_recording_status"] in {"complete", "disabled"}
@@ -1105,6 +1415,15 @@ def print_summary(summary, csv_path, report_path):
         )
     )
     print(
+        "adaptive_avoidance_rounds={} entries={} avoidance_infeasible_samples={} "
+        "baseline_fallback_events={}".format(
+            summary["adaptive_avoidance_rounds"],
+            summary["adaptive_avoidance_entries"],
+            summary["adaptive_avoidance_infeasible_samples"],
+            summary["adaptive_baseline_fallback_events"],
+        )
+    )
+    print(
         "acceptance_passed={} requires_further_tuning={}".format(
             summary["acceptance_passed"], summary["requires_further_tuning"]
         )
@@ -1132,6 +1451,7 @@ def main(argv=None):
     infrastructure_attempts = []
     try:
         validate_args(args)
+        validate_source_experiment_label(args.experiment_label)
         selected_rounds = (
             args.source_rounds
             if args.source_rounds is not None
@@ -1167,6 +1487,18 @@ def main(argv=None):
             "whole_task_timeout_seconds": args.task_timeout,
             "task_progress_timeout_seconds": args.task_progress_timeout,
             "status_interval_seconds": args.status_interval,
+            "adaptive_monitor_ready_timeout_seconds": (
+                args.adaptive_monitor_ready_timeout
+            ),
+            "adaptive_diagnostics": {
+                "mode_topic": (
+                    "/move_base/AdaptiveTebLocalPlannerROS/adaptive_mode"
+                ),
+                "diagnostics_topic": (
+                    "/move_base/AdaptiveTebLocalPlannerROS/"
+                    "adaptive_diagnostics"
+                ),
+            },
             "startup_retries": args.startup_retries,
             "global_footprint_config": str(GLOBAL_COSTMAP_CONFIG),
             "global_footprint_config_sha256": e2e.sha256(GLOBAL_COSTMAP_CONFIG),
@@ -1311,13 +1643,16 @@ def main(argv=None):
             )
             print(
                 "  status={} success={} pre_nav_failure={} delivery_failure={} "
-                "collision={} cones={} recording={} duration={:.1f}s".format(
+                "collision={} cones={} adaptive_entries={} adaptive_infeasible={} "
+                "recording={} duration={:.1f}s".format(
                     record["status"],
                     record["success"],
                     record["preceding_navigation_failure"],
                     record["delivery_navigation_failure"],
                     record["cone_collision"],
                     record["collision_cones"] or "none",
+                    record["adaptive_avoidance_entries"],
+                    record["adaptive_avoidance_infeasible_samples"],
                     record["gazebo_recording_status"],
                     record["duration_seconds"],
                 ),
@@ -1328,6 +1663,15 @@ def main(argv=None):
                     "aborting batch after logical round {} failed all {} "
                     "infrastructure startup attempts (last status: {})".format(
                         plan["round"], args.startup_retries + 1, record["status"]
+                    )
+                )
+            if is_fatal_batch_failure(record):
+                raise AutomationError(
+                    "aborting batch after configuration validation failed in "
+                    "logical round {}; no task was submitted. Fix the "
+                    "experiment label or restore the intended configuration "
+                    "before retrying: {}".format(
+                        plan["round"], record["message"]
                     )
                 )
             if plan["round"] < len(plans) and args.restart_settle:

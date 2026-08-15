@@ -1,6 +1,7 @@
 """Mission-facing client for the navigation Action boundary."""
 
 import math
+import time
 
 import actionlib
 import rospy
@@ -92,7 +93,18 @@ class NavigationClient:
             frame_id=frame_id,
         )
 
-    def _call(self, goal, feedback_cb=None, preempt_requested=None):
+    def _call(
+        self,
+        goal,
+        feedback_cb=None,
+        preempt_requested=None,
+        timeout=None,
+    ):
+        if timeout is not None:
+            timeout = float(timeout)
+            if not math.isfinite(timeout) or timeout <= 0.0:
+                raise ValueError("navigation request timeout must be positive")
+        deadline = None if timeout is None else time.monotonic() + timeout
         callback = None
         if feedback_cb is not None:
             callback = lambda message: feedback_cb(
@@ -120,9 +132,22 @@ class NavigationClient:
             self.last_result = result
             return result
 
+        def cancel_for_timeout():
+            self._client.cancel_goal()
+            self._client.wait_for_result(rospy.Duration(1.0))
+            result = NavigationResult(
+                success=False,
+                error_code=error_codes.NAVIGATION_TIMEOUT,
+                message="navigation request exceeded {:.1f}s".format(timeout),
+            )
+            self.last_result = result
+            return result
+
         while not rospy.is_shutdown():
             if preempt_requested is not None and preempt_requested():
                 return cancel_for_preempt()
+            if deadline is not None and time.monotonic() >= deadline:
+                return cancel_for_timeout()
             finished = self._client.wait_for_result(
                 rospy.Duration(self._poll_period)
             )
@@ -131,6 +156,8 @@ class NavigationClient:
             # in-process navigation behavior.
             if preempt_requested is not None and preempt_requested():
                 return cancel_for_preempt()
+            if deadline is not None and time.monotonic() >= deadline:
+                return cancel_for_timeout()
             if finished:
                 break
         if rospy.is_shutdown():
@@ -160,6 +187,7 @@ class NavigationClient:
         preempt_requested=None,
         position_tolerance=0.0,
         yaw_tolerance=0.0,
+        timeout=None,
     ):
         goal = NavigateGoal()
         goal.command = NavigateGoal.NAVIGATE_POSE
@@ -167,7 +195,12 @@ class NavigationClient:
         goal.target_pose = pose
         goal.position_tolerance = float(position_tolerance)
         goal.yaw_tolerance = float(yaw_tolerance)
-        return self._call(goal, feedback_cb, preempt_requested)
+        return self._call(
+            goal,
+            feedback_cb,
+            preempt_requested,
+            timeout=timeout,
+        )
 
     def align_for_grasp(
         self,

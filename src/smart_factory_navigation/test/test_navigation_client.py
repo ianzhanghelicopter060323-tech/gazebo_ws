@@ -107,6 +107,21 @@ class NavigationClientTest(unittest.TestCase):
         self.assertAlmostEqual(0.04, goal.position_tolerance)
         self.assertAlmostEqual(math.radians(5.0), goal.yaw_tolerance)
 
+    def test_pose_request_timeout_cancels_only_that_action(self):
+        action_client = FakeActionClient(successful_result())
+        client = NavigationClient(action_client=action_client)
+
+        with mock.patch(
+            "smart_factory_navigation.client.time.monotonic",
+            side_effect=(100.0, 131.0),
+        ):
+            result = client.navigate_pose(PoseStamped(), timeout=30.0)
+
+        self.assertFalse(result.success)
+        self.assertEqual(error_codes.NAVIGATION_TIMEOUT, result.error_code)
+        self.assertIn("30.0s", result.message)
+        self.assertEqual(1, action_client.cancel_calls)
+
     def test_localized_pose_preserves_frame_and_yaw(self):
         action_client = FakeActionClient(successful_result(pose_valid=True))
         client = NavigationClient(action_client=action_client)

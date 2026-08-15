@@ -24,6 +24,7 @@ DEFAULT_FIXED_CONE_E2E_ROOT = (
     WORKSPACE / "data" / "cone_zone" / "end_to_end_stress"
 )
 DEFAULT_PRE_NAVIGATION_ROOT = WORKSPACE / "data" / "pre_navigation_test"
+DEFAULT_PRE_CONE_E2E_ROOT = WORKSPACE / "data" / "teb_pre_cone"
 DEFAULT_LOGS_ROOT = WORKSPACE / "script" / "logs"
 ROUND_PATTERN = re.compile(r"round_(\d+)$")
 RECORDING_FILES = (
@@ -44,7 +45,8 @@ def parse_args(argv):
         description=(
             "remove legacy Gazebo world recordings after a correct successful "
             "grasp, and navigation/cone-test world recordings only after a "
-            "fully error-free round"
+            "fully error-free round; pre-cone recordings are removed only when "
+            "both stuck and recognition-failure classifiers are explicitly false"
         )
     )
     parser.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT)
@@ -69,6 +71,11 @@ def parse_args(argv):
         "--fixed-cone-e2e-root",
         type=Path,
         default=DEFAULT_FIXED_CONE_E2E_ROOT,
+    )
+    parser.add_argument(
+        "--pre-cone-root",
+        type=Path,
+        default=DEFAULT_PRE_CONE_E2E_ROOT,
     )
     parser.add_argument("--logs-root", type=Path, default=DEFAULT_LOGS_ROOT)
     parser.add_argument(
@@ -159,6 +166,14 @@ def fixed_cone_e2e_log_run_name(recording_run_name):
 def pre_navigation_log_run_name(recording_run_name):
     if not re.fullmatch(
         r"pre_navigation_trials_\d{8}_\d{6}_ros\d+", recording_run_name
+    ):
+        return None
+    return recording_run_name
+
+
+def pre_cone_e2e_log_run_name(recording_run_name):
+    if not re.fullmatch(
+        r"pre_cone_e2e_trials_\d{8}_\d{6}_seed\d+", recording_run_name
     ):
         return None
     return recording_run_name
@@ -357,6 +372,19 @@ def evaluate_cone_video_round(run_dir, round_dir, row):
 def evaluate_fixed_cone_e2e_round(run_dir, round_dir, row):
     result = evaluate_cone_video_round(run_dir, round_dir, row)
     result["dataset"] = "fixed_cone_e2e_world"
+    adaptive_status = row.get("adaptive_monitor_status") if row else None
+    # Older, pre-adaptive result tables do not contain this column. New runs
+    # explicitly advertise it and must prove the adaptive diagnostic recorder
+    # completed before their successful world-state recording can be pruned.
+    if (
+        row is not None
+        and "adaptive_monitor_status" in row
+        and adaptive_status not in {"complete", "disabled"}
+        and result["eligible_for_recording_deletion"]
+    ):
+        result["eligible_for_recording_deletion"] = False
+        result["reason"] = "adaptive_monitor_incomplete"
+    result["adaptive_monitor_status"] = adaptive_status
     return result
 
 
@@ -570,6 +598,99 @@ def evaluate_pre_navigation_round(run_dir, round_dir, row):
     return result
 
 
+def pre_cone_e2e_recording_checks(round_dir, row):
+    """Delete only recordings explicitly classified as neither target failure."""
+    recording_path = round_dir / "gazebo_world_state.log"
+    manifest_path = round_dir / "gazebo_world_recording.json"
+    manifest = load_json(manifest_path)
+    recording_size = (
+        recording_path.stat().st_size if recording_path.is_file() else 0
+    )
+    expected_path = str(recording_path.resolve())
+    manifest_output = manifest.get("recording_file") if manifest else None
+    manifest_size = parse_strict_int(manifest.get("size_bytes")) if manifest else None
+    csv_size = (
+        parse_strict_int(row.get("gazebo_recording_size_bytes")) if row else None
+    )
+    start_condition = manifest.get("start_condition", {}) if manifest else {}
+    return (
+        (row is not None, "trial_result_missing"),
+        (
+            parse_strict_bool(row.get("stuck")) is False if row else False,
+            "stuck_or_unknown",
+        ),
+        (
+            parse_strict_bool(row.get("recognition_failure")) is False
+            if row else False,
+            "recognition_failure_or_unknown",
+        ),
+        (
+            row.get("cube_scene_status") == "complete" if row else False,
+            "random_cube_scene_unverified",
+        ),
+        (
+            row.get("gazebo_recording_status") == "complete" if row else False,
+            "gazebo_recording_incomplete",
+        ),
+        (manifest is not None, "gazebo_recording_manifest_invalid"),
+        (
+            manifest.get("status") == "complete" if manifest else False,
+            "gazebo_recording_manifest_incomplete",
+        ),
+        (
+            start_condition.get("type") == "immediate",
+            "gazebo_recording_start_condition_invalid",
+        ),
+        (
+            manifest.get("task_id") == row.get("task_id") if manifest and row else False,
+            "gazebo_recording_task_mismatch",
+        ),
+        (
+            row.get("gazebo_recording_path") == expected_path if row else False,
+            "gazebo_recording_csv_path_mismatch",
+        ),
+        (
+            manifest_output == recording_path.name,
+            "gazebo_recording_manifest_path_mismatch",
+        ),
+        (recording_size > 0, "gazebo_recording_missing_or_empty"),
+        (
+            manifest_size == recording_size,
+            "gazebo_recording_manifest_size_mismatch",
+        ),
+        (csv_size == recording_size, "gazebo_recording_csv_size_mismatch"),
+    )
+
+
+def evaluate_pre_cone_e2e_round(run_dir, round_dir, row):
+    candidates = recording_candidates(round_dir, RECORDING_FILES)
+    result = base_result("pre_cone_e2e_world", run_dir, round_dir, candidates)
+    checks = pre_cone_e2e_recording_checks(round_dir, row)
+    failed = next((reason for passed, reason in checks if not passed), None)
+    result.update(
+        {
+            "task_id": row.get("task_id") if row else None,
+            "task_success": (
+                parse_strict_bool(row.get("success")) if row else None
+            ),
+            "stuck": parse_strict_bool(row.get("stuck")) if row else None,
+            "stuck_reason": row.get("stuck_reason") if row else None,
+            "recognition_failure": (
+                parse_strict_bool(row.get("recognition_failure"))
+                if row else None
+            ),
+            "recognition_status": row.get("recognition_status") if row else None,
+            "cube_scene_status": row.get("cube_scene_status") if row else None,
+            "gazebo_recording_status": (
+                row.get("gazebo_recording_status") if row else None
+            ),
+            "eligible_for_recording_deletion": failed is None,
+            "reason": failed or "no_stuck_and_no_recognition_failure",
+        }
+    )
+    return result
+
+
 def selected_run_dirs(data_root, requested_runs, name_parser=log_run_name):
     if requested_runs:
         return [data_root / name for name in requested_runs]
@@ -684,6 +805,10 @@ def process(args, emit=True):
         if fixed_cone_e2e_root_arg
         else None
     )
+    pre_cone_root_arg = getattr(args, "pre_cone_root", None)
+    pre_cone_root = (
+        pre_cone_root_arg.expanduser().resolve() if pre_cone_root_arg else None
+    )
     logs_root = args.logs_root.expanduser().resolve()
     if not logs_root.is_dir():
         raise CleanupError("logs root does not exist: {}".format(logs_root))
@@ -695,17 +820,19 @@ def process(args, emit=True):
             stress_root,
             pre_navigation_root,
             fixed_cone_e2e_root,
+            pre_cone_root,
         )
         if root and root.is_dir()
     ]
     if not available_roots:
         raise CleanupError(
-            "no recording root exists (checked {}, {}, {}, {}, and {})".format(
+            "no recording root exists (checked {}, {}, {}, {}, {}, and {})".format(
                 data_root,
                 cone_root or "disabled",
                 stress_root or "disabled",
                 pre_navigation_root or "disabled",
                 fixed_cone_e2e_root or "disabled",
+                pre_cone_root or "disabled",
             )
         )
 
@@ -733,6 +860,11 @@ def process(args, emit=True):
             fixed_cone_e2e_root, logs_root, args.runs, args.apply,
             fixed_cone_e2e_log_run_name, evaluate_fixed_cone_e2e_round,
             CONE_RECORDING_FILES, emit))
+    if pre_cone_root is not None and pre_cone_root.is_dir():
+        results.extend(process_root(
+            pre_cone_root, logs_root, args.runs, args.apply,
+            pre_cone_e2e_log_run_name, evaluate_pre_cone_e2e_round,
+            RECORDING_FILES, emit))
     report_root = None
     if args.runs:
         # A targeted cleanup report belongs beside the selected run.  This is
@@ -742,6 +874,7 @@ def process(args, emit=True):
             (
                 root
                 for root in (
+                    pre_cone_root,
                     fixed_cone_e2e_root,
                     pre_navigation_root,
                     stress_root,
@@ -763,6 +896,7 @@ def process(args, emit=True):
                 data_root,
                 pre_navigation_root,
                 fixed_cone_e2e_root,
+                pre_cone_root,
             )
             if root is not None and root.is_dir()
         )
@@ -853,8 +987,8 @@ def watch(args):
     mode = "DELETE" if args.apply else "DRY RUN"
     try:
         print(
-            "Watching legacy, cone-video, cone-stress, pre-navigation, and "
-            "fixed-cone end-to-end "
+            "Watching legacy, cone-video, cone-stress, pre-navigation, "
+            "pre-cone, and fixed-cone end-to-end "
             "roots every {:.1f}s "
             "(mode={}, pid={}). Press Ctrl-C to stop.".format(
                 args.interval, mode, os.getpid()), flush=True)

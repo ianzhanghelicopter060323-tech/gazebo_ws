@@ -15,10 +15,11 @@ local_costmap:
   height: 3.0
   resolution: 0.05
   transform_tolerance: 10
-  # Slightly narrower than the shared/global 0.20 m band. This changes only
-  # local soft costs; the hard footprint and global path stay unchanged.
+  # Override both shared/global inflation values. This isolates the wide-route
+  # experiment to GlobalPlanner and preserves the validated local cost field.
   inflation_layer:
     inflation_radius: 0.18
+    cost_scaling_factor: 15.0
   plugins:
     - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
     - {name: inflation_layer, type: "costmap_2d::InflationLayer"}

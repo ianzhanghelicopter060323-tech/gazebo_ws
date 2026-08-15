@@ -18,6 +18,11 @@ from smart_factory_mission.goal_provider import (
     GoalUnavailable,
     create_goal_provider,
 )
+from smart_factory_mission.delivery_entry_selector import (
+    EntrySelectionPreempted,
+    EntrySelectionUnavailable,
+    RosDeliveryEntrySelector,
+)
 from smart_factory_mission.pickup_pipeline import (
     PickupFailure,
     PickupPipeline,
@@ -40,6 +45,7 @@ class MissionServer:
         pipeline_stop_after=None,
         pickup_pipeline=None,
         goal_provider=None,
+        delivery_entry_selector=None,
         navigation=None,
         navigation_wait_timeout=None,
         state_publisher=None,
@@ -83,6 +89,11 @@ class MissionServer:
         if self._goal_provider is None:
             provider_type = rospy.get_param("~goal_source", "development")
             self._goal_provider = create_goal_provider(provider_type)
+        self._delivery_entry_selector = delivery_entry_selector
+        if self._delivery_entry_selector is None:
+            self._delivery_entry_selector = RosDeliveryEntrySelector(
+                rospy.get_param("~delivery/entry_selector", {})
+            )
         self._completed_results = OrderedDict()
 
         self._navigation_wait_timeout = float(
@@ -237,6 +248,7 @@ class MissionServer:
         detail,
         position_tolerance=0.0,
         yaw_tolerance=0.0,
+        timeout=None,
     ):
         state_machine.transition(stage, detail)
         call = (
@@ -256,6 +268,7 @@ class MissionServer:
                 {
                     "position_tolerance": position_tolerance,
                     "yaw_tolerance": yaw_tolerance,
+                    "timeout": timeout,
                 }
             )
         result = call(pose, **call_arguments)
@@ -267,6 +280,132 @@ class MissionServer:
         raise PickupFailure(
             self._mission_navigation_error(result.error_code),
             result.message,
+        )
+
+    @staticmethod
+    def _is_navigation_timeout(exc):
+        return exc.error_code == error_codes.NAVIGATION_TIMEOUT
+
+    def _navigate_delivery_channel(
+        self,
+        context,
+        state_machine,
+        destination,
+        safe_entry_pose,
+    ):
+        """Follow rolling goals, with bounded timeout rollback/reselection."""
+        selector = self._delivery_entry_selector
+        completed_waypoints = 0
+        reselections = 0
+        reached_waypoints = []
+        force_selection = False
+
+        def rollback_to_previous(reason):
+            nonlocal reselections, force_selection
+            if reselections >= selector.channel_max_reselections:
+                raise reason
+            reselections += 1
+            if reached_waypoints:
+                rollback_pose = reached_waypoints[-1]
+                rospy.logwarn(
+                    "delivery channel timeout; rolling back to the previous "
+                    "confirmed waypoint before reselection %d/%d",
+                    reselections,
+                    selector.channel_max_reselections,
+                )
+                self._navigate_pose(
+                    context,
+                    state_machine,
+                    rollback_pose,
+                    states.NAVIGATE_TO_DELIVERY,
+                    "rolling back to the previous confirmed channel "
+                    "waypoint before selecting another path",
+                    position_tolerance=(
+                        selector.channel_waypoint_position_tolerance
+                    ),
+                    yaw_tolerance=selector.channel_waypoint_yaw_tolerance,
+                    timeout=selector.channel_rollback_timeout,
+                )
+            else:
+                # The only previous pose is preparation pose 2. Re-entering it
+                # can pull the global plan back into the preceding corridor, so
+                # keep the current pose and only choose another candidate.
+                rospy.logwarn(
+                    "first delivery channel waypoint timed out; preparation "
+                    "pose 2 rollback is disabled, reselecting from the current "
+                    "pose (%d/%d)",
+                    reselections,
+                    selector.channel_max_reselections,
+                )
+            force_selection = True
+
+        while completed_waypoints <= selector.channel_max_waypoints:
+            channel_pose = selector.resolve_channel_waypoint(
+                destination.pose,
+                safe_entry_pose,
+                completed_waypoints,
+                preempt_requested=self._server.is_preempt_requested,
+                force_selection=force_selection,
+            )
+            force_selection = False
+
+            if channel_pose is not None:
+                if completed_waypoints >= selector.channel_max_waypoints:
+                    raise EntrySelectionUnavailable(
+                        "delivery channel remains constrained after {} "
+                        "rolling waypoints; refusing an unsafe direct-goal "
+                        "handoff".format(selector.channel_max_waypoints)
+                    )
+                try:
+                    self._navigate_pose(
+                        context,
+                        state_machine,
+                        channel_pose,
+                        states.NAVIGATE_TO_DELIVERY,
+                        "navigating through laser-selected wide channel "
+                        "waypoint {}/{}".format(
+                            completed_waypoints + 1,
+                            selector.channel_max_waypoints,
+                        ),
+                        position_tolerance=(
+                            selector.channel_waypoint_position_tolerance
+                        ),
+                        yaw_tolerance=selector.channel_waypoint_yaw_tolerance,
+                        timeout=selector.channel_waypoint_timeout,
+                    )
+                except PickupFailure as exc:
+                    if not self._is_navigation_timeout(exc):
+                        raise
+                    selector.reject_channel_waypoint(channel_pose)
+                    rollback_to_previous(exc)
+                    continue
+                reached_waypoints.append(channel_pose)
+                completed_waypoints += 1
+                continue
+
+            try:
+                self._navigate_pose(
+                    context,
+                    state_machine,
+                    destination.pose,
+                    states.NAVIGATE_TO_DELIVERY,
+                    "dynamic channel selection complete; ordinary "
+                    "multi-topology TEB navigating to the workshop "
+                    "neighbourhood",
+                    position_tolerance=(
+                        selector.channel_handoff_position_tolerance
+                    ),
+                    yaw_tolerance=selector.channel_handoff_yaw_tolerance,
+                    timeout=selector.channel_handoff_timeout,
+                )
+                return
+            except PickupFailure as exc:
+                if not self._is_navigation_timeout(exc):
+                    raise
+                rollback_to_previous(exc)
+
+        raise EntrySelectionUnavailable(
+            "delivery channel reselection ended without a safe handoff"
         )
 
     def _continue_after_arrival(self, context, state_machine, arrival_message):
@@ -315,18 +454,49 @@ class MissionServer:
                 "selecting workshop from received target class",
             )
             destination = self._goal_provider.get_delivery_destination(context)
-            context.delivery_entry_goal = destination.entry_pose
+            if self._delivery_entry_selector.requires_approach:
+                self._navigate_pose(
+                    context,
+                    state_machine,
+                    destination.entry_pose,
+                    states.NAVIGATE_TO_DELIVERY,
+                    "approaching cone entry until obstacles are laser-visible",
+                    position_tolerance=(
+                        self._delivery_entry_selector
+                        .approach_position_tolerance
+                    ),
+                    yaw_tolerance=destination.entry_yaw_tolerance,
+                )
+            safe_entry_pose = self._delivery_entry_selector.resolve(
+                destination.entry_pose,
+                preempt_requested=self._server.is_preempt_requested,
+            )
+            context.delivery_entry_goal = safe_entry_pose
             context.delivery_goal = destination.pose
 
             self._navigate_pose(
                 context,
                 state_machine,
-                destination.entry_pose,
+                safe_entry_pose,
                 states.NAVIGATE_TO_DELIVERY,
-                "navigating to cone entry and enforcing entry heading",
+                "navigating to laser-selected safe cone entry and "
+                "enforcing entry heading",
                 position_tolerance=destination.entry_position_tolerance,
                 yaw_tolerance=destination.entry_yaw_tolerance,
             )
+            if self._delivery_entry_selector.channel_enabled:
+                self._delivery_entry_selector.set_channel_avoidance_lock(True)
+                try:
+                    self._navigate_delivery_channel(
+                        context,
+                        state_machine,
+                        destination,
+                        safe_entry_pose,
+                    )
+                finally:
+                    self._delivery_entry_selector.set_channel_avoidance_lock(
+                        False
+                    )
             self._navigate_pose(
                 context,
                 state_machine,
@@ -351,7 +521,10 @@ class MissionServer:
             self._pickup_pipeline.release(
                 self._server.is_preempt_requested
             )
-        except GoalUnavailable as exc:
+        except EntrySelectionPreempted as exc:
+            self._preempt(context, state_machine, str(exc))
+            return
+        except (GoalUnavailable, EntrySelectionUnavailable) as exc:
             self._abort(
                 context,
                 state_machine,

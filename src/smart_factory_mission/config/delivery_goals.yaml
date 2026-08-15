@@ -12,6 +12,134 @@ delivery:
     # preparation pose primarily prevents a dangerous scrape against the baffle.
     position_tolerance: 0.04
     yaw_tolerance_deg: 10.0
+  # Project the nominal preparation pose using only fresh /scan obstacle
+  # surfaces. The selected point remains an ordinary intermediate move_base
+  # goal; the official GlobalPlanner still owns the complete global path.
+  entry_selector:
+    enabled: true
+    scan_topic: /scan
+    scan_timeout: 0.25
+    scan_wait_timeout: 2.0
+    transform_timeout: 0.20
+    robot_base_frame: base_link
+    # First approach the nominal entry only until this radius. At that point
+    # cone_19 is laser-visible but the robot has not yet entered contact range.
+    approach_position_tolerance: 0.35
+    minimum_beams: 360
+    detection_min_range: 0.08
+    detection_max_range: 1.50
+    candidate_max_shift: 0.30
+    candidate_step: 0.03
+    candidate_angle_samples: 36
+    hard_min_clearance: 0.20
+    desired_clearance: 0.32
+    influence_radius: 0.80
+    clearance_weight: 10.0
+    shift_weight: 1.0
+    # After the entry heading is reached, keep the route in a laser-observed
+    # wide channel instead of immediately letting the distant workshop goal
+    # pull the official global path back through a narrow cone gap.
+    channel_enabled: true
+    # Source rounds 012 and 009 showed that a fixed two/three-goal chain can
+    # still leave a narrow final convergence segment. Every additional check
+    # is conditional: once the official path is wide, no goal is published.
+    # After the tenth goal the path is checked once more; a still-narrow path
+    # aborts safely instead of silently handing it to baseline's small body.
+    # Source round 009 can require more than eight steps when the fan chooses a
+    # long lower route. Ten still bounds runtime; normal runs stop early.
+    channel_max_waypoints: 10
+    # Rolling goals constrain topology rather than a precision pose. The
+    # avoidance lock now prevents the unsafe baseline handoff seen in the
+    # earlier standalone 0.18 m trial, while this tolerance prevents the large
+    # footprint from oscillating at the exact intermediate coordinate.
+    channel_waypoint_position_tolerance: 0.18
+    # 仍允许全向横移避障，但到达滚动点时需基本沿来向路径切线，避免
+    # 车头持续朝向远端、横着穿过锥桶间隙。60deg在source009窄口
+    # 曾使第一个滚动点超时；90deg仍要求朝向大致沿来向，但不强迫
+    # 0.30m方形footprint在窄口内继续旋转。
+    channel_waypoint_yaw_tolerance_deg: 90.0
+    # Dynamic fan waypoints only own the entrance bottleneck. After two points
+    # and 0.90m entry progress, a continuously clear 0.28m onward prefix hands
+    # the remaining route to the ordinary avoidance HCP-TEB.
+    channel_handoff_min_waypoints: 2
+    channel_handoff_min_entry_depth: 0.90
+    channel_handoff_clearance: 0.28
+    # HCP carries the robot close enough that baseline only owns the final
+    # precision correction. A 0.30m handoff left baseline oscillating in
+    # source-round-009; keep multi-topology active until the final 0.15m.
+    channel_handoff_position_tolerance: 0.15
+    channel_handoff_yaw_tolerance_deg: 180.0
+    # GUI墙钟统计：source009零碰撞成功样本中，滚动点最长39.970s、
+    # handoff到厂区最长82.656s；本轮错误路径为92.407s。因此取
+    # 45s/88s，既覆盖历史正常调姿，又能在错误路径晚换路前触发。
+    channel_waypoint_timeout: 45.0
+    channel_handoff_timeout: 88.0
+    channel_rollback_timeout: 45.0
+    # 每次超时回到上一个已到达的动态点并重选；第一个动态点失败时
+    # 上一个点是准备位姿2，按规则只原地重选，不物理回退。
+    channel_max_reselections: 2
+    channel_failed_candidate_exclusion_radius: 0.30
+    # 仅超时强制重选使用：允许从已经陷入的0.16m以上继承瓶颈向外脱困，
+    # 仍要求路径不进一步接近障碍，并在0.25m内恢复到0.20m硬下限。
+    # 正常候选继续使用下方0.198m escape下限。
+    channel_reselection_escape_min_clearance: 0.16
+    channel_make_plan_service: /move_base/make_plan
+    channel_make_plan_wait_timeout: 1.0
+    # Lock the large-footprint multi-topology TEB only across rolling goals;
+    # release it before the precise workshop goal so baseline can converge.
+    channel_avoidance_lock_service: /move_base/AdaptiveTebLocalPlannerROS/set_avoidance_lock
+    channel_avoidance_lock_wait_timeout: 1.0
+    # The intermediate goal is sent to move_base at this exact coordinate.
+    # Do not let make_plan accept a nearby cell that the later action goal
+    # cannot use.
+    channel_make_plan_tolerance: 0.0
+    # Generate polar candidates around the stopped robot. The first rolling
+    # waypoint uses the fixed entry heading so no candidate can return to the
+    # preceding-navigation corridor; later waypoints turn toward the task
+    # destination while retaining the entry-depth half-plane.
+    # The validated fan reaches the wider route without admitting candidates
+    # back in the preceding-navigation corridor. Trials at 70/80 deg and up to
+    # 1.40 m did not recover a safer source-round-009 entry.
+    channel_fan_radii: [0.45, 0.70, 0.95, 1.05]
+    channel_fan_half_angle_deg: 60.0
+    channel_fan_angle_step_deg: 10.0
+    channel_min_forward_progress: 0.20
+    channel_entry_depth_floor: 0.20
+    channel_entry_axis_waypoints: 1
+    # 后续扇形仍随机器人朝终点转动。达到0.90m安全进入深度以前，
+    # 0.20m增量略大于0.18m到达半径，保证实际位置持续深入；达到后
+    # 允许最多0.05m回摆供横向寻找宽路，但候选永远不得退回0.90m以内。
+    channel_min_entry_depth_progress: 0.20
+    channel_entry_depth_backtrack_tolerance: 0.05
+    # Decide whether to intervene from the bottleneck of the first metre of the
+    # official path, rather than from the geometric line to the workshop.
+    channel_trigger_lookahead: 1.00
+    # Retained as the next-segment safety lookahead after each candidate.
+    channel_horizon: 0.55
+    # A 0.342 m path caused an immediate baseline handoff followed by prolonged
+    # oscillation in source round 009. Require the full soft target before
+    # leaving the rolling-goal phase instead of accepting a 2 mm threshold win.
+    channel_trigger_clearance: 0.36
+    # Keep candidate generation feasible at the entrance. The cone-base margin
+    # is enforced by avoidance TEB's footprint distance instead of globally
+    # rejecting every candidate below 0.23 m.
+    channel_hard_min_clearance: 0.20
+    # Laser sees the cone's tapered waist; this larger soft target accounts
+    # for the wider base collision mesh plus the 0.15 m avoidance footprint.
+    channel_desired_clearance: 0.36
+    channel_clearance_weight: 20.0
+    # Small centre-line preference; official path clearance remains dominant.
+    channel_angular_weight: 0.10
+    # Keep route-length cost small: a longer route is acceptable when it
+    # materially improves the official path's bottleneck clearance.
+    channel_path_length_weight: 0.05
+    # A source-round-009 collision occurred on a 0.196m inherited bottleneck,
+    # while disabling the exception forced an infeasible 1.05m first goal.
+    # Admit at most a 2mm inherited drop: reject 0.196m, retain short candidates
+    # at 0.198m or better, and still require recovery to the 0.20m hard floor.
+    channel_escape_distance: 0.25
+    channel_escape_min_clearance: 0.198
+    channel_escape_max_drop: 0.002
   destinations:
     - target_class: 0
       name: food workshop

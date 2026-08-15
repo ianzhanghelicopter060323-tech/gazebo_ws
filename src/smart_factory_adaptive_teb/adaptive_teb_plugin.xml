@@ -1,0 +1,12 @@
+<library path="lib/libsmart_factory_adaptive_teb">
+  <class
+      name="smart_factory_adaptive_teb/AdaptiveTebLocalPlannerROS"
+      type="smart_factory_adaptive_teb::AdaptiveTebLocalPlannerROS"
+      base_class_type="nav_core::BaseLocalPlanner">
+    <description>
+      Laser-driven local planner that keeps a stable single-topology TEB as
+      its baseline and activates a separately configured homotopy-class TEB
+      only when compact obstacles block the current official global plan.
+    </description>
+  </class>
+</library>

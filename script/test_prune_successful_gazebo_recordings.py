@@ -309,6 +309,23 @@ class FixedConeEndToEndCleanupTest(unittest.TestCase):
         for filename in cleanup.CONE_RECORDING_FILES:
             self.assertFalse((self.round_dir / filename).exists())
 
+    def test_new_adaptive_run_requires_complete_diagnostics(self):
+        csv_path = self.log_dir / "trials.csv"
+        with csv_path.open("r", encoding="utf-8", newline="") as csv_file:
+            reader = csv.DictReader(csv_file)
+            fields = list(reader.fieldnames) + ["adaptive_monitor_status"]
+            rows = list(reader)
+        rows[0]["adaptive_monitor_status"] = "manifest_unavailable"
+        with csv_path.open("w", encoding="utf-8", newline="") as csv_file:
+            writer = csv.DictWriter(csv_file, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        _root, results = cleanup.process(self.args(apply=False), emit=False)
+
+        self.assertFalse(results[0]["eligible_for_recording_deletion"])
+        self.assertEqual(results[0]["reason"], "adaptive_monitor_incomplete")
+
     def test_targeted_report_root_follows_existing_fixed_run(self):
         args = self.args(apply=False)
         unrelated_root = Path(self.temporary.name) / "existing_cone_stress"
@@ -555,6 +572,123 @@ class PreNavigationRecordingCleanupTest(unittest.TestCase):
 
         self.assertTrue(results[0]["eligible_for_recording_deletion"])
         self.assertEqual(results[1]["reason"], "navigation_not_successful")
+
+
+class PreConeEndToEndRecordingCleanupTest(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        root = Path(self.temporary.name)
+        self.pre_cone_root = root / "teb_pre_cone"
+        self.logs_root = root / "logs"
+        self.run_name = "pre_cone_e2e_trials_20260815_120000_seed12345"
+        self.run_dir = self.pre_cone_root / self.run_name
+        self.log_dir = self.logs_root / self.run_name
+        self.run_dir.mkdir(parents=True)
+        self.log_dir.mkdir(parents=True)
+
+        fields = (
+            "round", "task_id", "success", "status", "stuck", "stuck_reason",
+            "recognition_failure", "recognition_status", "cube_scene_status",
+            "gazebo_recording_status", "gazebo_recording_path",
+            "gazebo_recording_size_bytes",
+        )
+        rows = []
+        for round_number in range(1, 6):
+            round_dir = self.run_dir / "round_{:03d}".format(round_number)
+            round_dir.mkdir()
+            recording = (round_dir / "gazebo_world_state.log").resolve()
+            recording.write_bytes(b"gazebo-state")
+            (round_dir / "gazebo_world_recording.json").write_text(
+                json.dumps(
+                    {
+                        "task_id": "pre_cone_{}".format(round_number),
+                        "status": "complete",
+                        "start_condition": {"type": "immediate"},
+                        "recording_file": recording.name,
+                        "size_bytes": recording.stat().st_size,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (round_dir / "gazebo_world_recorder.log").write_text(
+                "recorder", encoding="utf-8"
+            )
+            rows.append(
+                {
+                    "round": round_number,
+                    "task_id": "pre_cone_{}".format(round_number),
+                    "success": "True",
+                    "status": "object_grasped",
+                    "stuck": "False",
+                    "stuck_reason": "",
+                    "recognition_failure": "False",
+                    "recognition_status": "correct",
+                    "cube_scene_status": "complete",
+                    "gazebo_recording_status": "complete",
+                    "gazebo_recording_path": str(recording),
+                    "gazebo_recording_size_bytes": recording.stat().st_size,
+                }
+            )
+        rows[1]["stuck"] = "True"
+        rows[1]["stuck_reason"] = "no_task_progress"
+        rows[2]["recognition_failure"] = "True"
+        rows[2]["recognition_status"] = "incorrect"
+        rows[3]["recognition_failure"] = ""
+        # A terminal grasp failure is intentionally prunable when the two
+        # requested diagnostic classifiers are both explicitly clean.
+        rows[4]["success"] = "False"
+        rows[4]["status"] = "task_failed"
+
+        with (self.log_dir / "trials.csv").open(
+            "w", encoding="utf-8", newline=""
+        ) as stream:
+            writer = csv.DictWriter(stream, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def args(self, apply):
+        root = Path(self.temporary.name)
+        return types.SimpleNamespace(
+            data_root=root / "missing_legacy",
+            cone_video_root=root / "missing_cone",
+            cone_stress_root=root / "missing_stress",
+            pre_navigation_root=root / "missing_pre_navigation",
+            fixed_cone_e2e_root=root / "missing_fixed_cone",
+            pre_cone_root=self.pre_cone_root,
+            logs_root=self.logs_root,
+            runs=None,
+            apply=apply,
+        )
+
+    def test_keeps_only_stuck_recognition_failure_or_unknown_rounds(self):
+        _root, results = cleanup.process(self.args(apply=False), emit=False)
+
+        self.assertEqual(len(results), 5)
+        self.assertTrue(results[0]["eligible_for_recording_deletion"])
+        self.assertEqual(results[1]["reason"], "stuck_or_unknown")
+        self.assertEqual(results[2]["reason"], "recognition_failure_or_unknown")
+        self.assertEqual(results[3]["reason"], "recognition_failure_or_unknown")
+        self.assertTrue(results[4]["eligible_for_recording_deletion"])
+
+    def test_apply_deletes_only_explicitly_clean_recordings(self):
+        _root, results = cleanup.process(self.args(apply=True), emit=False)
+
+        for round_number in (1, 5):
+            for filename in cleanup.RECORDING_FILES:
+                self.assertFalse(
+                    (self.run_dir / "round_{:03d}".format(round_number) / filename)
+                    .exists()
+                )
+        for round_number in (2, 3, 4):
+            for filename in cleanup.RECORDING_FILES:
+                self.assertTrue(
+                    (self.run_dir / "round_{:03d}".format(round_number) / filename)
+                    .is_file()
+                )
+        self.assertEqual(sum(len(item["deleted_files"]) for item in results), 6)
 
 
 if __name__ == "__main__":

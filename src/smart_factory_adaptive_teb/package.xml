@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>smart_factory_adaptive_teb</name>
+  <version>0.1.0</version>
+  <description>Laser-driven adaptive single- and multi-topology TEB local planner.</description>
+
+  <maintainer email="ianichinose@todo.todo">ianichinose</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>costmap_2d</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_core</depend>
+  <depend>pluginlib</depend>
+  <depend>roscpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>teb_local_planner</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+
+  <test_depend>rostest</test_depend>
+
+  <export>
+    <nav_core plugin="${prefix}/adaptive_teb_plugin.xml"/>
+  </export>
+</package>

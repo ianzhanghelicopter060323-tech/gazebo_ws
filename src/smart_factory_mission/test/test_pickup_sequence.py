@@ -20,9 +20,24 @@ class PickupSequenceTest(unittest.TestCase):
     def setUp(self):
         self.pipeline = PickupPipeline.__new__(PickupPipeline)
         self.pipeline._frame_id = "map"
-        self.pipeline._stations = tuple(
-            CandidateStation(number, float(number), 0.0, 0.0, (0.0,) * 5)
-            for number in (35, 36, 37)
+        self.pipeline._stations = (
+            CandidateStation(35, 35.0, 0.0, 0.0, (0.0,) * 5),
+            CandidateStation(
+                36,
+                36.0,
+                0.0,
+                0.0,
+                (0.0,) * 5,
+                transition_pose=(35.5, 0.0, 0.0),
+            ),
+            CandidateStation(
+                37,
+                37.0,
+                0.0,
+                0.0,
+                (0.0,) * 5,
+                transition_pose=(36.5, 0.0, 0.0),
+            ),
         )
 
     @staticmethod
@@ -33,7 +48,13 @@ class PickupSequenceTest(unittest.TestCase):
         observations = []
         navigation = []
 
-        def observe(station, require_classification, state_machine, preempt):
+        def observe(
+            station,
+            require_classification,
+            state_machine,
+            navigate,
+            preempt,
+        ):
             observations.append((station.number, require_classification))
             return types.SimpleNamespace(
                 detected_class=observed_classes[station.number]
@@ -47,7 +68,7 @@ class PickupSequenceTest(unittest.TestCase):
                 self._context(target_class),
                 state_machine=object(),
                 navigate=lambda pose, stage, detail: navigation.append(
-                    int(round(pose.pose.position.x))
+                    pose.pose.position.x
                 ),
                 preempt=lambda: False,
             )
@@ -69,7 +90,7 @@ class PickupSequenceTest(unittest.TestCase):
         )
         self.assertEqual(selected, 36)
         self.assertEqual(observations, [(35, True), (36, True)])
-        self.assertEqual(navigation, [36])
+        self.assertEqual(navigation, [35.5, 36.0])
 
     def test_two_mismatches_select_37_without_class_comparison(self):
         selected, observations, navigation = self._run(
@@ -81,12 +102,91 @@ class PickupSequenceTest(unittest.TestCase):
             observations,
             [(35, True), (36, True), (37, False)],
         )
-        self.assertEqual(navigation, [36, 37])
+        self.assertEqual(navigation, [35.5, 36.0, 36.5, 37.0])
+
+    def test_transition_pose_is_loaded_from_station_configuration(self):
+        stations = PickupPipeline._load_stations(
+            [
+                {
+                    "number": 36,
+                    "x": -1.395,
+                    "y": -0.320,
+                    "yaw": 1.57,
+                    "scan_positions": [0.0] * 5,
+                    "transition_pose": {
+                        "x": -1.395,
+                        "y": -0.525,
+                        "yaw": 1.57,
+                    },
+                }
+            ]
+        )
+
+        self.assertEqual(stations[0].transition_pose, (-1.395, -0.525, 1.57))
+
+    def test_incomplete_transition_pose_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "transition_pose"):
+            PickupPipeline._load_stations(
+                [
+                    {
+                        "number": 36,
+                        "x": -1.395,
+                        "y": -0.320,
+                        "yaw": 1.57,
+                        "scan_positions": [0.0] * 5,
+                        "transition_pose": {"x": -1.395, "y": -0.525},
+                    }
+                ]
+            )
+
+    def test_supplemental_base_and_arm_pose_are_loaded_together(self):
+        stations = PickupPipeline._load_stations(
+            [
+                {
+                    "number": 35,
+                    "x": -1.26,
+                    "y": -0.525,
+                    "yaw": 0.0,
+                    "scan_positions": [0.0] * 5,
+                    "supplemental_pose": {
+                        "x": -1.2243,
+                        "y": -0.525,
+                        "yaw": 0.0,
+                    },
+                    "supplemental_scan_positions": [0.1] * 5,
+                }
+            ]
+        )
+
+        self.assertEqual(
+            stations[0].supplemental_pose,
+            (-1.2243, -0.525, 0.0),
+        )
+        self.assertEqual(
+            stations[0].supplemental_scan_positions,
+            (0.1,) * 5,
+        )
+
+    def test_supplemental_arm_pose_requires_base_pose(self):
+        with self.assertRaisesRegex(ValueError, "configured together"):
+            PickupPipeline._load_stations(
+                [
+                    {
+                        "number": 35,
+                        "x": -1.26,
+                        "y": -0.525,
+                        "yaw": 0.0,
+                        "scan_positions": [0.0] * 5,
+                        "supplemental_scan_positions": [0.1] * 5,
+                    }
+                ]
+            )
 
 
 class PickupObservationPoseTest(unittest.TestCase):
     def test_rejected_primary_observation_uses_supplemental_pose(self):
         pipeline = PickupPipeline.__new__(PickupPipeline)
+        pipeline._frame_id = "map"
         pipeline._recognition_retries = 1
         pipeline._manipulation = mock.Mock()
         pipeline._manipulation.move_arm.return_value = True
@@ -102,14 +202,24 @@ class PickupObservationPoseTest(unittest.TestCase):
         primary = (0.0, 0.1, 0.55, 2.1, 0.0)
         supplemental = (0.0, 0.3, 0.6, 1.8, 0.0)
         station = CandidateStation(
-            35, 0.0, 0.0, 0.0, primary, supplemental
+            35,
+            0.0,
+            0.0,
+            0.0,
+            primary,
+            supplemental,
+            supplemental_pose=(0.1, 0.2, 0.3),
         )
+        navigate = mock.Mock()
 
-        with mock.patch("rospy.logwarn"):
+        with mock.patch("rospy.logwarn"), mock.patch(
+            "rospy.Time.now", return_value=rospy.Time()
+        ):
             result = pipeline._observe(
                 station,
                 require_classification=True,
                 state_machine=mock.Mock(),
+                navigate=navigate,
                 preempt=lambda: False,
             )
 
@@ -119,9 +229,16 @@ class PickupObservationPoseTest(unittest.TestCase):
             [mock.call(primary, mock.ANY), mock.call(supplemental, mock.ANY)],
         )
         self.assertEqual(pipeline._locate.call_count, 3)
+        supplemental_goal = navigate.call_args.args[0]
+        self.assertAlmostEqual(supplemental_goal.pose.position.x, 0.1)
+        self.assertAlmostEqual(supplemental_goal.pose.position.y, 0.2)
+        self.assertEqual(
+            navigate.call_args.args[1], states.NAVIGATE_TO_PICKUP_CANDIDATE
+        )
 
     def test_successful_primary_observation_skips_supplemental_pose(self):
         pipeline = PickupPipeline.__new__(PickupPipeline)
+        pipeline._frame_id = "map"
         pipeline._recognition_retries = 1
         pipeline._manipulation = mock.Mock()
         pipeline._manipulation.move_arm.return_value = True
@@ -136,13 +253,21 @@ class PickupObservationPoseTest(unittest.TestCase):
         primary = (0.0, 0.1, 0.55, 2.1, 0.0)
         supplemental = (0.0, 0.3, 0.6, 1.8, 0.0)
         station = CandidateStation(
-            35, 0.0, 0.0, 0.0, primary, supplemental
+            35,
+            0.0,
+            0.0,
+            0.0,
+            primary,
+            supplemental,
+            supplemental_pose=(0.1, 0.2, 0.3),
         )
+        navigate = mock.Mock()
 
         result = pipeline._observe(
             station,
             require_classification=True,
             state_machine=mock.Mock(),
+            navigate=navigate,
             preempt=lambda: False,
         )
 
@@ -151,6 +276,7 @@ class PickupObservationPoseTest(unittest.TestCase):
             primary, mock.ANY
         )
         pipeline._locate.assert_called_once()
+        navigate.assert_not_called()
 
 
 class PickupAlignmentTest(unittest.TestCase):

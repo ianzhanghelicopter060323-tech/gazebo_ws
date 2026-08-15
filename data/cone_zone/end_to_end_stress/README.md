@@ -22,7 +22,7 @@
 source devel/setup.bash
 python3 script/run_fixed_cone_e2e_stress_trials.py \
   --dry-run \
-  --experiment-label teb_dijkstra_ginf_0p20_gscale_15p0_nc66
+  --experiment-label adaptive_teb_avoidfp_0p20_v1
 ```
 
 无界面的正式压力测试：
@@ -31,23 +31,46 @@ python3 script/run_fixed_cone_e2e_stress_trials.py \
 source devel/setup.bash
 python3 script/run_fixed_cone_e2e_stress_trials.py \
   --headless \
-  --experiment-label teb_dijkstra_ginf_0p20_gscale_15p0_nc66
+  --experiment-label adaptive_teb_avoidfp_0p20_v1
 ```
 
 需要观察 Gazebo 时将 `--headless` 改成 `--gui`。脚本默认整任务超时 8 分钟，
 连续 6 分钟没有新的任务阶段或路径点进展时判定卡死并终止该轮。
 
 `--experiment-label` 中已识别的参数会与 ROS 参数服务器中的实际值核对，避免
-目录名与真正加载的配置不一致。当前示例表示 TEB + Dijkstra、全局膨胀半径
-0.20、全局 cost scaling 15.0、neutral cost 66。每轮还会单独保存完整的 TEB、
-GlobalPlanner、global/local costmap 有效参数。
+目录名与真正加载的配置不一致。当前示例表示自适应 TEB，且 avoidance polygon
+的最大半边长为 `0.20 m`（整体 `0.40 × 0.40 m`）；以后修改 footprint 时，标签
+中的 `avoidfp` 也必须同步修改，脚本会在不一致时拒绝开始任务。每轮还会单独
+保存完整的 selector、baseline、avoidance、GlobalPlanner 和 global/local
+costmap 有效参数。
 
 如只想复现一个场景，可覆盖默认选择，例如：
 
 ```bash
 python3 script/run_fixed_cone_e2e_stress_trials.py \
   --source-round 12 --rounds 5 --gui \
-  --experiment-label teb_dijkstra_ginf_0p20_gscale_15p0_nc66
+  --experiment-label adaptive_teb_avoidfp_0p20_v1
+```
+
+## 自适应规划器监控
+
+每轮会自动记录：
+
+- `adaptive_teb_diagnostics.json`：所有模式切换事件、周期诊断采样和最小路径净距；
+- `adaptive_teb_monitor.log`：监控进程自身日志；
+- `trials.csv`：avoidance 进入次数、有效控制采样、HCP 回退、两套规划器均不可行
+  的采样数；
+- `summary.json`：上述统计按整批和场景汇总。
+
+运行终端每 30 秒打印任务阶段，且每轮结束时打印 avoidance 进入与回退次数。
+如需在另一个终端实时观察模式切换，可运行；脚本重启 ROS 后该循环会自动重连：
+
+```bash
+source devel/setup.bash
+while true; do
+  rostopic echo /move_base/AdaptiveTebLocalPlannerROS/adaptive_mode
+  sleep 2
+done
 ```
 
 ## 判定标准
@@ -70,12 +93,18 @@ python3 script/run_fixed_cone_e2e_stress_trials.py \
 python3 script/prune_successful_gazebo_recordings.py
 ```
 
-确认后删除，或在压力测试期间持续清理成功录像：
+确认后删除。压力测试期间建议只监控并清理本次运行；将主脚本输出的
+`fixed_cone_e2e_stress_...` 目录名填入 `RUN_NAME`：
 
 ```bash
-python3 script/prune_successful_gazebo_recordings.py --apply
-python3 script/prune_successful_gazebo_recordings.py --watch --apply
+RUN_NAME=fixed_cone_e2e_stress_YYYYMMDD_HHMMSS_adaptive_teb_avoidfp_0p20_v1
+python3 script/prune_successful_gazebo_recordings.py --run "$RUN_NAME"
+python3 script/prune_successful_gazebo_recordings.py \
+  --run "$RUN_NAME" --watch --apply --interval 5
 ```
+
+新产生的自适应测试结果只有在 `adaptive_monitor_status=complete` 时才允许删除
+成功录像；监控缺失、碰撞、导航失败、卡死或结果不完整的轮次始终保留。
 
 ## 后续调参方向
 

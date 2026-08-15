@@ -70,6 +70,12 @@ def runtime_config():
 
 
 class ArgumentDefaultsTest(unittest.TestCase):
+    def test_navigation_snapshot_includes_dynamic_delivery_goal_config(self):
+        self.assertIn(
+            trials.DELIVERY_GOALS_CONFIG,
+            trials.NAVIGATION_CONFIG_FILES,
+        )
+
     def test_default_is_20_headless_hard_scenario_trials(self):
         args = trials.parse_args([])
 
@@ -85,6 +91,7 @@ class ArgumentDefaultsTest(unittest.TestCase):
         self.assertEqual(args.task_timeout, 480.0)
         self.assertEqual(args.task_progress_timeout, 360.0)
         self.assertEqual(args.status_interval, 30.0)
+        self.assertEqual(args.adaptive_monitor_ready_timeout, 15.0)
 
     def test_navigation_goal_timeout_is_six_minutes(self):
         config_text = NAVIGATION_CONFIG.read_text(encoding="utf-8")
@@ -107,6 +114,22 @@ class ArgumentDefaultsTest(unittest.TestCase):
 
         with self.assertRaisesRegex(automation.AutomationError, "experiment-label"):
             trials.validate_args(args)
+
+    def test_source_footprint_label_is_checked_before_launch(self):
+        with mock.patch.object(
+            trials,
+            "configured_avoidance_footprint_half_extent",
+            return_value=0.20,
+        ):
+            trials.validate_source_experiment_label(
+                "adaptive_teb_avoidfp_0p20_v1"
+            )
+            with self.assertRaisesRegex(
+                automation.AutomationError, "Gazebo was not started"
+            ):
+                trials.validate_source_experiment_label(
+                    "adaptive_teb_avoidfp_0p15_v1"
+                )
 
     def test_end_to_end_readiness_requires_mission_action(self):
         parsed = navigation_helper.parse_args(
@@ -261,6 +284,12 @@ class InfrastructureRetryTest(unittest.TestCase):
         }
 
         self.assertFalse(trials.is_retryable_infrastructure_failure(record))
+        self.assertTrue(trials.is_fatal_batch_failure(record))
+
+    def test_navigation_failure_is_not_a_fatal_batch_configuration_error(self):
+        record = {"status": "task_failed", "message": "move_base aborted"}
+
+        self.assertFalse(trials.is_fatal_batch_failure(record))
 
     def test_final_startup_failure_exhausts_retries(self):
         record = {"status": "startup_error", "message": "Gazebo models missing"}
@@ -347,6 +376,52 @@ class RuntimeIdentityTest(unittest.TestCase):
         with self.assertRaisesRegex(automation.AutomationError, "base_local_planner"):
             trials.validate_runtime_experiment_label("teb", parameters)
 
+    def test_adaptive_teb_label_matches_adaptive_wrapper(self):
+        parameters = self.parameters()
+        parameters["/move_base/base_local_planner"] = trials.ADAPTIVE_TEB_PLUGIN
+        parameters["/move_base/AdaptiveTebLocalPlannerROS"] = {
+            "avoidance": {
+                "footprint_model": {
+                    "vertices": [
+                        [0.10, -0.10],
+                        [0.10, 0.10],
+                        [-0.10, 0.10],
+                        [-0.10, -0.10],
+                    ]
+                }
+            }
+        }
+
+        trials.validate_runtime_experiment_label(
+            "adaptive_teb_avoidfp_0p10", parameters
+        )
+
+    def test_avoidance_footprint_label_rejects_wrong_half_extent(self):
+        parameters = self.parameters()
+        parameters["/move_base/base_local_planner"] = trials.ADAPTIVE_TEB_PLUGIN
+        parameters["/move_base/AdaptiveTebLocalPlannerROS"] = {
+            "avoidance": {
+                "footprint_model": {
+                    "vertices": [[0.08, -0.08], [0.08, 0.08], [-0.08, 0.08]]
+                }
+            }
+        }
+
+        with self.assertRaisesRegex(
+            automation.AutomationError, "footprint half-extent"
+        ):
+            trials.validate_runtime_experiment_label(
+                "adaptive_teb_avoidfp_0p10", parameters
+            )
+
+    def test_adaptive_label_rejects_plain_teb(self):
+        with self.assertRaisesRegex(
+            automation.AutomationError, "adaptive TEB"
+        ):
+            trials.validate_runtime_experiment_label(
+                "adaptive_teb", self.parameters()
+            )
+
     def test_progress_timeout_marker_is_parsed(self):
         output = (
             'prefix\nTASK_PROGRESS_TIMEOUT={"inactive_seconds": 360.2, '
@@ -378,6 +453,79 @@ class TaskProgressTrackerTest(unittest.TestCase):
         feedback.detail = "waypoint 1/30 passed within 0.15 m"
         tracker.update(feedback)
         self.assertEqual(tracker.last_progress, 12.0)
+
+
+class AdaptiveDiagnosticsResultTest(unittest.TestCase):
+    def test_complete_matching_manifest_populates_trial_fields(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "adaptive.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "status": "complete",
+                        "round": 3,
+                        "task_id": "task-3",
+                        "summary": {
+                            "mode_event_count": 9,
+                            "diagnostic_sample_count": 42,
+                            "avoidance_entries": 2,
+                            "avoidance_used": True,
+                            "avoidance_command_samples": 7,
+                            "avoidance_failure_recovery_samples": 1,
+                            "avoidance_infeasible_samples": 2,
+                            "baseline_fallback_events": 1,
+                            "baseline_fallback_samples": 1,
+                            "baseline_infeasible_samples": 0,
+                            "both_planners_infeasible_samples": 0,
+                            "minimum_plan_clearance_m": 0.147,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            record = {
+                "round": 3,
+                "task_id": "task-3",
+                "adaptive_monitor_file": str(path),
+                "adaptive_monitor_status": "monitoring",
+            }
+
+            trials.add_adaptive_diagnostics_result(record)
+
+        self.assertEqual(record["adaptive_monitor_status"], "complete")
+        self.assertEqual(record["adaptive_avoidance_entries"], 2)
+        self.assertTrue(record["adaptive_avoidance_used"])
+        self.assertEqual(record["adaptive_avoidance_infeasible_samples"], 2)
+        self.assertEqual(record["adaptive_baseline_fallback_events"], 1)
+        self.assertEqual(record["adaptive_baseline_fallback_samples"], 1)
+        self.assertAlmostEqual(
+            record["adaptive_minimum_plan_clearance_m"], 0.147
+        )
+
+    def test_mismatched_task_manifest_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "adaptive.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "status": "complete",
+                        "round": 1,
+                        "task_id": "wrong",
+                        "summary": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            record = {
+                "round": 1,
+                "task_id": "expected",
+                "adaptive_monitor_file": str(path),
+                "adaptive_monitor_status": "monitoring",
+            }
+
+            trials.add_adaptive_diagnostics_result(record)
+
+        self.assertEqual(record["adaptive_monitor_status"], "manifest_invalid")
 
 
 class StartupReadinessTest(unittest.TestCase):

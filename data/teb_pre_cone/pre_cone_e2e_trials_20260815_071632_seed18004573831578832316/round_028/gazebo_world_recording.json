@@ -1,0 +1,19 @@
+{
+  "round": 28,
+  "task_id": "pre_cone_028_1786752953",
+  "world_name": "default",
+  "state_topic": "/sim_task/state",
+  "start_condition": {
+    "type": "immediate"
+  },
+  "status": "complete",
+  "recording_file": "gazebo_world_state.log",
+  "encoding": "zlib",
+  "trigger_progress_m": null,
+  "started_at": "2026-08-15T08:16:23.187+08:00",
+  "started_sim_time": null,
+  "stopped_at": "2026-08-15T08:18:25.724+08:00",
+  "size_bytes": 15869621,
+  "error": "",
+  "trigger_task_state": null
+}

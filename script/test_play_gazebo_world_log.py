@@ -1,10 +1,28 @@
 #!/usr/bin/env python3
 
+"""Gazebo world-log playback entry point, plus unit tests.
+
+Run this file directly with a log path to open the recorded world paused in
+Gazebo. Pass ``--run-immediately`` to start its timeline without clicking
+Gazebo's play button. Unit-test discovery still imports the test cases below
+normally.
+"""
+
+import sys
 import types
 import unittest
 from unittest import mock
 
 import play_gazebo_world_log as playback
+
+
+class CommandLineTest(unittest.TestCase):
+    def test_log_file_is_positional_argument(self):
+        path = playback.Path("/tmp/gazebo_world_state.log")
+
+        args = playback.parse_args([str(path)])
+
+        self.assertEqual(args.recording, path)
 
 
 class RenderingEnvironmentTest(unittest.TestCase):
@@ -43,4 +61,4 @@ class RenderingEnvironmentTest(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    sys.exit(playback.main(sys.argv[1:]))

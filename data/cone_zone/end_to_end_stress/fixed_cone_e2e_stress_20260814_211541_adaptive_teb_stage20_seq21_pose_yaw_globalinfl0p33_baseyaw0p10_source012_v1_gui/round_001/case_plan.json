@@ -1,0 +1,153 @@
+{
+  "round": 1,
+  "scenario_id": "source_round_012",
+  "source_round": 12,
+  "source_task_id": "cone_e2e_012_1786480661",
+  "repetition": 1,
+  "target_class": "daily",
+  "target_name": "daily workshop",
+  "switch_distance": 0.22,
+  "destination": {
+    "frame_id": "map",
+    "x": 0.9615546464920044,
+    "y": -1.5715368270874024,
+    "yaw": 1.5825541019439697,
+    "position_tolerance": 0.04,
+    "yaw_tolerance": 0.08726646259971647
+  },
+  "cones": {
+    "cone_10": {
+      "position": {
+        "x": 0.252062,
+        "y": -2.12127,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      }
+    },
+    "cone_11": {
+      "position": {
+        "x": -1.69793,
+        "y": -3.00773,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      }
+    },
+    "cone_12": {
+      "position": {
+        "x": 1.73464,
+        "y": -2.57762,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      }
+    },
+    "cone_13": {
+      "position": {
+        "x": 0.089343,
+        "y": -3.00912,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      }
+    },
+    "cone_14": {
+      "position": {
+        "x": 1.70046,
+        "y": -1.84821,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      }
+    },
+    "cone_15": {
+      "position": {
+        "x": -1.08378,
+        "y": -1.92771,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      }
+    },
+    "cone_16": {
+      "position": {
+        "x": -0.289494,
+        "y": -1.60641,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      }
+    },
+    "cone_17": {
+      "position": {
+        "x": -0.640576,
+        "y": -2.85273,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      }
+    },
+    "cone_18": {
+      "position": {
+        "x": -1.64497,
+        "y": -2.24692,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      }
+    },
+    "cone_19": {
+      "position": {
+        "x": 2.48665,
+        "y": -2.72015,
+        "z": 0.0
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      }
+    }
+  },
+  "schema_version": 1,
+  "task_id": "fixed_cone_e2e_001_a01_1786713341",
+  "attempt": 1
+}

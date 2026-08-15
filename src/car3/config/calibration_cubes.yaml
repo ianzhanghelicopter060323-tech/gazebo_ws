@@ -82,7 +82,7 @@ seq35_stress_problem_spot:
     z: 0.01
   navigation_goal:
     sequence: 35
-    x: -1.2243
+    x: -1.26
     y: -0.525
     yaw: 0.00007722691751649312
 

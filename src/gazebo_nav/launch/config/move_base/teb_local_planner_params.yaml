@@ -24,7 +24,7 @@ TebLocalPlannerROS:
   xy_goal_tolerance: 0.04
   # Exact 0.04 rad alignment caused intermediate waypoints that had already
   # reached their position to oscillate until move_base recovery aborted.
-  yaw_goal_tolerance: 0.15
+  yaw_goal_tolerance: 0.04 # 原0.15
   free_goal_vel: false
 
   teb_autosize: true

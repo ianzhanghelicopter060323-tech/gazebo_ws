@@ -1,0 +1,173 @@
+{
+  "metadata": {
+    "created_at": "2026-08-15T00:12:52+08:00",
+    "test_type": "fixed cone layout, complete pickup-and-delivery pipeline",
+    "experiment_label": "adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui",
+    "template_manifest": "/home/ianichinose/gazebo_ws/script/config/fixed_cone_e2e_rounds_007_009_012_032.json",
+    "template_manifest_sha256": "7f94785c934ae67e6e5cc1435cd80639203e08c297f460429628e672e5395010",
+    "source_rounds": [
+      9
+    ],
+    "schedule": [
+      {
+        "round": 1,
+        "scenario_id": "source_round_009",
+        "source_round": 9,
+        "repetition": 1,
+        "target_class": "daily"
+      }
+    ],
+    "scene_isolation": "only cones are restored; car3, AMCL, and pickup cubes are untouched",
+    "navigation_ready_timeout_seconds": 60.0,
+    "startup_dependency_timeout_seconds": 180.0,
+    "whole_task_timeout_seconds": 480.0,
+    "task_progress_timeout_seconds": 360.0,
+    "status_interval_seconds": 30.0,
+    "adaptive_monitor_ready_timeout_seconds": 15.0,
+    "adaptive_diagnostics": {
+      "mode_topic": "/move_base/AdaptiveTebLocalPlannerROS/adaptive_mode",
+      "diagnostics_topic": "/move_base/AdaptiveTebLocalPlannerROS/adaptive_diagnostics"
+    },
+    "startup_retries": 2,
+    "global_footprint_config": "/home/ianichinose/gazebo_ws/src/gazebo_nav/launch/config/move_base/global_costmap_params.yaml",
+    "global_footprint_config_sha256": "f5668a4fbef830ff1938938df18373865dbe6f6e7e5de0908644f38fbfd4506c",
+    "global_footprint": {
+      "type": "radius",
+      "radius": 0.05,
+      "padding": 0.0
+    },
+    "navigation_config_files": {
+      "/home/ianichinose/gazebo_ws/src/smart_factory_mission/config/mission.yaml": {
+        "sha256": "bddba44f960fecd25759248229ab7ead4e5561f7aa5eb30fbd463c6d23022874"
+      },
+      "/home/ianichinose/gazebo_ws/src/smart_factory_mission/config/delivery_goals.yaml": {
+        "sha256": "0b3c23ba284aa74a72ebbcd06c57629682e2b2aa4878664eeac9fe3dc31c7a33"
+      },
+      "/home/ianichinose/gazebo_ws/src/gazebo_nav/launch/config/move_base/global_costmap_params.yaml": {
+        "sha256": "f5668a4fbef830ff1938938df18373865dbe6f6e7e5de0908644f38fbfd4506c"
+      },
+      "/home/ianichinose/gazebo_ws/src/gazebo_nav/launch/config/move_base/global_planner_params.yaml": {
+        "sha256": "7f71297fe2ee7eb06f4e631c2e8c00512a6d7b72cf835b09630385afb5a40c0e"
+      },
+      "/home/ianichinose/gazebo_ws/src/gazebo_nav/launch/config/move_base/costmap_common_params.yaml": {
+        "sha256": "987a7090a8b84c827b1f1776ff008346a8cb0a8e55246edf9eac172f937044b5"
+      },
+      "/home/ianichinose/gazebo_ws/src/gazebo_nav/launch/config/move_base/local_costmap_params.yaml": {
+        "sha256": "dbb78f440199f6480693790e96baa166c6846bd6348c96f08834328b49871055"
+      },
+      "/home/ianichinose/gazebo_ws/src/gazebo_nav/launch/config/move_base/move_base_params.yaml": {
+        "sha256": "d6dee146033a4ee6ad5888dc5b0680b6f0e682ad24271b0010031148853e31dc"
+      },
+      "/home/ianichinose/gazebo_ws/src/gazebo_nav/launch/config/move_base/teb_local_planner_params.yaml": {
+        "sha256": "bf10d8f870a37a246d90573ad72e1a7d4b875b7ed3714d5ef3fec28f53d3ac3d"
+      },
+      "/home/ianichinose/gazebo_ws/src/gazebo_nav/launch/config/move_base/adaptive_teb_params.yaml": {
+        "sha256": "005172f092e4d9d0297be5969985638c6543f1689a7eba98aa2a5fe2f8981a7c"
+      }
+    },
+    "mission_config": "/home/ianichinose/gazebo_ws/src/smart_factory_mission/config/mission.yaml",
+    "random_spawner": "/home/ianichinose/gazebo_ws/src/car3/scripts/spawn_cubes.py",
+    "random_spawner_sha256": "27c21cf4f31f3dad34176962abdb16d5be02122455e60e9d8320880a29780c92",
+    "gazebo_gui_enabled": true,
+    "gazebo_recording": {
+      "enabled": true,
+      "format": "Gazebo Classic replayable state.log (zlib)",
+      "start_stage": "NAVIGATE_TO_PICKUP_STAGING",
+      "root": "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_stress",
+      "run_dir": "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_stress/fixed_cone_e2e_stress_20260815_001252_adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui"
+    }
+  },
+  "summary": {
+    "requested_rounds": 1,
+    "completed_rounds": 1,
+    "task_successes": 0,
+    "task_failures": 1,
+    "success_rate": 0.0,
+    "preceding_navigation_failures": 0,
+    "delivery_navigation_failures": 1,
+    "cone_collision_rounds": 0,
+    "adaptive_avoidance_rounds": 1,
+    "adaptive_avoidance_entries": 6,
+    "adaptive_baseline_fallback_events": 0,
+    "adaptive_avoidance_infeasible_samples": 0,
+    "adaptive_both_planners_infeasible_samples": 0,
+    "gazebo_recording_complete_rounds": 1,
+    "infrastructure_errors": 0,
+    "acceptance_rule": "every scenario must complete all repetitions without any preceding-navigation failure, delivery-navigation failure, or cone collision",
+    "acceptance_passed": false,
+    "requires_further_tuning": true,
+    "by_scenario": {
+      "source_round_009": {
+        "source_round": 9,
+        "target_class": "daily",
+        "requested_rounds": 1,
+        "completed_rounds": 1,
+        "task_successes": 0,
+        "preceding_navigation_failures": 0,
+        "delivery_navigation_failures": 1,
+        "cone_collision_rounds": 0,
+        "adaptive_avoidance_rounds": 1,
+        "adaptive_avoidance_entries": 6,
+        "adaptive_baseline_fallback_events": 0,
+        "tuning_issue_rounds": 1,
+        "requires_further_tuning": true
+      }
+    }
+  },
+  "trials": [
+    {
+      "round": 1,
+      "task_id": "fixed_cone_e2e_001_a01_1786723972",
+      "target_class": "daily",
+      "success": false,
+      "status": "task_failed",
+      "completed_stage": 250,
+      "error_code": 5,
+      "message": "laser sees a tight delivery corridor (reference clearance 0.141 m at s=0.336 m), but no channel waypoint reaches 0.200 m hard clearance; candidates=52 onward_rejected=0 onward_no_plan=0 no_plan=0 planned_clearance_rejected=0 sector_rejected=52 best_plan=[none] best_onward=[none]",
+      "last_operational_stage": 16,
+      "last_operational_stage_name": "NAVIGATE_TO_DELIVERY",
+      "preceding_navigation_failure": false,
+      "delivery_navigation_failure": true,
+      "cone_collision": false,
+      "collision_cones": "",
+      "direct_contact_cones": "",
+      "moved_or_tilted_cones": "",
+      "cone_monitor_status": "complete",
+      "contact_stream_status": "stopped",
+      "gazebo_recording_status": "complete",
+      "gazebo_recording_path": "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_stress/fixed_cone_e2e_stress_20260815_001252_adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui/round_001/gazebo_world_state.log",
+      "gazebo_recording_size_bytes": 23185127,
+      "gazebo_recording_manifest": "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_stress/fixed_cone_e2e_stress_20260815_001252_adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui/round_001/gazebo_world_recording.json",
+      "move_base_goal_count": 37,
+      "duration_seconds": 197.195,
+      "started_at": "2026-08-15T00:12:52+08:00",
+      "round_dir": "/home/ianichinose/gazebo_ws/script/logs/fixed_cone_e2e_stress_20260815_001252_adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui/round_001",
+      "log_file": "/home/ianichinose/gazebo_ws/script/logs/fixed_cone_e2e_stress_20260815_001252_adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui/round_001/roslaunch.log",
+      "cone_monitor_file": "/home/ianichinose/gazebo_ws/script/logs/fixed_cone_e2e_stress_20260815_001252_adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui/round_001/cone_trial.json",
+      "stress_template_file": "",
+      "scenario_id": "source_round_009",
+      "source_round": 9,
+      "repetition": 1,
+      "attempt": 1,
+      "infrastructure_retry_count": 0,
+      "case_file": "/home/ianichinose/gazebo_ws/script/logs/fixed_cone_e2e_stress_20260815_001252_adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui/round_001/case_plan.json",
+      "scene_measurement_file": "/home/ianichinose/gazebo_ws/script/logs/fixed_cone_e2e_stress_20260815_001252_adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui/round_001/scene_measured.json",
+      "navigation_parameter_file": "/home/ianichinose/gazebo_ws/script/logs/fixed_cone_e2e_stress_20260815_001252_adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui/round_001/navigation_parameters.json",
+      "adaptive_monitor_file": "/home/ianichinose/gazebo_ws/script/logs/fixed_cone_e2e_stress_20260815_001252_adaptive_teb_stage34_monotonicdepth0p20_minobs0p10_userpath_v1_gui/round_001/adaptive_teb_diagnostics.json",
+      "adaptive_monitor_status": "complete",
+      "adaptive_mode_event_count": 43,
+      "adaptive_diagnostic_sample_count": 130,
+      "adaptive_avoidance_entries": 6,
+      "adaptive_avoidance_used": true,
+      "adaptive_avoidance_command_samples": 54,
+      "adaptive_avoidance_failure_recovery_samples": 0,
+      "adaptive_avoidance_infeasible_samples": 0,
+      "adaptive_baseline_fallback_events": 0,
+      "adaptive_baseline_fallback_samples": 0,
+      "adaptive_baseline_infeasible_samples": 0,
+      "adaptive_both_planners_infeasible_samples": 0,
+      "adaptive_minimum_plan_clearance_m": 0.190102
+    }
+  ],
+  "infrastructure_attempts": []
+}

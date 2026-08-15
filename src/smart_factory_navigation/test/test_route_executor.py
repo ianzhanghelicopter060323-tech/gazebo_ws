@@ -451,6 +451,32 @@ class RouteExecutorTest(unittest.TestCase):
         self.assertTrue(navigation.navigate_calls[0].pass_condition())
         self.assertEqual(1, navigation.cancel_calls)
 
+    def test_single_pose_waits_for_cancelled_goal_to_be_inactive(self):
+        executor, navigation, *_ = self._executor(
+            [(NavigationOutcome.PASSED, "inside waypoint tolerances")]
+        )
+        navigation.get_state = mock.Mock(
+            side_effect=[GoalStatus.PREEMPTING, GoalStatus.PREEMPTED]
+        )
+        context = self._context([])
+
+        with mock.patch(
+            "smart_factory_navigation.route_executor.time.sleep"
+        ) as sleep:
+            executor.navigate_pose(
+                context,
+                self._state(context),
+                self._pose(),
+                states.NAVIGATE_POSE,
+                "rolling channel waypoint",
+                position_tolerance=0.12,
+                yaw_tolerance=math.pi,
+            )
+
+        self.assertEqual(1, navigation.cancel_calls)
+        self.assertEqual(2, navigation.get_state.call_count)
+        sleep.assert_called_once_with(0.02)
+
     def test_entry_tolerance_rejects_heading_over_five_degrees(self):
         executor, *_ = self._executor([])
         pose = self._pose(yaw=math.radians(5.01))

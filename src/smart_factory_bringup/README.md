@@ -54,7 +54,8 @@ Do not launch `simulation.launch` beside `full_competition.launch`: the former
 is a component-level debugging entry and both commands would otherwise request
 the same Gazebo/navigation nodes.
 
-Camera-FOV calibration cubes remain opt-in:
+Camera-FOV calibration cubes are disabled by default because they have physical
+collision geometry. Enable them explicitly only for camera calibration:
 
 ```bash
 roslaunch smart_factory_bringup full_competition.launch \
