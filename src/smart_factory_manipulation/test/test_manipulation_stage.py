@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import unittest
+import threading
 from unittest import mock
 
 import rospy
@@ -100,14 +101,25 @@ class ManipulationStageTest(unittest.TestCase):
         self.assertTrue(self.publishers["/gripper_controller/command"].latch)
         self.assertEqual(
             set(self.subscribers),
-            {"/joint_states", "/grasp_attach/ready", "/grasp_attach/state"},
+            {
+                "/joint_states",
+                "/grasp_attach/ready",
+                "/grasp_attach/state",
+                "/grasp_attach/offset",
+            },
         )
 
     def test_move_arm_publishes_trajectory_and_accepts_measured_target(self):
         stage = self._stage(arm_duration=2.5, arm_tolerance=0.03)
         target = [0.2, 0.4, 0.6, 0.8, 1.0]
         measured = [0.21, 0.38, 0.6, 0.82, 0.99]
-        self._publish_joint_state(ManipulationStage.JOINT_NAMES, measured)
+        timer = threading.Timer(
+            0.001,
+            self._publish_joint_state,
+            args=(ManipulationStage.JOINT_NAMES, measured),
+        )
+        timer.start()
+        self.addCleanup(timer.cancel)
 
         self.assertTrue(stage.move_arm(target, lambda: False))
 
@@ -120,7 +132,13 @@ class ManipulationStageTest(unittest.TestCase):
     def test_move_to_grasp_pose_uses_configured_fixed_pose(self):
         stage = self._stage()
         target = [0.1, 0.2, 0.3, 0.4, 0.5]
-        self._publish_joint_state(ManipulationStage.JOINT_NAMES, target)
+        timer = threading.Timer(
+            0.001,
+            self._publish_joint_state,
+            args=(ManipulationStage.JOINT_NAMES, target),
+        )
+        timer.start()
+        self.addCleanup(timer.cancel)
 
         self.assertTrue(stage.move_to_grasp_pose(lambda: False))
 
@@ -130,12 +148,35 @@ class ManipulationStageTest(unittest.TestCase):
     def test_move_to_release_pose_uses_configured_low_pose(self):
         target = [0.0, 0.7, 1.7, 0.5, 0.0]
         stage = self._stage(release_positions=target)
-        self._publish_joint_state(ManipulationStage.JOINT_NAMES, target)
+        timer = threading.Timer(
+            0.001,
+            self._publish_joint_state,
+            args=(ManipulationStage.JOINT_NAMES, target),
+        )
+        timer.start()
+        self.addCleanup(timer.cancel)
 
         self.assertTrue(stage.move_to_release_pose(lambda: False))
 
         command = self.publishers["/arm_controller/command"].messages[-1]
         self.assertEqual(command.points[0].positions, target)
+
+    def test_move_arm_uses_sim_deadline_not_short_generic_wall_timeout(self):
+        stage = self._stage(
+            command_timeout=0.001,
+            arm_wall_timeout=0.2,
+            clock_stall_timeout=0.1,
+        )
+        target = [0.2, 0.4, 0.6, 0.8, 1.0]
+        timer = threading.Timer(
+            0.02,
+            self._publish_joint_state,
+            args=(ManipulationStage.JOINT_NAMES, target),
+        )
+        timer.start()
+        self.addCleanup(timer.cancel)
+
+        self.assertTrue(stage.move_arm(target, lambda: False))
 
     def test_open_gripper_requires_open_joint_and_idle_attachment(self):
         stage = self._stage(open_position=1.48, open_minimum=1.4)

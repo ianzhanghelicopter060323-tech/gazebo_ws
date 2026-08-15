@@ -29,6 +29,31 @@ class RouteNavigationPreempted(RuntimeError):
     pass
 
 
+class _NoProgressMonitor:
+    def __init__(self, localization, frame_id, timeout, minimum_distance):
+        self._localization = localization
+        self._frame_id = frame_id
+        self._timeout = timeout
+        self._minimum_distance = minimum_distance
+        self._anchor = None
+        self._last_progress = time.monotonic()
+
+    def stuck(self):
+        current = self._localization.localized_pose(self._frame_id)
+        if current is None:
+            return False
+        xy = (current[0], current[1])
+        if self._anchor is None:
+            self._anchor = xy
+            self._last_progress = time.monotonic()
+            return False
+        if math.hypot(xy[0] - self._anchor[0], xy[1] - self._anchor[1]) >= self._minimum_distance:
+            self._anchor = xy
+            self._last_progress = time.monotonic()
+            return False
+        return time.monotonic() - self._last_progress >= self._timeout
+
+
 class RouteExecutor:
     """Execute the offline-generated waypoints through one move_base client."""
 
@@ -74,11 +99,38 @@ class RouteExecutor:
         self._goal_cancel_timeout = float(
             rospy.get_param("~navigation/goal_cancel_timeout", 2.0)
         )
+        self._no_progress_timeout = float(
+            rospy.get_param(
+                "~navigation/recovery/no_progress_timeout", 15.0
+            )
+        )
+        self._minimum_progress_distance = float(
+            rospy.get_param(
+                "~navigation/recovery/minimum_progress_distance", 0.03
+            )
+        )
+        self._recovery_max_attempts = int(
+            rospy.get_param(
+                "~navigation/recovery/max_attempts_per_waypoint", 1
+            )
+        )
         if (
             not math.isfinite(self._goal_cancel_timeout)
             or self._goal_cancel_timeout <= 0.0
         ):
             raise ValueError("navigation/goal_cancel_timeout must be positive")
+        if self._no_progress_timeout <= 0.0:
+            raise ValueError(
+                "navigation/recovery/no_progress_timeout must be positive"
+            )
+        if self._minimum_progress_distance <= 0.0:
+            raise ValueError(
+                "navigation/recovery/minimum_progress_distance must be positive"
+            )
+        if self._recovery_max_attempts < 0:
+            raise ValueError(
+                "navigation/recovery/max_attempts_per_waypoint must be nonnegative"
+            )
 
         self._intermediate_pass_radius = float(
             rospy.get_param(
@@ -403,6 +455,7 @@ class RouteExecutor:
         )
         last_outcome = None
         last_message = "navigation was not attempted"
+        recovery_attempts = 0
         for retry in range(self._max_retries + 1):
             context.retry_count = retry
             state_machine.transition(
@@ -411,12 +464,22 @@ class RouteExecutor:
                     detail, retry + 1, self._max_retries + 1
                 ),
             )
+            frame_id = pose.header.frame_id or self._localization.map_frame
+            monitor = _NoProgressMonitor(
+                self._localization,
+                frame_id,
+                self._no_progress_timeout,
+                self._minimum_progress_distance,
+            )
+
+            def heartbeat():
+                self._publish_state(context, detail + "; move_base active")
+                return monitor.stuck()
+
             last_outcome, last_message = self._navigation.navigate(
                 pose,
                 self._preempt_requested,
-                lambda: self._publish_state(
-                    context, detail + "; move_base active"
-                ),
+                heartbeat,
                 pass_condition=pass_condition,
             )
             if last_outcome in (
@@ -431,6 +494,22 @@ class RouteExecutor:
                 raise RouteNavigationPreempted(
                     detail + ": " + last_message
                 )
+            if (
+                last_outcome == NavigationOutcome.STUCK
+                and recovery_attempts < self._recovery_max_attempts
+            ):
+                self._cancel_goal_and_wait_for_inactive()
+                recovery_attempts += 1
+                self._publish_state(
+                    context,
+                    "{}; bounded recovery {}/{}".format(
+                        detail,
+                        recovery_attempts,
+                        self._recovery_max_attempts,
+                    ),
+                )
+                if self._base_alignment.escape(frame_id):
+                    continue
         error_code = (
             error_codes.NAVIGATION_TIMEOUT
             if last_outcome == NavigationOutcome.TIMEOUT
@@ -516,6 +595,7 @@ class RouteExecutor:
             orientation_required = (
                 waypoint_index in self._orientation_required_waypoint_indices
             )
+            recovery_attempts = 0
             while context.retry_count <= self._max_retries:
                 state_machine.transition(
                     states.NAVIGATE_TO_PICKUP_STAGING,
@@ -542,15 +622,27 @@ class RouteExecutor:
                         lambda waypoint=waypoint:
                         self.waypoint_is_passed(waypoint)
                     )
-                outcome, message = self._navigation.navigate(
-                    waypoint,
-                    self._preempt_requested,
-                    lambda waypoint_number=waypoint_number: self._publish_state(
+                frame_id = waypoint.header.frame_id or self._localization.map_frame
+                monitor = _NoProgressMonitor(
+                    self._localization,
+                    frame_id,
+                    self._no_progress_timeout,
+                    self._minimum_progress_distance,
+                )
+
+                def heartbeat(waypoint_number=waypoint_number):
+                    self._publish_state(
                         context,
                         "waypoint {}/{} move_base goal is active".format(
                             waypoint_number, waypoint_count
                         ),
-                    ),
+                    )
+                    return monitor.stuck()
+
+                outcome, message = self._navigation.navigate(
+                    waypoint,
+                    self._preempt_requested,
+                    heartbeat,
                     pass_condition=pass_condition,
                 )
 
@@ -602,6 +694,23 @@ class RouteExecutor:
                         context, state_machine, waypoint_message
                     )
                     return None
+                if (
+                    outcome == NavigationOutcome.STUCK
+                    and recovery_attempts < self._recovery_max_attempts
+                ):
+                    self._cancel_goal_and_wait_for_inactive()
+                    recovery_attempts += 1
+                    self._publish_state(
+                        context,
+                        "waypoint {}/{} bounded recovery {}/{}".format(
+                            waypoint_number,
+                            waypoint_count,
+                            recovery_attempts,
+                            self._recovery_max_attempts,
+                        ),
+                    )
+                    if self._base_alignment.escape(frame_id):
+                        continue
                 if context.retry_count < self._max_retries:
                     context.retry_count += 1
                     self._publish_state(

@@ -19,8 +19,12 @@ pickup:
   # A visual correction is rejected if it asks the base to move farther than
   # this.  Two stop/re-observe corrections are allowed before grasping.
   alignment_tolerance: 0.010
-  maximum_alignment_correction: 0.25
+  maximum_alignment_correction: 0.30
   maximum_alignment_iterations: 4 # 最大机器人对齐物品重试数
+  secondary_alignment_max_correction: 0.05
+  secondary_alignment_iterations: 1
+  depth_recheck_attempts: 2
+  station_area_tolerance: 0.03
   fixed_grasp:
     target_forward: 0.326 # 留出的机器人底盘与物品距离，给机械臂
     target_lateral: 0.0
@@ -31,6 +35,7 @@ pickup:
 
   stations:
     - number: 35
+      area_bounds: {x_min: -0.95, x_max: -0.77, y_min: -0.69, y_max: -0.36}
       # Keep a 0.400 m safety standoff from the close_navi region center;
       # supplemental observation covers views missed at this primary pose.
       x: -1.26
@@ -45,16 +50,11 @@ pickup:
         yaw: 0.00007722691751649312
       supplemental_scan_positions: [0.0, 0.3, 0.60, 1.8, 0.0]
     - number: 36
+      area_bounds: {x_min: -1.56, x_max: -1.23, y_min: -0.01, y_max: 0.17}
       x: -1.395
       # Match seq35's 0.400 m safety standoff from the region center.
       y: -0.320
       yaw: 1.5691910264536908
-      # Retreat from seq35 and finish the 90-degree turn in free space. The
-      # following observation goal shares x/yaw, making its final leg north.
-      transition_pose:
-        x: -1.395
-        y: -0.525
-        yaw: 1.5691910264536908
       scan_positions: [0.0, 0.15, 0.60, 2.0, 0.0]
       supplemental_pose:
         x: -1.395
@@ -62,15 +62,11 @@ pickup:
         yaw: 1.5691910264536908
       supplemental_scan_positions: [0.0, 0.3, 0.60, 1.8, 0.0]
     - number: 37
+      area_bounds: {x_min: -2.10, x_max: -1.92, y_min: -0.61, y_max: -0.28}
       # Match seq35's 0.400 m safety standoff from the region center.
       x: -1.610
       y: -0.445
       yaw: 3.141482426814858
-      # Move southeast of seq36, finish facing west, then enter seq37 along x.
-      transition_pose:
-        x: -1.30
-        y: -0.445
-        yaw: 3.141482426814858
       scan_positions: [0.0, 0.0, 0.55, 2.20, 0.0]
       supplemental_pose:
         x: -1.65569836894096
@@ -84,12 +80,21 @@ pickup:
     joint_state_topic: /joint_states
     ready_topic: /grasp_attach/ready
     state_topic: /grasp_attach/state
+    offset_topic: /grasp_attach/offset
     open_position: 1.5
     open_minimum: 1.4
     closed_position: 0.76
     arm_duration: 3.0
     arm_tolerance: 0.03
     command_timeout: 8.0
+    # Arm trajectories run in Gazebo simulation time.  A separate wall-clock
+    # watchdog prevents a frozen /clock from hanging the task forever.
+    arm_sim_settle_timeout: 3.0
+    arm_wall_timeout: 30.0
+    clock_stall_timeout: 10.0
+    joint_feedback_max_age: 1.0
+    ready_sim_timeout: 3.0
+    ready_wall_timeout: 15.0
     # Release repeats the latched 1.5 command while polling attachment/joint
     # feedback, then requires a continuous IDLE/open confirmation window.
     release_command_rate: 10.0

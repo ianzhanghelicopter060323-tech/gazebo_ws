@@ -95,6 +95,7 @@ class MissionServer:
                 rospy.get_param("~delivery/entry_selector", {})
             )
         self._completed_results = OrderedDict()
+        self._preparation_baseline_locked = False
 
         self._navigation_wait_timeout = float(
             navigation_wait_timeout
@@ -179,6 +180,7 @@ class MissionServer:
             self._completed_results.popitem(last=False)
 
     def _finish_success(self, context, stage, message):
+        self._release_preparation_baseline_lock()
         result = self._make_result(
             True,
             stage,
@@ -190,6 +192,7 @@ class MissionServer:
         self._publish_idle()
 
     def _abort(self, context, state_machine, error_code, message):
+        self._release_preparation_baseline_lock()
         context.last_error = error_code
         context.last_message = message
         state_machine.transition(states.TASK_FAILED, message)
@@ -200,6 +203,7 @@ class MissionServer:
         self._publish_idle()
 
     def _preempt(self, context, state_machine, message):
+        self._release_preparation_baseline_lock()
         context.last_error = error_codes.TASK_PREEMPTED
         state_machine.transition(states.TASK_FAILED, message)
         result = self._make_result(
@@ -223,6 +227,20 @@ class MissionServer:
         ):
             return error_code
         return error_codes.INTERNAL_ERROR
+
+    def _set_preparation_baseline_lock(self):
+        self._delivery_entry_selector.set_preparation_baseline_lock(True)
+        self._preparation_baseline_locked = True
+
+    def _release_preparation_baseline_lock(self):
+        if not self._preparation_baseline_locked:
+            return
+        try:
+            self._delivery_entry_selector.set_preparation_baseline_lock(False)
+        except EntrySelectionUnavailable as exc:
+            rospy.logerr("failed to release preparation baseline lock: %s", exc)
+        finally:
+            self._preparation_baseline_locked = False
 
     def _navigation_feedback(self, context, feedback):
         if feedback.current_waypoint > 0:
@@ -484,6 +502,9 @@ class MissionServer:
                 position_tolerance=destination.entry_position_tolerance,
                 yaw_tolerance=destination.entry_yaw_tolerance,
             )
+            # The selected cone-entry pose is the shared preparation pose 2.
+            # From here onward, adaptive avoidance may be used normally.
+            self._release_preparation_baseline_lock()
             if self._delivery_entry_selector.channel_enabled:
                 self._delivery_entry_selector.set_channel_avoidance_lock(True)
                 try:
@@ -642,6 +663,16 @@ class MissionServer:
             context.task_id,
             len(context.pickup_staging_goals),
         )
+        try:
+            self._set_preparation_baseline_lock()
+        except EntrySelectionUnavailable as exc:
+            self._abort(
+                context,
+                state_machine,
+                error_codes.NAVIGATION_ABORTED,
+                str(exc),
+            )
+            return
         state_machine.transition(
             states.NAVIGATE_TO_PICKUP_STAGING,
             "starting pickup staging route",

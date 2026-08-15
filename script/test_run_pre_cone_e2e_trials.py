@@ -72,6 +72,16 @@ class PreConeClassificationTest(unittest.TestCase):
         record["last_operational_stage"] = 9
         self.assertIs(trials.classify_recognition_failure(record), True)
 
+    def test_navigation_and_arm_failures_are_not_recognition_failures(self):
+        for error_code in (8, 12, 11, 13):
+            record = self.base_record()
+            record["error_code"] = error_code
+            record["last_operational_stage"] = 250
+            self.assertIs(
+                trials.classify_recognition_failure(record),
+                False,
+            )
+
     def test_correct_recognition_is_explicitly_clean(self):
         record = self.base_record()
         record["recognition_correct"] = True

@@ -1,0 +1,685 @@
+{
+  "created_at": "2026-08-15T22:09:01+08:00",
+  "summary": {
+    "rounds_examined": 24,
+    "eligible_rounds": 24,
+    "retained_rounds": 0,
+    "eligible_bytes": 213036496,
+    "deleted_files": 72,
+    "deleted_bytes": 213036496
+  },
+  "rounds": [
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 1,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_001",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_001/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_001/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_001/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8122346,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_001/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_001/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_001/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8122346,
+      "task_id": "pre_cone_001_1786799100",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 2,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_002",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_002/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_002/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_002/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 9312665,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_002/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_002/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_002/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 9312665,
+      "task_id": "pre_cone_002_1786799232",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 3,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_003",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_003/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_003/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_003/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 7860001,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_003/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_003/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_003/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 7860001,
+      "task_id": "pre_cone_003_1786799375",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 4,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_004",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_004/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_004/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_004/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8126399,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_004/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_004/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_004/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8126399,
+      "task_id": "pre_cone_004_1786799507",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 5,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_005",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_005/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_005/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_005/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8880565,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_005/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_005/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_005/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8880565,
+      "task_id": "pre_cone_005_1786799658",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 6,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_006",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_006/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_006/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_006/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8261037,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_006/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_006/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_006/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8261037,
+      "task_id": "pre_cone_006_1786799798",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 7,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_007",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_007/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_007/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_007/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8517023,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_007/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_007/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_007/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8517023,
+      "task_id": "pre_cone_007_1786799942",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 8,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_008",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_008/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_008/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_008/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 9281975,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_008/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_008/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_008/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 9281975,
+      "task_id": "pre_cone_008_1786800087",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 9,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_009",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_009/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_009/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_009/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 9267407,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_009/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_009/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_009/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 9267407,
+      "task_id": "pre_cone_009_1786800246",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 10,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_010",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_010/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_010/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_010/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8202522,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_010/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_010/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_010/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8202522,
+      "task_id": "pre_cone_010_1786800393",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 11,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_011",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_011/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_011/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_011/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8960042,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_011/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_011/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_011/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8960042,
+      "task_id": "pre_cone_011_1786800529",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 12,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_012",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_012/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_012/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_012/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8178512,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_012/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_012/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_012/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8178512,
+      "task_id": "pre_cone_012_1786800674",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 13,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_013",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_013/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_013/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_013/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 9380480,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_013/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_013/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_013/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 9380480,
+      "task_id": "pre_cone_013_1786800813",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 14,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_014",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_014/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_014/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_014/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 9375555,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_014/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_014/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_014/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 9375555,
+      "task_id": "pre_cone_014_1786800970",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 15,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_015",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_015/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_015/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_015/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 9666238,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_015/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_015/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_015/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 9666238,
+      "task_id": "pre_cone_015_1786801129",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 16,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_016",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_016/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_016/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_016/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 9891718,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_016/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_016/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_016/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 9891718,
+      "task_id": "pre_cone_016_1786801284",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 17,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_017",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_017/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_017/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_017/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8825024,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_017/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_017/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_017/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8825024,
+      "task_id": "pre_cone_017_1786801440",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 18,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_018",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_018/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_018/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_018/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8947757,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_018/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_018/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_018/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8947757,
+      "task_id": "pre_cone_018_1786801598",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 19,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_019",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_019/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_019/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_019/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 10629792,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_019/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_019/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_019/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 10629792,
+      "task_id": "pre_cone_019_1786801749",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 20,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_020",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_020/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_020/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_020/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8198864,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_020/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_020/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_020/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8198864,
+      "task_id": "pre_cone_020_1786801930",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 21,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_021",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_021/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_021/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_021/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 9708118,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_021/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_021/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_021/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 9708118,
+      "task_id": "pre_cone_021_1786802057",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 22,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_022",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_022/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_022/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_022/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 7576328,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_022/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_022/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_022/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 7576328,
+      "task_id": "pre_cone_022_1786802208",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 24,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_024",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_024/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_024/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_024/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 8853690,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_024/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_024/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_024/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 8853690,
+      "task_id": "pre_cone_024_1786802532",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    },
+    {
+      "dataset": "pre_cone_e2e_world",
+      "run": "pre_cone_e2e_trials_20260815_210500_seed7694522871009289374",
+      "round": 25,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_025",
+      "eligible_for_recording_deletion": true,
+      "reason": "no_stuck_and_no_recognition_failure",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_025/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_025/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_025/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 9012438,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_025/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_025/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_210500_seed7694522871009289374/round_025/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 9012438,
+      "task_id": "pre_cone_025_1786802682",
+      "task_success": true,
+      "stuck": false,
+      "stuck_reason": "",
+      "recognition_failure": false,
+      "recognition_status": "correct",
+      "cube_scene_status": "complete",
+      "gazebo_recording_status": "complete"
+    }
+  ]
+}

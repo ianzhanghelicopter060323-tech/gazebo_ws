@@ -54,6 +54,7 @@ AdaptiveTebLocalPlannerROS::AdaptiveTebLocalPlannerROS()
     costmap_ros_(nullptr),
     have_goal_(false),
     avoidance_lock_(false),
+    baseline_lock_(false),
     analyzer_(ScanAnalyzerConfig()),
     mode_selector_(ModeSelectorConfig()),
     last_planner_(LastPlanner::NONE),
@@ -204,6 +205,10 @@ void AdaptiveTebLocalPlannerROS::initialize(
       "set_avoidance_lock",
       &AdaptiveTebLocalPlannerROS::setAvoidanceLock,
       this);
+  baseline_lock_service_ = private_node.advertiseService(
+      "set_baseline_lock",
+      &AdaptiveTebLocalPlannerROS::setBaselineLock,
+      this);
 
   initialized_at_ = ros::Time::now();
   mode_selector_.reset(initialized_at_);
@@ -228,6 +233,12 @@ bool AdaptiveTebLocalPlannerROS::setAvoidanceLock(
     std_srvs::SetBool::Response& response)
 {
   std::lock_guard<std::mutex> lock(planner_mutex_);
+  if (request.data && baseline_lock_)
+  {
+    response.success = false;
+    response.message = "baseline lock is active; avoidance lock refused";
+    return true;
+  }
   avoidance_lock_ = request.data;
   const ros::Time now = ros::Time::now();
   if (avoidance_lock_)
@@ -257,6 +268,39 @@ bool AdaptiveTebLocalPlannerROS::setAvoidanceLock(
   response.message = response.success
       ? reason
       : "adaptive TEB did not confirm the requested avoidance lock";
+  return true;
+}
+
+bool AdaptiveTebLocalPlannerROS::setBaselineLock(
+    std_srvs::SetBool::Request& request,
+    std_srvs::SetBool::Response& response)
+{
+  std::lock_guard<std::mutex> lock(planner_mutex_);
+  baseline_lock_ = request.data;
+  if (baseline_lock_)
+  {
+    // Baseline lock is the stronger, early-mission safety policy.  Clear a
+    // stale forced-avoidance request instead of leaving contradictory locks.
+    avoidance_lock_ = false;
+    mode_selector_.fallBackToBaseline(ros::Time::now());
+    consecutive_baseline_failures_ = 0;
+  }
+  last_planner_ = LastPlanner::NONE;
+
+  ScanFeatures features;
+  const std::string reason = baseline_lock_
+      ? "baseline_lock_enabled"
+      : "baseline_lock_disabled";
+  publishMode(reason, features);
+  ROS_INFO(
+      "Adaptive TEB mode=%s reason=%s",
+      mode_selector_.modeName(), reason.c_str());
+  response.success =
+      !baseline_lock_ ||
+      mode_selector_.mode() == AdaptiveModeSelector::Mode::BASELINE;
+  response.message = response.success
+      ? reason
+      : "adaptive TEB did not confirm the requested baseline lock";
   return true;
 }
 
@@ -301,7 +345,11 @@ bool AdaptiveTebLocalPlannerROS::setPlan(
   {
     const ros::Time now = ros::Time::now();
     mode_selector_.reset(now);
-    if (avoidance_lock_)
+    if (baseline_lock_)
+    {
+      mode_selector_.fallBackToBaseline(now);
+    }
+    else if (avoidance_lock_)
     {
       mode_selector_.forceAvoidance(now);
     }
@@ -309,7 +357,9 @@ bool AdaptiveTebLocalPlannerROS::setPlan(
     last_planner_ = LastPlanner::NONE;
     ScanFeatures features;
     publishMode(
-        avoidance_lock_ ? "new_goal_avoidance_locked" : "new_goal",
+        baseline_lock_
+            ? "new_goal_baseline_locked"
+            : (avoidance_lock_ ? "new_goal_avoidance_locked" : "new_goal"),
         features);
   }
   return baseline_ok && avoidance_ok;
@@ -548,7 +598,11 @@ bool AdaptiveTebLocalPlannerROS::computeVelocityCommands(
   if (new_scan)
   {
     const AdaptiveModeSelector::Mode previous = mode_selector_.mode();
-    if (avoidance_lock_)
+    if (baseline_lock_)
+    {
+      mode_selector_.fallBackToBaseline(now);
+    }
+    else if (avoidance_lock_)
     {
       mode_selector_.forceAvoidance(now);
     }
@@ -561,14 +615,16 @@ bool AdaptiveTebLocalPlannerROS::computeVelocityCommands(
     last_processed_scan_sequence_ = scan_snapshot.message->header.seq;
     if (previous != mode_selector_.mode())
     {
-      const std::string reason = avoidance_lock_
+      const std::string reason = baseline_lock_
+          ? "baseline_lock"
+          : (avoidance_lock_
           ? "avoidance_lock"
           : (goal_near
                  ? "near_goal"
                  : (mode_selector_.mode() ==
                             AdaptiveModeSelector::Mode::AVOIDANCE
                         ? "laser_obstacle_evidence"
-                        : "laser_path_clear"));
+                        : "laser_path_clear")));
       publishMode(reason, features);
       ROS_INFO(
           "Adaptive TEB mode=%s reason=%s %s",
@@ -608,7 +664,8 @@ bool AdaptiveTebLocalPlannerROS::computeVelocityCommands(
   cmd_vel = geometry_msgs::Twist();
   ++consecutive_baseline_failures_;
   const bool laser_backed_failure_fallback =
-      !goal_near && features.corridor_compact_clusters >= 1 &&
+      !baseline_lock_ && !goal_near &&
+      features.corridor_compact_clusters >= 1 &&
       features.minimum_plan_clearance < failure_fallback_clearance_ &&
       consecutive_baseline_failures_ >= baseline_failures_before_fallback_;
   if (laser_backed_failure_fallback && mode_selector_.enterAvoidance(now))

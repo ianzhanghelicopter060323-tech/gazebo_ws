@@ -1,9 +1,11 @@
 """Closed-loop ``cmd_vel`` alignment owned by the navigation package."""
 
 import math
+import threading
 import time
 
 from geometry_msgs.msg import Twist
+from sensor_msgs.msg import LaserScan
 import rospy
 
 from smart_factory_navigation import error_codes, states
@@ -30,6 +32,23 @@ class BaseAlignmentController:
         cmd_vel_topic = rospy.get_param(
             "~navigation/cmd_vel_topic", "/cmd_vel"
         )
+        self._escape_enabled = bool(
+            rospy.get_param("~navigation/recovery/enabled", True)
+        )
+        self._escape_speed = float(
+            rospy.get_param("~navigation/recovery/speed", 0.05)
+        )
+        self._escape_max_distance = float(
+            rospy.get_param("~navigation/recovery/max_distance", 0.08)
+        )
+        self._escape_wall_timeout = float(
+            rospy.get_param("~navigation/recovery/wall_timeout", 2.0)
+        )
+        self._escape_scan_sector = float(
+            rospy.get_param("~navigation/recovery/scan_sector_half_angle", 0.52)
+        )
+        self._scan_lock = threading.Lock()
+        self._latest_scan = None
 
         self._heading_tolerance = float(
             rospy.get_param(
@@ -98,12 +117,23 @@ class BaseAlignmentController:
         self._timeout = float(
             rospy.get_param("~pickup/direct_alignment_timeout", 8.0)
         )
+        self._wall_timeout = float(
+            rospy.get_param("~pickup/direct_alignment_wall_timeout", 45.0)
+        )
+        self._alignment_clock_stall_timeout = float(
+            rospy.get_param("~pickup/direct_alignment_clock_stall_timeout", 10.0)
+        )
         for name, value in (
             ("direct_alignment_tolerance", self._tolerance),
             ("direct_alignment_gain", self._gain),
             ("direct_alignment_max_speed", self._max_speed),
             ("direct_alignment_min_speed", self._min_speed),
             ("direct_alignment_timeout", self._timeout),
+            ("direct_alignment_wall_timeout", self._wall_timeout),
+            (
+                "direct_alignment_clock_stall_timeout",
+                self._alignment_clock_stall_timeout,
+            ),
         ):
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError("pickup/{} must be positive".format(name))
@@ -114,6 +144,20 @@ class BaseAlignmentController:
         self._velocity_publisher = rospy.Publisher(
             cmd_vel_topic, Twist, queue_size=1
         )
+        self._scan_subscriber = rospy.Subscriber(
+            rospy.get_param("~navigation/recovery/scan_topic", "/scan"),
+            LaserScan,
+            self._scan_callback,
+            queue_size=1,
+        )
+        for name, value in (
+            ("recovery/speed", self._escape_speed),
+            ("recovery/max_distance", self._escape_max_distance),
+            ("recovery/wall_timeout", self._escape_wall_timeout),
+            ("recovery/scan_sector_half_angle", self._escape_scan_sector),
+        ):
+            if not math.isfinite(value) or value <= 0.0:
+                raise ValueError("navigation/{} must be positive".format(name))
 
     @property
     def heading_tolerance(self):
@@ -122,6 +166,83 @@ class BaseAlignmentController:
     def stop(self):
         """Publish an explicit zero velocity command."""
         self._velocity_publisher.publish(Twist())
+
+    def _scan_callback(self, message):
+        with self._scan_lock:
+            self._latest_scan = message
+
+    @staticmethod
+    def _sector_clearance(scan, center, half_angle):
+        values = []
+        for index, value in enumerate(scan.ranges):
+            angle = scan.angle_min + index * scan.angle_increment
+            delta = math.atan2(math.sin(angle - center), math.cos(angle - center))
+            if (
+                abs(delta) <= half_angle
+                and math.isfinite(value)
+                and scan.range_min <= value <= scan.range_max
+            ):
+                values.append(value)
+        if not values:
+            return math.nan
+        values.sort()
+        # A low percentile is robust to one bad beam while still representing
+        # the closest obstacle across the escape corridor.
+        return values[max(0, int(0.1 * (len(values) - 1)))]
+
+    def escape(self, frame_id):
+        """Execute one bounded forward/backward recovery under sole ownership."""
+        if not self._escape_enabled:
+            return False
+        with self._scan_lock:
+            scan = self._latest_scan
+        front = rear = math.nan
+        if scan is not None:
+            front = self._sector_clearance(scan, 0.0, self._escape_scan_sector)
+            rear = self._sector_clearance(scan, math.pi, self._escape_scan_sector)
+        direction = -1.0
+        if math.isfinite(front) and math.isfinite(rear):
+            direction = 1.0 if front > rear else -1.0
+        elif math.isfinite(front):
+            direction = 1.0
+
+        start_pose = self._localization.localized_pose(frame_id)
+        if start_pose is None:
+            return False
+        started = time.monotonic()
+        moved = 0.0
+        command = Twist()
+        command.linear.x = direction * self._escape_speed
+        try:
+            while not rospy.is_shutdown():
+                if self._preempt_requested():
+                    raise BaseAlignmentPreempted(
+                        "task preempted during bounded navigation recovery"
+                    )
+                current = self._localization.localized_pose(frame_id)
+                if current is not None:
+                    moved = math.hypot(
+                        current[0] - start_pose[0], current[1] - start_pose[1]
+                    )
+                if (
+                    moved >= self._escape_max_distance
+                    or time.monotonic() - started >= self._escape_wall_timeout
+                ):
+                    break
+                self._velocity_publisher.publish(command)
+                time.sleep(0.05)
+        finally:
+            self.stop()
+        rospy.logwarn(
+            "bounded navigation recovery completed: direction=%s "
+            "front_clearance=%s rear_clearance=%s moved=%.3fm wall=%.3fs",
+            "forward" if direction > 0.0 else "backward",
+            "unavailable" if not math.isfinite(front) else "{:.3f}".format(front),
+            "unavailable" if not math.isfinite(rear) else "{:.3f}".format(rear),
+            moved,
+            time.monotonic() - started,
+        )
+        return moved >= min(0.02, self._escape_max_distance)
 
     @staticmethod
     def _quaternion_yaw(quaternion):
@@ -225,7 +346,12 @@ class BaseAlignmentController:
         adapter while mission integration is migrated.
         """
         frame_id = pose.header.frame_id or self._localization.map_frame
-        deadline = time.monotonic() + self._timeout
+        started_wall = time.monotonic()
+        wall_deadline = started_wall + self._wall_timeout
+        started_ros = rospy.Time.now()
+        sim_deadline = started_ros + rospy.Duration(self._timeout)
+        last_clock = started_ros
+        last_clock_progress_wall = started_wall
         next_feedback = 0.0
         try:
             while not rospy.is_shutdown():
@@ -248,11 +374,30 @@ class BaseAlignmentController:
                         distance,
                     )
                     return
-                if time.monotonic() >= deadline:
+                now_wall = time.monotonic()
+                now_ros = rospy.Time.now()
+                if now_ros > last_clock:
+                    last_clock = now_ros
+                    last_clock_progress_wall = now_wall
+                timeout_reason = None
+                if not started_ros.is_zero() and now_ros >= sim_deadline:
+                    timeout_reason = "simulation-time deadline"
+                elif now_wall >= wall_deadline:
+                    timeout_reason = "wall-clock hard deadline"
+                elif (
+                    now_wall - last_clock_progress_wall
+                    >= self._alignment_clock_stall_timeout
+                ):
+                    timeout_reason = "simulation clock stalled"
+                if timeout_reason is not None:
                     raise BaseAlignmentFailure(
                         error_codes.ALIGNMENT_FAILED,
-                        "direct fixed-standoff alignment timed out at {:.3f}m".format(
-                            distance
+                        "direct fixed-standoff alignment timed out at {:.3f}m "
+                        "({}; sim_elapsed={:.3f}s wall_elapsed={:.3f}s)".format(
+                            distance,
+                            timeout_reason,
+                            max(0.0, (now_ros - started_ros).to_sec()),
+                            now_wall - started_wall,
                         ),
                     )
 
@@ -269,10 +414,9 @@ class BaseAlignmentController:
                 command.linear.y = speed * error_lateral / distance
                 self._velocity_publisher.publish(command)
 
-                now = time.monotonic()
-                if feedback is not None and now >= next_feedback:
+                if feedback is not None and now_wall >= next_feedback:
                     feedback(distance)
-                    next_feedback = now + 0.5
+                    next_feedback = now_wall + 0.5
                 time.sleep(0.05)
         finally:
             self._velocity_publisher.publish(Twist())

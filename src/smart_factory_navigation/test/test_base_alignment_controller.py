@@ -72,6 +72,8 @@ class BaseAlignmentControllerTest(unittest.TestCase):
         with mock.patch(
             "smart_factory_navigation.base_alignment_controller.rospy.is_shutdown",
             return_value=False,
+        ), mock.patch.object(
+            rospy.Time, "now", return_value=rospy.Time(1.0)
         ), mock.patch(
             "smart_factory_navigation.base_alignment_controller.rospy.loginfo"
         ):
@@ -121,6 +123,8 @@ class BaseAlignmentControllerTest(unittest.TestCase):
         ), mock.patch(
             "smart_factory_navigation.base_alignment_controller.time.monotonic",
             return_value=0.0,
+        ), mock.patch.object(
+            rospy.Time, "now", return_value=rospy.Time(1.0)
         ), mock.patch(
             "smart_factory_navigation.base_alignment_controller.time.sleep"
         ):
@@ -143,6 +147,8 @@ class BaseAlignmentControllerTest(unittest.TestCase):
         ), mock.patch(
             "smart_factory_navigation.base_alignment_controller.time.monotonic",
             return_value=0.0,
+        ), mock.patch.object(
+            rospy.Time, "now", return_value=rospy.Time(1.0)
         ), mock.patch(
             "smart_factory_navigation.base_alignment_controller.time.sleep"
         ):

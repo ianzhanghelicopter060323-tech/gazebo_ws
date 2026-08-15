@@ -59,6 +59,9 @@ private:
   bool setAvoidanceLock(
       std_srvs::SetBool::Request& request,
       std_srvs::SetBool::Response& response);
+  bool setBaselineLock(
+      std_srvs::SetBool::Request& request,
+      std_srvs::SetBool::Response& response);
   bool scanIsFresh(
       const ScanSnapshot& snapshot,
       const ros::Time& now,
@@ -89,6 +92,7 @@ private:
   geometry_msgs::PoseStamped current_goal_;
   bool have_goal_;
   bool avoidance_lock_;
+  bool baseline_lock_;
   ScanSnapshot latest_scan_;
 
   ScanAnalyzer analyzer_;
@@ -111,6 +115,7 @@ private:
   ros::Publisher mode_publisher_;
   ros::Publisher diagnostics_publisher_;
   ros::ServiceServer avoidance_lock_service_;
+  ros::ServiceServer baseline_lock_service_;
 };
 
 }  // namespace smart_factory_adaptive_teb

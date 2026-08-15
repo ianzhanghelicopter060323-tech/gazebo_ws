@@ -11,6 +11,7 @@ import argparse
 import csv
 import datetime as dt
 import json
+import os
 from pathlib import Path
 import random
 import re
@@ -83,6 +84,7 @@ CSV_FIELDS = (
     "gazebo_recording_path",
     "gazebo_recording_size_bytes",
     "gazebo_recording_manifest",
+    "performance_file",
     "progress_timeout_seconds",
     "duration_seconds",
     "started_at",
@@ -238,15 +240,86 @@ def classify_recognition_failure(record):
         return True
     if status == "no_target_selected":
         stage = record.get("last_operational_stage")
-        completed_stage = record.get("completed_stage")
         error_code = record.get("error_code")
-        attempted = (
-            isinstance(stage, int) and stage >= 7
-        ) or (
-            isinstance(completed_stage, int) and completed_stage >= 7
-        ) or error_code in {9, 10}
-        return True if attempted else None
+        if error_code == 10:
+            return True
+        if error_code is not None and error_code != 10:
+            return False
+        return True if stage == 9 else None
     return None
+
+
+def _directory_size(path):
+    try:
+        result = subprocess.run(
+            ["du", "-sb", str(path)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=3.0,
+            check=False,
+        )
+        return int(result.stdout.split()[0]) if result.returncode == 0 else None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def capture_performance_snapshot(label):
+    """Return one low-overhead host/Gazebo resource sample for this round."""
+    memory = {}
+    try:
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
+            key, value = line.split(":", 1)
+            if key in {"MemTotal", "MemAvailable", "SwapTotal", "SwapFree"}:
+                memory[key] = int(value.split()[0]) * 1024
+    except (OSError, ValueError):
+        pass
+    processes = {}
+    try:
+        result = subprocess.run(
+            ["ps", "-eo", "comm=,pcpu=,rss="],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=3.0,
+            check=False,
+        )
+        for line in result.stdout.splitlines():
+            fields = line.split()
+            if len(fields) != 3:
+                continue
+            name, cpu, rss = fields
+            if name not in {
+                "gzserver", "gzclient", "rviz", "python3", "move_base"
+            }:
+                continue
+            entry = processes.setdefault(name, {"cpu_percent": 0.0, "rss_bytes": 0})
+            entry["cpu_percent"] += float(cpu)
+            entry["rss_bytes"] += int(rss) * 1024
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    gazebo_stats = ""
+    try:
+        result = subprocess.run(
+            ["gz", "stats", "-p"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2.0,
+            check=False,
+        )
+        gazebo_stats = result.stdout.strip().splitlines()[-1]
+    except (OSError, IndexError, subprocess.SubprocessError):
+        pass
+    return {
+        "label": label,
+        "captured_at": dt.datetime.now().astimezone().isoformat(timespec="milliseconds"),
+        "load_average": list(os.getloadavg()),
+        "memory": memory,
+        "processes": processes,
+        "ros_log_size_bytes": _directory_size(Path.home() / ".ros" / "log"),
+        "gazebo_stats": gazebo_stats,
+    }
 
 
 def read_cube_scene(round_dir):
@@ -308,6 +381,7 @@ def new_record(args, round_number, task_id, target_class, round_dir, recording_d
         "gazebo_recording_manifest": str(
             recording_dir / "gazebo_world_recording.json"
         ),
+        "performance_file": str(round_dir / "performance.json"),
         "progress_timeout_seconds": args.progress_timeout,
         "duration_seconds": 0.0,
         "started_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -369,6 +443,7 @@ def run_trial(
     recorder_ready = None
     phase = "startup"
     started = time.monotonic()
+    performance = []
 
     with Path(record["log_file"]).open("w", encoding="utf-8") as log_file:
         try:
@@ -429,6 +504,7 @@ def run_trial(
             )
 
             phase = "task"
+            performance.append(capture_performance_snapshot("before_task"))
             command = [
                 "rosrun",
                 "smart_factory_tests",
@@ -453,6 +529,7 @@ def run_trial(
             else:
                 append_section(log_file, "task client", task_output)
                 apply_task_result(record, task_output, return_code)
+            performance.append(capture_performance_snapshot("after_task"))
         except CleanupError:
             raise
         except AutomationError as exc:
@@ -475,6 +552,10 @@ def run_trial(
                 finally:
                     record["duration_seconds"] = round(
                         time.monotonic() - started, 3
+                    )
+                    Path(record["performance_file"]).write_text(
+                        json.dumps(performance, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
                     )
 
     add_recognition_result(record, Path(record["log_file"]))

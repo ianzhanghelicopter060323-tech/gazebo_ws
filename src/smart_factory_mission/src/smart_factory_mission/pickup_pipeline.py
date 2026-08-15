@@ -13,6 +13,13 @@ from smart_factory_manipulation.manipulation_stage import ManipulationStage
 from smart_factory_mission import error_codes, states
 
 
+STATION_AREA_BOUNDS = {
+    35: (-0.95, -0.77, -0.69, -0.36),
+    36: (-1.56, -1.23, -0.01, 0.17),
+    37: (-2.10, -1.92, -0.61, -0.28),
+}
+
+
 class PickupFailure(RuntimeError):
     def __init__(self, error_code, message):
         super().__init__(message)
@@ -33,6 +40,7 @@ class CandidateStation:
     supplemental_scan_positions: tuple = ()
     supplemental_pose: tuple = ()
     transition_pose: tuple = ()
+    area_bounds: tuple = ()
 
     @staticmethod
     def _pose(frame_id, x, y, yaw):
@@ -80,6 +88,18 @@ class PickupPipeline:
         )
         self._maximum_alignment_iterations = int(
             config.get("maximum_alignment_iterations", 2)
+        )
+        self._secondary_alignment_max_correction = float(
+            config.get("secondary_alignment_max_correction", 0.05)
+        )
+        self._secondary_alignment_iterations = int(
+            config.get("secondary_alignment_iterations", 1)
+        )
+        self._depth_recheck_attempts = int(
+            config.get("depth_recheck_attempts", 2)
+        )
+        self._station_area_tolerance = float(
+            config.get("station_area_tolerance", 0.03)
         )
         self._stations = self._load_stations(config.get("stations", []))
         fixed = config.get("fixed_grasp", {})
@@ -137,6 +157,22 @@ class PickupPipeline:
 
             supplemental_pose = optional_pose("supplemental_pose")
             transition = optional_pose("transition_pose")
+            raw_bounds = raw.get("area_bounds")
+            if raw_bounds is None and number in STATION_AREA_BOUNDS:
+                area_bounds = STATION_AREA_BOUNDS[number]
+            elif not isinstance(raw_bounds, dict) or any(
+                field not in raw_bounds
+                for field in ("x_min", "x_max", "y_min", "y_max")
+            ):
+                raise ValueError(
+                    "station {} area_bounds must contain x_min, x_max, "
+                    "y_min, and y_max".format(number)
+                )
+            else:
+                area_bounds = tuple(
+                    float(raw_bounds[field])
+                    for field in ("x_min", "x_max", "y_min", "y_max")
+                )
             if bool(supplemental_scan) != bool(supplemental_pose):
                 raise ValueError(
                     "station {} supplemental_pose and "
@@ -152,6 +188,7 @@ class PickupPipeline:
                 *(float(value) for value in supplemental_scan),
                 *supplemental_pose,
                 *transition,
+                *area_bounds,
             )
             if not all(math.isfinite(value) for value in values):
                 raise ValueError("station {} contains non-finite values".format(number))
@@ -165,6 +202,7 @@ class PickupPipeline:
                     tuple(float(value) for value in supplemental_scan),
                     supplemental_pose=supplemental_pose,
                     transition_pose=transition,
+                    area_bounds=area_bounds,
                 )
             )
         return tuple(stations)
@@ -178,10 +216,19 @@ class PickupPipeline:
             raise ValueError("recognition_retries must not be negative")
         if self._maximum_alignment_iterations <= 0:
             raise ValueError("maximum_alignment_iterations must be positive")
+        if self._secondary_alignment_iterations < 0:
+            raise ValueError("secondary_alignment_iterations must be nonnegative")
+        if self._depth_recheck_attempts <= 0:
+            raise ValueError("depth_recheck_attempts must be positive")
         for name, value in (
             ("perception_wait_timeout", self._service_wait),
             ("alignment_tolerance", self._alignment_tolerance),
             ("maximum_alignment_correction", self._maximum_alignment_correction),
+            (
+                "secondary_alignment_max_correction",
+                self._secondary_alignment_max_correction,
+            ),
+            ("station_area_tolerance", self._station_area_tolerance),
         ):
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError("{} must be finite and positive".format(name))
@@ -189,6 +236,19 @@ class PickupPipeline:
             raise ValueError(
                 "maximum_alignment_correction must exceed alignment_tolerance"
             )
+        if self._secondary_alignment_max_correction <= self._alignment_tolerance:
+            raise ValueError(
+                "secondary_alignment_max_correction must exceed "
+                "alignment_tolerance"
+            )
+        for station in self._stations:
+            x_min, x_max, y_min, y_max = station.area_bounds
+            if not (x_min < x_max and y_min < y_max):
+                raise ValueError(
+                    "station {} area_bounds are not ordered".format(
+                        station.number
+                    )
+                )
 
     @property
     def enabled(self):
@@ -350,6 +410,77 @@ class PickupPipeline:
             )
         raise PickupFailure(error_codes.OBJECT_NOT_FOUND, "target cube was not selected")
 
+    def _validate_station_point(self, station, response, source):
+        point = response.point_map.point
+        bounds = station.area_bounds or STATION_AREA_BOUNDS.get(station.number)
+        if bounds is None:
+            raise PickupFailure(
+                error_codes.ALIGNMENT_FAILED,
+                "seq{} has no configured station area".format(station.number),
+            )
+        x_min, x_max, y_min, y_max = bounds
+        margin = self._station_area_tolerance
+        if not (
+            x_min - margin <= point.x <= x_max + margin
+            and y_min - margin <= point.y <= y_max + margin
+        ):
+            raise PickupFailure(
+                error_codes.ALIGNMENT_FAILED,
+                "seq{} {} point ({:.3f}, {:.3f}) is outside station area".format(
+                    station.number, source, point.x, point.y
+                ),
+            )
+
+    def _depth_recheck(self, station, preempt):
+        """Acquire a new depth position without repeating class selection."""
+        last_message = "no fresh depth response"
+        for attempt in range(self._depth_recheck_attempts):
+            if preempt():
+                raise PickupPreempted("task preempted during depth recheck")
+            requested_at = rospy.Time.now()
+            request = LocateCubeRequest()
+            request.station = station.number
+            request.require_classification = False
+            try:
+                response = self._locate(request)
+            except rospy.ServiceException as exc:
+                last_message = "perception service failed: {}".format(exc)
+                continue
+            last_message = response.message
+            if not response.success:
+                rospy.logwarn(
+                    "seq%d post-alignment depth recheck %d/%d rejected: %s",
+                    station.number,
+                    attempt + 1,
+                    self._depth_recheck_attempts,
+                    response.message,
+                )
+                continue
+            if response.point_map.header.stamp < requested_at:
+                last_message = "depth response predates the recheck request"
+                continue
+            self._validate_station_point(station, response, "depth-recheck")
+            rospy.loginfo(
+                "PICKUP_DEPTH_RECHECK=%s",
+                json.dumps(
+                    {
+                        "station": station.number,
+                        "attempt": attempt + 1,
+                        "x": float(response.point_map.point.x),
+                        "y": float(response.point_map.point.y),
+                        "z": float(response.point_map.point.z),
+                    },
+                    sort_keys=True,
+                ),
+            )
+            return response
+        raise PickupFailure(
+            error_codes.OBJECT_NOT_FOUND,
+            "seq{} has no fresh post-alignment depth observation: {}".format(
+                station.number, last_message
+            ),
+        )
+
     def _align(
         self,
         station,
@@ -360,6 +491,9 @@ class PickupPipeline:
         preempt,
     ):
         latest = response
+        self._validate_station_point(station, latest, "initial")
+        coarse_alignment_completed = False
+        secondary_corrections = 0
         for correction_index in range(self._maximum_alignment_iterations + 1):
             current = localized_pose(self._frame_id)
             if current is None:
@@ -394,6 +528,32 @@ class PickupPipeline:
                         self._maximum_alignment_correction,
                     ),
                 )
+            if (
+                coarse_alignment_completed
+                and correction > self._secondary_alignment_max_correction
+            ):
+                raise PickupFailure(
+                    error_codes.ALIGNMENT_FAILED,
+                    "seq{} fresh depth requested {:.3f}m secondary correction, "
+                    "above {:.3f}m limit".format(
+                        station.number,
+                        correction,
+                        self._secondary_alignment_max_correction,
+                    ),
+                )
+            if (
+                coarse_alignment_completed
+                and secondary_corrections >= self._secondary_alignment_iterations
+            ):
+                raise PickupFailure(
+                    error_codes.ALIGNMENT_FAILED,
+                    "seq{} remained {:.3f}m out of alignment after {} "
+                    "secondary correction(s)".format(
+                        station.number,
+                        correction,
+                        self._secondary_alignment_iterations,
+                    ),
+                )
             if correction_index >= self._maximum_alignment_iterations:
                 raise PickupFailure(
                     error_codes.ALIGNMENT_FAILED,
@@ -414,17 +574,11 @@ class PickupPipeline:
                     correction,
                 ),
             )
-            # The cube is stationary and ``latest.point_map`` is expressed in
-            # the map frame, so it remains valid after the base moves.  Reusing
-            # it avoids making grasp progress depend on a second OCR pass at a
-            # much closer camera distance.  The next loop iteration still
-            # checks the residual from the newly localized base pose and may
-            # issue another correction when necessary.
-            rospy.loginfo(
-                "seq%d reusing initial map-frame cube position; "
-                "post-alignment OCR is disabled",
-                station.number,
-            )
+            if coarse_alignment_completed:
+                secondary_corrections += 1
+            else:
+                coarse_alignment_completed = True
+            latest = self._depth_recheck(station, preempt)
         raise PickupFailure(error_codes.ALIGNMENT_FAILED, "alignment loop ended unexpectedly")
 
     def run(self, context, state_machine, navigate, localized_pose, preempt):

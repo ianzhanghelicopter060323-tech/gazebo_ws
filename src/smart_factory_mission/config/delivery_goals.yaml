@@ -89,6 +89,11 @@ delivery:
     # release it before the precise workshop goal so baseline can converge.
     channel_avoidance_lock_service: /move_base/AdaptiveTebLocalPlannerROS/set_avoidance_lock
     channel_avoidance_lock_wait_timeout: 1.0
+    # Before preparation pose 2, walls must not promote the large-footprint
+    # avoidance planner.  The mission releases this baseline lock only after
+    # the laser-selected preparation pose has been reached.
+    preparation_baseline_lock_service: /move_base/AdaptiveTebLocalPlannerROS/set_baseline_lock
+    preparation_baseline_lock_wait_timeout: 1.0
     # The intermediate goal is sent to move_base at this exact coordinate.
     # Do not let make_plan accept a nearby cell that the later action goal
     # cannot use.

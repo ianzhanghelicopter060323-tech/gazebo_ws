@@ -280,27 +280,53 @@ class PickupObservationPoseTest(unittest.TestCase):
 
 
 class PickupAlignmentTest(unittest.TestCase):
-    def test_alignment_reuses_initial_map_point_without_second_observation(self):
+    def test_alignment_uses_fresh_depth_and_one_secondary_correction(self):
         pipeline = PickupPipeline.__new__(PickupPipeline)
         pipeline._maximum_alignment_iterations = 4
         pipeline._alignment_tolerance = 0.015
-        pipeline._maximum_alignment_correction = 0.25
+        pipeline._maximum_alignment_correction = 0.30
+        pipeline._secondary_alignment_max_correction = 0.05
+        pipeline._secondary_alignment_iterations = 1
+        pipeline._station_area_tolerance = 0.03
         pipeline._frame_id = "map"
         pipeline._planner = mock.Mock()
         goal = PoseStamped()
         pipeline._planner.goal_from_surface.return_value = goal
-        pipeline._planner.correction_distance.side_effect = [0.10, 0.006]
-        pipeline._observe = mock.Mock()
+        pipeline._planner.correction_distance.side_effect = [0.10, 0.020, 0.006]
 
-        station = CandidateStation(35, 0.0, 0.0, 0.0, (0.0,) * 5)
+        station = CandidateStation(
+            35,
+            0.0,
+            0.0,
+            0.0,
+            (0.0,) * 5,
+            area_bounds=(-0.95, -0.77, -0.69, -0.36),
+        )
         response = types.SimpleNamespace(
             point_map=types.SimpleNamespace(
                 point=types.SimpleNamespace(x=-0.8, y=-0.5)
             )
         )
+        rechecked = types.SimpleNamespace(
+            point_map=types.SimpleNamespace(
+                point=types.SimpleNamespace(x=-0.81, y=-0.49)
+            )
+        )
+        verified = types.SimpleNamespace(
+            point_map=types.SimpleNamespace(
+                point=types.SimpleNamespace(x=-0.805, y=-0.495)
+            )
+        )
+        pipeline._depth_recheck = mock.Mock(
+            side_effect=[rechecked, verified]
+        )
         navigate = mock.Mock()
         localized_pose = mock.Mock(
-            side_effect=[(-1.2, -0.5, 0.0), (-1.1, -0.5, 0.0)]
+            side_effect=[
+                (-1.2, -0.5, 0.0),
+                (-1.1, -0.5, 0.0),
+                (-1.08, -0.5, 0.0),
+            ]
         )
 
         with mock.patch("rospy.loginfo"), mock.patch(
@@ -315,14 +341,24 @@ class PickupAlignmentTest(unittest.TestCase):
                 preempt=lambda: False,
             )
 
-        self.assertIs(result, response)
-        navigate.assert_called_once_with(
-            goal,
-            states.ALIGN_FOR_GRASP,
-            "seq35 fixed-standoff correction 1/4: 0.100m",
+        self.assertIs(result, verified)
+        self.assertEqual(
+            navigate.call_args_list,
+            [
+                mock.call(
+                    goal,
+                    states.ALIGN_FOR_GRASP,
+                    "seq35 fixed-standoff correction 1/4: 0.100m",
+                ),
+                mock.call(
+                    goal,
+                    states.ALIGN_FOR_GRASP,
+                    "seq35 fixed-standoff correction 2/4: 0.020m",
+                ),
+            ],
         )
-        self.assertEqual(pipeline._planner.correction_distance.call_count, 2)
-        pipeline._observe.assert_not_called()
+        self.assertEqual(pipeline._planner.correction_distance.call_count, 3)
+        self.assertEqual(pipeline._depth_recheck.call_count, 2)
 
 
 class PickupReleaseTest(unittest.TestCase):

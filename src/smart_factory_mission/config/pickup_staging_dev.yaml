@@ -169,9 +169,6 @@ pickup_staging:
 
     # 拟合路径到 seq35 结束。以下坐标不得在此处激活：条件识别阶段会从
     # mission.yaml/pickup/stations 将它们作为独立 move_base 目标按需下发。
-    # 35->36 过渡点：(-1.395, -0.525, 1.5691910264536908)。
-    # 机器人先远离 close_navi 刷新区并完成朝北转向，再直行进入 seq36。
-
     # Stations 36/37 由任务层条件导航；此处只保留与正式配置同步的注释。
     # seq 36: mid observation point, facing the region center
       # mid 中心坐标 (-1.395, 0.080)
@@ -179,8 +176,6 @@ pickup_staging:
     #   y: -0.32
     #   yaw: 1.5691910264536908
 
-    # 36->37 过渡点：(-1.300, -0.445, 3.141482426814858)。
-    # 机器人先在刷新区东侧完成朝西转向，再沿 y=-0.445 直行进入 seq37。
     # seq 37: far_navi observation point, facing the region center
       # far_navi 中心坐标 (-2.010, -0.445)
     # - x: -1.61

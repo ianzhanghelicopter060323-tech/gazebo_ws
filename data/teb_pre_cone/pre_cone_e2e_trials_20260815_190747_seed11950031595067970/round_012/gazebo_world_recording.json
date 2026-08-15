@@ -1,0 +1,18 @@
+{
+  "round": 12,
+  "task_id": "pre_cone_012_1786793587",
+  "world_name": "default",
+  "state_topic": "/sim_task/state",
+  "start_condition": {
+    "type": "immediate"
+  },
+  "status": "start_failed",
+  "recording_file": "gazebo_world_state.log",
+  "encoding": "zlib",
+  "trigger_progress_m": null,
+  "started_at": null,
+  "started_sim_time": null,
+  "stopped_at": "2026-08-15T19:54:31.693+08:00",
+  "size_bytes": 0,
+  "error": "Command '['gz', 'topic', '-p', '/gazebo/default/log/control', '-m', 'start: true base_path: \"/home/ianichinose/gazebo_ws/data/teb_pre_cone/pre_cone_e2e_trials_20260815_190747_seed11950031595067970/round_012\" encoding: \"zlib\" record_resources: false']' timed out after 10.0 seconds"
+}

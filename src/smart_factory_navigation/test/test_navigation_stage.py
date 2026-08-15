@@ -83,6 +83,19 @@ class NavigationStageTest(unittest.TestCase):
             )
         self.assertEqual(NavigationOutcome.SUCCEEDED, outcome)
 
+    def test_no_progress_heartbeat_cancels_goal_for_recovery(self):
+        stage, client = self._stage([GoalStatus.ACTIVE])
+        with mock.patch.object(
+            rospy.Time, "now", return_value=rospy.Time(1.0)
+        ):
+            outcome, message = stage.navigate(
+                PoseStamped(), lambda: False, lambda: True
+            )
+
+        self.assertEqual(NavigationOutcome.STUCK, outcome)
+        self.assertIn("no measurable progress", message)
+        self.assertEqual(1, client.cancel_calls)
+
 
 if __name__ == "__main__":
     unittest.main()

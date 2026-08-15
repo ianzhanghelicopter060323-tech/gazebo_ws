@@ -14,6 +14,7 @@ class NavigationOutcome:
     ABORTED = 2
     PREEMPTED = 3
     PASSED = 4
+    STUCK = 5
 
 
 class NavigationStage:
@@ -86,7 +87,12 @@ class NavigationStage:
                     "move_base finished with state {}".format(state),
                 )
 
-            heartbeat()
+            if heartbeat() is True:
+                self._client.cancel_goal()
+                return (
+                    NavigationOutcome.STUCK,
+                    "move_base made no measurable progress",
+                )
             if time.monotonic() >= deadline:
                 self._client.cancel_goal()
                 return (

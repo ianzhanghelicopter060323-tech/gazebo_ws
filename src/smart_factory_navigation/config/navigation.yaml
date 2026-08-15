@@ -48,6 +48,16 @@ navigation:
   final_pass_radius: 0.15
   final_yaw_tolerance: 0.04
   cmd_vel_topic: /cmd_vel
+  recovery:
+    enabled: true
+    no_progress_timeout: 15.0
+    minimum_progress_distance: 0.03
+    max_attempts_per_waypoint: 1
+    speed: 0.05
+    max_distance: 0.08
+    wall_timeout: 2.0
+    scan_topic: /scan
+    scan_sector_half_angle: 0.52
 
 localization:
   amcl_topic: /amcl_pose
@@ -71,3 +81,5 @@ pickup:
   direct_alignment_min_speed: 0.05
   direct_alignment_max_speed: 0.08
   direct_alignment_timeout: 8.0
+  direct_alignment_wall_timeout: 45.0
+  direct_alignment_clock_stall_timeout: 10.0

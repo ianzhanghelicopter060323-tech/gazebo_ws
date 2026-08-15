@@ -1107,6 +1107,15 @@ class RosDeliveryEntrySelector:
         self.channel_avoidance_lock_wait_timeout = float(
             raw.get("channel_avoidance_lock_wait_timeout", 1.0)
         )
+        self.preparation_baseline_lock_service = str(
+            raw.get(
+                "preparation_baseline_lock_service",
+                "/move_base/AdaptiveTebLocalPlannerROS/set_baseline_lock",
+            )
+        )
+        self.preparation_baseline_lock_wait_timeout = float(
+            raw.get("preparation_baseline_lock_wait_timeout", 1.0)
+        )
         self.channel_entry_axis_waypoints = int(
             raw.get("channel_entry_axis_waypoints", 1)
         )
@@ -1196,6 +1205,7 @@ class RosDeliveryEntrySelector:
         self._subscriber = None
         self._make_plan = None
         self._set_avoidance_lock = None
+        self._set_baseline_lock = None
         if self.enabled:
             self._subscriber = rospy.Subscriber(
                 self.scan_topic,
@@ -1210,6 +1220,9 @@ class RosDeliveryEntrySelector:
                 self._set_avoidance_lock = rospy.ServiceProxy(
                     self.channel_avoidance_lock_service, SetBool
                 )
+            self._set_baseline_lock = rospy.ServiceProxy(
+                self.preparation_baseline_lock_service, SetBool
+            )
 
     def _validate_ros_config(self):
         numeric = (
@@ -1231,6 +1244,7 @@ class RosDeliveryEntrySelector:
             self.channel_make_plan_wait_timeout,
             self.channel_make_plan_tolerance,
             self.channel_avoidance_lock_wait_timeout,
+            self.preparation_baseline_lock_wait_timeout,
             self.channel_min_entry_depth_progress,
             self.channel_entry_depth_backtrack_tolerance,
             self.detection_min_range,
@@ -1247,6 +1261,10 @@ class RosDeliveryEntrySelector:
         if not self.channel_avoidance_lock_service:
             raise ValueError(
                 "channel_avoidance_lock_service must not be empty"
+            )
+        if not self.preparation_baseline_lock_service:
+            raise ValueError(
+                "preparation_baseline_lock_service must not be empty"
             )
         if self.scan_timeout <= 0.0 or self.scan_wait_timeout <= 0.0:
             raise ValueError("scan timeouts must be positive")
@@ -1335,6 +1353,10 @@ class RosDeliveryEntrySelector:
         if self.channel_avoidance_lock_wait_timeout <= 0.0:
             raise ValueError(
                 "channel_avoidance_lock_wait_timeout must be positive"
+            )
+        if self.preparation_baseline_lock_wait_timeout <= 0.0:
+            raise ValueError(
+                "preparation_baseline_lock_wait_timeout must be positive"
             )
         if self.minimum_beams <= 0:
             raise ValueError("minimum_beams must be positive")
@@ -1931,6 +1953,35 @@ class RosDeliveryEntrySelector:
             )
         rospy.loginfo(
             "delivery channel avoidance lock %s: %s",
+            "enabled" if enabled else "disabled",
+            response.message,
+        )
+
+    def set_preparation_baseline_lock(self, enabled):
+        """Keep the early mission on the small-footprint baseline planner."""
+        if not self.enabled:
+            return
+        try:
+            rospy.wait_for_service(
+                self.preparation_baseline_lock_service,
+                timeout=self.preparation_baseline_lock_wait_timeout,
+            )
+            response = self._set_baseline_lock(bool(enabled))
+        except (rospy.ROSException, rospy.ServiceException) as exc:
+            raise EntrySelectionUnavailable(
+                "adaptive TEB baseline lock service {} failed: {}".format(
+                    self.preparation_baseline_lock_service, exc
+                )
+            )
+        if not response.success:
+            raise EntrySelectionUnavailable(
+                "adaptive TEB did not confirm baseline lock {}: {}".format(
+                    "enabled" if enabled else "disabled",
+                    response.message,
+                )
+            )
+        rospy.loginfo(
+            "preparation baseline lock %s: %s",
             "enabled" if enabled else "disabled",
             response.message,
         )
