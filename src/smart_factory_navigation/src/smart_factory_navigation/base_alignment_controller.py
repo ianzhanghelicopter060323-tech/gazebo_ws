@@ -47,6 +47,12 @@ class BaseAlignmentController:
         self._escape_scan_sector = float(
             rospy.get_param("~navigation/recovery/scan_sector_half_angle", 0.52)
         )
+        # Scale the bounded escape distance by the chosen direction's sector
+        # clearance so tight gaps get a short nudge while open space stays
+        # capped by recovery/max_distance. 0.7 leaves a 30% margin.
+        self._escape_distance_scale = float(
+            rospy.get_param("~navigation/recovery/distance_scale_factor", 0.7)
+        )
         self._scan_lock = threading.Lock()
         self._latest_scan = None
 
@@ -155,9 +161,16 @@ class BaseAlignmentController:
             ("recovery/max_distance", self._escape_max_distance),
             ("recovery/wall_timeout", self._escape_wall_timeout),
             ("recovery/scan_sector_half_angle", self._escape_scan_sector),
+            ("recovery/distance_scale_factor", self._escape_distance_scale),
         ):
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError("navigation/{} must be positive".format(name))
+        if not math.isfinite(self._escape_distance_scale) or (
+            self._escape_distance_scale < 0.0 or self._escape_distance_scale > 1.0
+        ):
+            raise ValueError(
+                "navigation/recovery/distance_scale_factor must be in [0, 1]"
+            )
 
     @property
     def heading_tolerance(self):
@@ -170,6 +183,15 @@ class BaseAlignmentController:
     def _scan_callback(self, message):
         with self._scan_lock:
             self._latest_scan = message
+
+    def _escape_max_distance_for(self, clearance):
+        """Bound one escape nudge by 70% of the direction's clearance."""
+        if math.isfinite(clearance):
+            return min(
+                self._escape_distance_scale * clearance,
+                self._escape_max_distance,
+            )
+        return self._escape_max_distance
 
     @staticmethod
     def _sector_clearance(scan, center, half_angle):
@@ -191,7 +213,16 @@ class BaseAlignmentController:
         return values[max(0, int(0.1 * (len(values) - 1)))]
 
     def escape(self, frame_id):
-        """Execute one bounded forward/backward recovery under sole ownership."""
+        """Execute one bounded forward/backward recovery under sole ownership.
+
+        The preferred direction is the one with the larger measured sector
+        clearance.  The escape probes that direction first; if the robot stops
+        making progress for a short stall window (e.g. it is pressing into an
+        obstacle the laser cannot see, like a jam cube below the scan plane),
+        it switches to the opposite direction for the remaining wall budget.
+        Total motion stays bounded by ``recovery/max_distance`` and the whole
+        escape by ``recovery/wall_timeout``.
+        """
         if not self._escape_enabled:
             return False
         with self._scan_lock:
@@ -206,43 +237,73 @@ class BaseAlignmentController:
         elif math.isfinite(front):
             direction = 1.0
 
-        start_pose = self._localization.localized_pose(frame_id)
-        if start_pose is None:
-            return False
-        started = time.monotonic()
-        moved = 0.0
-        command = Twist()
-        command.linear.x = direction * self._escape_speed
+        # 70% of the chosen direction's clearance bounds each nudge; when the
+        # clearance is unknown, fall back to the configured maximum so a missing
+        # scan never produces an unbounded or zero-distance nudge.
+        stall_timeout = min(0.5, self._escape_wall_timeout / 4.0)
+        deadline = time.monotonic() + self._escape_wall_timeout
+        attempts = []
+        succeeded = False
         try:
-            while not rospy.is_shutdown():
-                if self._preempt_requested():
-                    raise BaseAlignmentPreempted(
-                        "task preempted during bounded navigation recovery"
-                    )
-                current = self._localization.localized_pose(frame_id)
-                if current is not None:
-                    moved = math.hypot(
-                        current[0] - start_pose[0], current[1] - start_pose[1]
-                    )
-                if (
-                    moved >= self._escape_max_distance
-                    or time.monotonic() - started >= self._escape_wall_timeout
-                ):
+            for probe in (direction, -direction):
+                chosen_clearance = front if probe > 0.0 else rear
+                max_distance = self._escape_max_distance_for(chosen_clearance)
+                start_pose = self._localization.localized_pose(frame_id)
+                if start_pose is None:
+                    return False
+                last_moved = 0.0
+                last_progress_at = time.monotonic()
+                moved = 0.0
+                command = Twist()
+                command.linear.x = probe * self._escape_speed
+                while not rospy.is_shutdown():
+                    if self._preempt_requested():
+                        raise BaseAlignmentPreempted(
+                            "task preempted during bounded navigation recovery"
+                        )
+                    current = self._localization.localized_pose(frame_id)
+                    if current is not None:
+                        moved = math.hypot(
+                            current[0] - start_pose[0],
+                            current[1] - start_pose[1],
+                        )
+                    now = time.monotonic()
+                    if moved > last_moved:
+                        last_moved = moved
+                        last_progress_at = now
+                    if (
+                        moved >= max_distance
+                        or now >= deadline
+                        or now - last_progress_at >= stall_timeout
+                    ):
+                        break
+                    self._velocity_publisher.publish(command)
+                    time.sleep(0.05)
+                attempts.append(
+                    {
+                        "direction": "forward" if probe > 0.0 else "backward",
+                        "moved": moved,
+                        "target": max_distance,
+                    }
+                )
+                if moved >= min(0.02, self._escape_max_distance):
+                    succeeded = True
                     break
-                self._velocity_publisher.publish(command)
-                time.sleep(0.05)
         finally:
             self.stop()
         rospy.logwarn(
-            "bounded navigation recovery completed: direction=%s "
-            "front_clearance=%s rear_clearance=%s moved=%.3fm wall=%.3fs",
-            "forward" if direction > 0.0 else "backward",
+            "bounded navigation recovery completed: probes=%s "
+            "front_clearance=%s rear_clearance=%s scale=%.1f wall=%.3fs",
+            "|".join(
+                "{}{:.3f}m".format(attempt["direction"], attempt["moved"])
+                for attempt in attempts
+            ),
             "unavailable" if not math.isfinite(front) else "{:.3f}".format(front),
             "unavailable" if not math.isfinite(rear) else "{:.3f}".format(rear),
-            moved,
-            time.monotonic() - started,
+            self._escape_distance_scale,
+            time.monotonic() - deadline + self._escape_wall_timeout,
         )
-        return moved >= min(0.02, self._escape_max_distance)
+        return succeeded
 
     @staticmethod
     def _quaternion_yaw(quaternion):

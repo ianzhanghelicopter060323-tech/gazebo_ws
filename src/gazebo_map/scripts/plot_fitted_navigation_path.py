@@ -179,12 +179,12 @@ def read_pickup_navigation_goals(path):
         )
     if [station[0] for station in stations] != [35, 36, 37]:
         raise ValueError("pickup stations must be ordered exactly 35, 36, 37")
-    if stations[0][4] is not None or any(
-        station[4] is None for station in stations[1:]
-    ):
-        raise ValueError(
-            "seq35 must have no transition; seq36 and seq37 must each have one"
-        )
+    # transition_pose is optional for every station, matching the runtime
+    # pickup_pipeline (optional_pose -> empty when absent). The mission config
+    # stopped defining seq36/37 transitions; only seq35 must still have none,
+    # because the renderer derives the "35-36 turn" leg from station 34.
+    if stations[0][4] is not None:
+        raise ValueError("seq35 must have no transition")
     return stations
 
 

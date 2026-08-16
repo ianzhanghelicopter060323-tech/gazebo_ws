@@ -1,0 +1,50 @@
+{
+  "case": {
+    "id": "pre_nav_jam_forbidden_zone_cage",
+    "description": "Forbidden-zone stuck reproduction WITHOUT physical contact. Four visible static walls (0.30 m tall, above the 0.107 m laser plane; 0.05 m thick, 0.90 m long) form a tight ~0.5 m cage centred on the start at (0,0). The 0.238 m body keeps ~0.11 m clearance to each wall, so there is no contact and no pitch; the costmap marks the footprint (0.18 m effective + inflation) as lethal and the global planner can never plan out of the cage, so the 25 s no-progress monitor fires the STUCK -> bounded escape -> resume -> re-STUCK chain cleanly. No global or local planner parameter is touched.",
+    "jam_cubes": [
+      {
+        "name": "cage_front",
+        "x": 0.25,
+        "y": 0.0,
+        "yaw": 0.0,
+        "z": 0.15,
+        "static": true,
+        "size": [0.05, 0.90, 0.30]
+      },
+      {
+        "name": "cage_rear",
+        "x": -0.25,
+        "y": 0.0,
+        "yaw": 0.0,
+        "z": 0.15,
+        "static": true,
+        "size": [0.05, 0.90, 0.30]
+      },
+      {
+        "name": "cage_left",
+        "x": 0.0,
+        "y": 0.25,
+        "yaw": 0.0,
+        "z": 0.15,
+        "static": true,
+        "size": [0.90, 0.05, 0.30]
+      },
+      {
+        "name": "cage_right",
+        "x": 0.0,
+        "y": -0.25,
+        "yaw": 0.0,
+        "z": 0.15,
+        "static": true,
+        "size": [0.90, 0.05, 0.30]
+      }
+    ],
+    "robot_pose": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.02,
+      "yaw": 0.0
+    }
+  }
+}

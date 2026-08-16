@@ -1,0 +1,30 @@
+{
+  "case": {
+    "id": "round_064_escape_repro",
+    "source_round": 64,
+    "description": "Round-064 stuck-pose attempt (sim ~197.5s) with recorded cones/cubes, robot placed flat at recorded x/y/yaw. VERIFIED 2026-08-16: static placement does NOT reproduce the jam - front_clearance reads 0.581 m (not 0.056 m) and NAVIGATE_POSE to seq35 succeeds in 63.8 s with no escape. The recorded 0.056 m front clearance is a lidar-hits-ground artifact of the 67 deg pitch (gazebo_ros_planar_move chassis riding on an obstacle); the jam is a dynamic process, not a static pose. See docs/round064_70pct_escape_repro_report_20260816.md.",
+    "robot_pose": {
+      "x": -1.39,
+      "y": -0.486,
+      "z": 0.15,
+      "yaw": -0.587
+    },
+    "cubes": {
+      "cube_0": {"station": 37, "x": -2.0311699999568744, "y": -0.3516210001005423},
+      "cube_1": {"station": 36, "x": -1.4984400000424192, "y": 0.11925199989938048},
+      "cube_2": {"station": 35, "x": -0.8911930001006313, "y": -0.45475599995735105}
+    },
+    "cones": {
+      "cone_10": {"x": 0.23, "y": -2.64},
+      "cone_11": {"x": -0.321, "y": -2.35},
+      "cone_12": {"x": 1.81, "y": -2.28},
+      "cone_13": {"x": 2.34, "y": -1.52},
+      "cone_14": {"x": 0.532, "y": -1.83},
+      "cone_15": {"x": -1.32, "y": -2.31},
+      "cone_16": {"x": -0.809, "y": -1.72},
+      "cone_17": {"x": -1.02, "y": -2.97},
+      "cone_18": {"x": 2.25, "y": -2.9},
+      "cone_19": {"x": 1.15, "y": -2.25}
+    }
+  }
+}

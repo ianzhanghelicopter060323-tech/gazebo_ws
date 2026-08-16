@@ -126,7 +126,7 @@ class ConeRecordingCleanupTest(unittest.TestCase):
             "delivery_navigation_failure", "cone_collision",
             "cone_monitor_status", "contact_stream_status",
             "gazebo_recording_status", "gazebo_recording_path",
-            "gazebo_recording_size_bytes",
+            "gazebo_recording_size_bytes", "log_file",
         )
         rows = []
         for round_number in (1, 2, 3, 4):
@@ -146,6 +146,12 @@ class ConeRecordingCleanupTest(unittest.TestCase):
             (round_dir / "gazebo_world_recorder.log").write_text(
                 "recorder", encoding="utf-8"
             )
+            log_round_dir = self.log_dir / "round_{:03d}".format(round_number)
+            log_round_dir.mkdir()
+            log_file = log_round_dir / "roslaunch.log"
+            log_file.write_text(
+                "clean round; no recovery events\n", encoding="utf-8"
+            )
             rows.append(
                 {
                     "round": round_number,
@@ -162,6 +168,7 @@ class ConeRecordingCleanupTest(unittest.TestCase):
                     "gazebo_recording_status": "complete",
                     "gazebo_recording_path": str(recording_path),
                     "gazebo_recording_size_bytes": recording_path.stat().st_size,
+                    "log_file": str(log_file),
                 }
             )
         rows[1]["cone_collision"] = "True"
@@ -210,6 +217,78 @@ class ConeRecordingCleanupTest(unittest.TestCase):
                      / filename).is_file()
                 )
         self.assertEqual(len(results[0]["deleted_files"]), 3)
+
+    def test_clean_round_with_recovery_marker_is_still_deleted_but_annotated(self):
+        log_path = self.log_dir / "round_001" / "roslaunch.log"
+        log_path.write_text(
+            "AdaptiveTebLocalPlannerROS initialized: ok\n"
+            "bounded navigation recovery completed\n"
+            "trajectory is not feasible. Resetting planner\n"
+            "possible oscillation (of the robot or its local plan) detected\n"
+            "oscillation recovery disabled/expired\n",
+            encoding="utf-8",
+        )
+        _root, results = cleanup.process(self.args(apply=True), emit=False)
+
+        self.assertTrue(results[0]["eligible_for_recording_deletion"])
+        self.assertTrue(results[0]["deleted_files"])
+        self.assertEqual(results[0]["recovery_event_count"], 4)
+        self.assertEqual(
+            results[0]["recovery_markers"],
+            [
+                "bounded navigation recovery completed",
+                "trajectory is not feasible. Resetting planner",
+                "possible oscillation (of the robot or its local plan) detected",
+                "oscillation recovery disabled/expired",
+            ],
+        )
+
+    def test_recovery_annotation_reads_log_file_column(self):
+        _root, results = cleanup.process(self.args(apply=False), emit=False)
+
+        self.assertTrue(results[0]["eligible_for_recording_deletion"])
+        self.assertEqual(results[0]["recovery_event_count"], 0)
+        self.assertEqual(results[0]["recovery_markers"], [])
+
+    def test_missing_log_file_is_non_blocking(self):
+        (self.log_dir / "round_001" / "roslaunch.log").unlink()
+
+        _root, results = cleanup.process(self.args(apply=False), emit=False)
+
+        self.assertTrue(results[0]["eligible_for_recording_deletion"])
+        self.assertEqual(results[0]["recovery_event_count"], 0)
+        self.assertEqual(results[0]["recovery_markers"], [])
+
+    def test_row_without_log_file_column_is_non_blocking(self):
+        csv_path = self.log_dir / "trials.csv"
+        with csv_path.open("r", encoding="utf-8", newline="") as csv_file:
+            reader = csv.DictReader(csv_file)
+            fields = [f for f in reader.fieldnames if f != "log_file"]
+            rows = [
+                {k: v for k, v in dict(row).items() if k != "log_file"}
+                for row in reader
+            ]
+        with csv_path.open("w", encoding="utf-8", newline="") as csv_file:
+            writer = csv.DictWriter(csv_file, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        _root, results = cleanup.process(self.args(apply=False), emit=False)
+
+        self.assertTrue(results[0]["eligible_for_recording_deletion"])
+        self.assertEqual(results[0]["recovery_event_count"], 0)
+        self.assertEqual(results[0]["recovery_markers"], [])
+
+    def test_recovery_log_memoization_refreshes_when_file_changes(self):
+        log_path = self.log_dir / "round_001" / "roslaunch.log"
+        log_path.write_text("clean\n", encoding="utf-8")
+        self.assertEqual(cleanup.recovery_events_in_log(str(log_path)), (0, []))
+        with log_path.open("a", encoding="utf-8") as stream:
+            stream.write("bounded navigation recovery completed\n")
+        self.assertEqual(
+            cleanup.recovery_events_in_log(str(log_path)),
+            (1, ["bounded navigation recovery completed"]),
+        )
 
 
 class FixedConeEndToEndCleanupTest(unittest.TestCase):

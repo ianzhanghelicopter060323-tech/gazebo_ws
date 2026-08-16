@@ -50,14 +50,32 @@ navigation:
   cmd_vel_topic: /cmd_vel
   recovery:
     enabled: true
-    no_progress_timeout: 15.0
-    minimum_progress_distance: 0.03
-    max_attempts_per_waypoint: 1
+    # Stuck is now a 25 s window with only 0.02 m of amcl displacement. The
+    # longer window makes the judgment robust to TEB's own corrective jitter
+    # before a true no-progress jam is declared.
+    no_progress_timeout: 25.0
+    minimum_progress_distance: 0.02
+    # Up to two recovery behaviors per waypoint. After each escape the base
+    # holds post_escape_wait, then move_base resumes navigation; if the same
+    # waypoint triggers stuck again, a second, distinct recovery runs instead
+    # of oscillating inside one behavior.
+    max_attempts_per_waypoint: 2
     speed: 0.05
+    # Escape distance is hard-capped here, but the real limiter is the wall
+    # clock: wall_timeout 2.0 s x 0.05 m/s ~= 0.1 m of actual escape travel,
+    # so max_distance stays unchanged.
     max_distance: 0.08
     wall_timeout: 2.0
+    # Hold the stopped base after an escape before resuming move_base. This
+    # gives local planners time to re-race cleanly and separates consecutive
+    # recovery behaviors so they cannot oscillate.
+    post_escape_wait: 3.0
     scan_topic: /scan
     scan_sector_half_angle: 0.52
+    # Escape distance = distance_scale_factor * chosen-direction sector
+    # clearance, capped at max_distance. 0.7 leaves a 30% safety margin and
+    # avoids the fixed 0.08 m cap overshooting into a tight gap.
+    distance_scale_factor: 0.7
 
 localization:
   amcl_topic: /amcl_pose

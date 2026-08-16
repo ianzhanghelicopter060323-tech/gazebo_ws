@@ -1,0 +1,23 @@
+{
+  "case": {
+    "id": "pre_nav_jam_trial_start_static",
+    "description": "Deterministic stuck diagnostic with robot levelled before navigation: a static, laser-invisible low wall (0.04 m tall; top at 0.04 m, well below the 0.107 m scan plane) spanning the robot's track at (0.45, 0) -- dead ahead on the first fitted leg (0, 0) -> (0.927, 0.006). move_base plans a clear path through it, but the 20 kg robot physically cannot push a static body whose top (0.04 m) sits above the base_link bottom (0.0195 m) and whose 0.28 m width overhangs the 0.238 m body. The 0.04 m wall is low enough that the robot should jam without the severe nose-up pitch observed with a 0.06 m wall, so the adaptive escape (forward probe stalls, backward succeeds) should move the robot with real displacement. Expect: no-progress STUCK after 25 s -> adaptive escape -> settle -> resume -> re-STUCK -> second recovery -> bounded termination (persistent invisible obstacle cannot be displaced).",
+    "jam_cubes": [
+      {
+        "name": "jam_wall_0",
+        "x": 0.45,
+        "y": 0.0,
+        "yaw": 0.0,
+        "z": 0.02,
+        "static": true,
+        "size": [0.10, 0.28, 0.04]
+      }
+    ],
+    "robot_pose": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.02,
+      "yaw": 0.0
+    }
+  }
+}

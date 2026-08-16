@@ -1,0 +1,23 @@
+{
+  "case": {
+    "id": "pre_nav_jam_trial_wall006",
+    "description": "Severe round-064-style wedge for observing the worst tilt: a static, laser-invisible 0.06 m wall (top at 0.06 m, below the 0.107 m scan plane) centred at (0.45, 0) on the first fitted leg. The robot pitches ~39 deg on contact and the bounded escape probes both directions with ~0 m displacement, so this variant demonstrates the wedge the recovery layer cannot free; watch roll/pitch climb and the 'Failed to get a plan' loop.",
+    "jam_cubes": [
+      {
+        "name": "jam_wall_0",
+        "x": 0.45,
+        "y": 0.0,
+        "yaw": 0.0,
+        "z": 0.03,
+        "static": true,
+        "size": [0.10, 0.28, 0.06]
+      }
+    ],
+    "robot_pose": {
+      "x": 0.0,
+      "y": 0.0,
+      "z": 0.02,
+      "yaw": 0.0
+    }
+  }
+}

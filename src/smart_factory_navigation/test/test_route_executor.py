@@ -558,5 +558,167 @@ class RouteExecutorTest(unittest.TestCase):
                     context, recorder, pose, "alignment"
                 )
 
+    def test_stuck_escape_waits_then_resumes_navigation(self):
+        executor, navigation, alignment, published, _aborted, _preempted = (
+            self._executor(
+                [
+                    (NavigationOutcome.STUCK, "no measurable progress"),
+                    (NavigationOutcome.SUCCEEDED, "goal reached"),
+                ],
+                {
+                    "~navigation/max_retries": 1,
+                    "~navigation/recovery/post_escape_wait": 0.5,
+                    "~navigation/recovery/max_attempts_per_waypoint": 2,
+                },
+            )
+        )
+        alignment.escape = mock.Mock(return_value=True)
+        context = self._context([])
+
+        with mock.patch(
+            "smart_factory_navigation.route_executor.time.sleep"
+        ) as sleep:
+            executor.navigate_pose(
+                context,
+                self._state(context),
+                self._pose(),
+                states.NAVIGATE_POSE,
+                "single pose",
+            )
+
+        self.assertEqual(2, len(navigation.navigate_calls))
+        alignment.escape.assert_called_once()
+        details = [detail for _ctx, detail in published]
+        self.assertTrue(
+            any("holding 0.5s after escape" in detail for detail in details),
+            details,
+        )
+        # 0.5 s / 0.05 s settle steps (float accumulation may add one).
+        self.assertGreaterEqual(sleep.call_count, 10)
+
+    def test_second_stuck_triggers_second_recovery_until_success(self):
+        executor, navigation, alignment, published, _aborted, _preempted = (
+            self._executor(
+                [
+                    (NavigationOutcome.STUCK, "no measurable progress"),
+                    (NavigationOutcome.STUCK, "no measurable progress"),
+                    (NavigationOutcome.SUCCEEDED, "goal reached"),
+                ],
+                {
+                    "~navigation/max_retries": 2,
+                    "~navigation/recovery/post_escape_wait": 0.0,
+                    "~navigation/recovery/max_attempts_per_waypoint": 2,
+                },
+            )
+        )
+        alignment.escape = mock.Mock(return_value=True)
+        context = self._context([])
+
+        executor.navigate_pose(
+            context,
+            self._state(context),
+            self._pose(),
+            states.NAVIGATE_POSE,
+            "single pose",
+        )
+
+        self.assertEqual(3, len(navigation.navigate_calls))
+        self.assertEqual(2, alignment.escape.call_count)
+        details = [detail for _ctx, detail in published]
+        self.assertTrue(
+            any("bounded recovery 1/2" in detail for detail in details),
+            details,
+        )
+        self.assertTrue(
+            any("bounded recovery 2/2" in detail for detail in details),
+            details,
+        )
+
+    def test_third_stuck_after_two_recoveries_fails(self):
+        executor, navigation, alignment, _published, aborted, _preempted = (
+            self._executor(
+                [
+                    (NavigationOutcome.STUCK, "no measurable progress"),
+                    (NavigationOutcome.STUCK, "no measurable progress"),
+                    (NavigationOutcome.STUCK, "no measurable progress"),
+                ],
+                {
+                    "~navigation/max_retries": 2,
+                    "~navigation/recovery/post_escape_wait": 0.0,
+                    "~navigation/recovery/max_attempts_per_waypoint": 2,
+                },
+            )
+        )
+        alignment.escape = mock.Mock(return_value=True)
+        context = self._context([])
+
+        with self.assertRaises(RouteNavigationFailure) as raised:
+            executor.navigate_pose(
+                context,
+                self._state(context),
+                self._pose(),
+                states.NAVIGATE_POSE,
+                "single pose",
+            )
+
+        self.assertEqual(error_codes.NAVIGATION_ABORTED, raised.exception.error_code)
+        self.assertEqual(3, len(navigation.navigate_calls))
+        self.assertEqual(2, alignment.escape.call_count)
+        self.assertFalse(aborted)
+
+    def test_staging_route_recovers_from_stuck_then_continues(self):
+        executor, navigation, alignment, published, aborted, _preempted = (
+            self._executor(
+                [
+                    (NavigationOutcome.STUCK, "no measurable progress"),
+                    (NavigationOutcome.SUCCEEDED, "goal reached"),
+                    (NavigationOutcome.PASSED, "inside pass radius"),
+                    (NavigationOutcome.PASSED, "inside final pass radius"),
+                ],
+                {
+                    "~navigation/max_retries": 0,
+                    "~navigation/recovery/post_escape_wait": 0.0,
+                    "~navigation/recovery/max_attempts_per_waypoint": 2,
+                    "~navigation/intermediate_pass_radius": 0.15,
+                    "~navigation/final_pass_radius": 0.15,
+                    "~navigation/final_yaw_tolerance": 0.04,
+                },
+            )
+        )
+        alignment.escape = mock.Mock(return_value=True)
+        executor._publish_fitted_reference_path = mock.Mock()
+        final_goal = self._pose(2.0, 3.0, yaw=0.4)
+        context = self._context([final_goal])
+
+        with mock.patch(
+            "smart_factory_navigation.route_executor.rospy.Time.now",
+            return_value=rospy.Time(1.0),
+        ):
+            message = executor.execute_staging_route(
+                context, self._state(context)
+            )
+
+        self.assertEqual(
+            "all 3 waypoints reached; arrived at pickup staging area", message
+        )
+        self.assertEqual(4, len(navigation.navigate_calls))
+        self.assertEqual(1, alignment.escape.call_count)
+        details = [detail for _ctx, detail in published]
+        self.assertTrue(
+            any(
+                "waypoint 1/3 bounded recovery 1/2" in detail
+                for detail in details
+            ),
+            details,
+        )
+        self.assertFalse(aborted)
+
+    def test_negative_post_escape_wait_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self._executor(
+                [],
+                {"~navigation/recovery/post_escape_wait": -1.0},
+            )
+
 if __name__ == "__main__":
     unittest.main()

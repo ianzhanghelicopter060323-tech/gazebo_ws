@@ -70,6 +70,7 @@ AdaptiveTebLocalPlannerROS:
     footprint_model: # footprint配置
       type: polygon
       vertices: [[0.08, -0.08], [0.08, 0.08], [-0.08, 0.08], [-0.08, -0.08]] # 0.16m方形碰撞外形
+      # vertices: [[0.15, -0.15], [0.15, 0.15], [-0.15, 0.15], [-0.15, -0.15]]
 
     xy_goal_tolerance: 0.04 # 目标位置允许误差，单位m
     # 0.12 rad可能早于任务层0.04 rad终态检查返回成功，使RGB-D视角偏斜。

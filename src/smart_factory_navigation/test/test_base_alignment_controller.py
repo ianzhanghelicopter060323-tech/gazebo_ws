@@ -160,5 +160,76 @@ class BaseAlignmentControllerTest(unittest.TestCase):
         self.assertTrue(self._is_zero(publisher.messages[-1]))
 
 
+    def test_escape_max_distance_scales_with_clearance(self):
+        controller, _, _ = self._controller()
+        # Defaults: scale=0.7, max_distance=0.08.
+        self.assertAlmostEqual(controller._escape_max_distance_for(math.nan), 0.08)
+        self.assertAlmostEqual(controller._escape_max_distance_for(0.056), 0.0392)
+        self.assertAlmostEqual(controller._escape_max_distance_for(0.2), 0.08)
+        self.assertAlmostEqual(controller._escape_max_distance_for(1.0), 0.08)
+
+    def test_escape_switches_direction_when_primary_blocked(self):
+        from sensor_msgs.msg import LaserScan
+
+        controller, localization, publisher = self._controller()
+        # A generous wall budget lets the stall detection, not the deadline,
+        # drive the primary-to-opposite direction switch under test.
+        controller._escape_wall_timeout = 10.0
+        controller._escape_max_distance = 0.08
+        controller._escape_speed = 0.05
+        controller._escape_scan_sector = 0.52
+
+        step = 2.0 * math.pi / 360.0
+        scan = LaserScan()
+        scan.angle_min = -math.pi
+        scan.angle_increment = step
+        scan.range_min = 0.1
+        scan.range_max = 10.0
+        scan.ranges = [5.0] * 360
+        # Front sector (center 0) reads long, rear (center +-pi) reads short,
+        # so the primary escape direction is forward.
+        for index in range(360):
+            angle = -math.pi + index * step
+            if abs(angle - math.pi) <= 0.52 or abs(angle + math.pi) <= 0.52:
+                scan.ranges[index] = 0.3
+        with controller._scan_lock:
+            controller._latest_scan = scan
+
+        calls = {"n": 0}
+
+        def fake_pose(_frame_id):
+            calls["n"] += 1
+            if calls["n"] >= 6:
+                return (-0.05, 0.0, 0.0)  # reverse phase makes real progress
+            return (0.0, 0.0, 0.0)  # forward phase is jammed
+
+        localization.localized_pose.side_effect = fake_pose
+        clock = {"t": 0.0}
+
+        def fake_monotonic():
+            clock["t"] += 0.2
+            return clock["t"]
+
+        with mock.patch(
+            "smart_factory_navigation.base_alignment_controller.time.monotonic",
+            side_effect=fake_monotonic,
+        ), mock.patch(
+            "smart_factory_navigation.base_alignment_controller.time.sleep"
+        ), mock.patch(
+            "smart_factory_navigation.base_alignment_controller.rospy.is_shutdown",
+            return_value=False,
+        ), mock.patch(
+            "smart_factory_navigation.base_alignment_controller.rospy.logwarn"
+        ):
+            self.assertTrue(controller.escape("map"))
+
+        commanded = [message.linear.x for message in publisher.messages]
+        self.assertGreater(commanded[0], 0.0, "primary escape should probe forward")
+        self.assertTrue(
+            any(value < 0.0 for value in commanded),
+            "escape should reverse after the forward probe stalls",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

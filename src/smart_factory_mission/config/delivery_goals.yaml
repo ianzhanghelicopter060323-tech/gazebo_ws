@@ -149,7 +149,7 @@ delivery:
     - target_class: 0
       name: food workshop
       x: 1.045097827911377
-      y: -2.963428497314453
+      y: -2.903428497314453
       yaw: -1.5963127613067627
       position_tolerance: 0.04
       yaw_tolerance_deg: 5.0

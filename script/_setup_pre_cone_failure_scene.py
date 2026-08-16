@@ -17,9 +17,11 @@ from gazebo_msgs.srv import (
 )
 import rospy
 from std_srvs.srv import Empty
+from tf.transformations import quaternion_from_euler
 
 
 STATION_YAWS = {35: -1.5708, 36: 0.0, 37: 1.5708}
+ROBOT_MODEL = "car3"
 
 
 def parse_args(argv):
@@ -29,15 +31,18 @@ def parse_args(argv):
     return parser.parse_args(rospy.myargv(argv=[sys.argv[0]] + list(argv))[1:])
 
 
-def state(name, x, y, yaw, z):
+def state(name, x, y, yaw, z, roll=0.0, pitch=0.0):
     message = ModelState()
     message.model_name = name
     message.reference_frame = "world"
     message.pose.position.x = float(x)
     message.pose.position.y = float(y)
     message.pose.position.z = float(z)
-    message.pose.orientation.z = math.sin(float(yaw) / 2.0)
-    message.pose.orientation.w = math.cos(float(yaw) / 2.0)
+    quaternion = quaternion_from_euler(float(roll), float(pitch), float(yaw))
+    message.pose.orientation.x = quaternion[0]
+    message.pose.orientation.y = quaternion[1]
+    message.pose.orientation.z = quaternion[2]
+    message.pose.orientation.w = quaternion[3]
     return message
 
 
@@ -84,6 +89,24 @@ def main(argv=None):
             result = set_model(state(name, raw["x"], raw["y"], 0.0, 0.0))
             if not result.success:
                 raise RuntimeError("failed to place {}: {}".format(name, result.status_message))
+
+        robot = case.get("robot_pose")
+        if robot:
+            result = set_model(
+                state(
+                    ROBOT_MODEL,
+                    robot["x"],
+                    robot["y"],
+                    robot.get("yaw", 0.0),
+                    robot.get("z", 0.15),
+                    robot.get("roll", 0.0),
+                    robot.get("pitch", 0.0),
+                )
+            )
+            if not result.success:
+                raise RuntimeError(
+                    "failed to place {}: {}".format(ROBOT_MODEL, result.status_message)
+                )
 
         physics_scale = float(case.get("physics_update_rate_scale", 1.0))
         if physics_scale != 1.0:

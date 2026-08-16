@@ -332,6 +332,47 @@ def cone_recording_checks(round_dir, row):
     )
 
 
+RECOVERY_LOG_MARKERS = (
+    "bounded navigation recovery completed",
+    "trajectory is not feasible. Resetting planner",
+    "possible oscillation (of the robot or its local plan) detected",
+    "oscillation recovery disabled/expired",
+)
+
+_LOG_RECOVERY_CACHE = {}
+
+
+def recovery_events_in_log(log_file):
+    """Return (total_occurrences, ordered_distinct_markers) for a round log.
+
+    Non-blocking by design: a missing/unreadable log file yields (0, []) so
+    this annotation can never gate recording deletion. The file is read at
+    most once per (path, mtime_ns, size) stat key, which keeps repeated
+    --watch scans over multi-MB roslaunch.log files cheap.
+    """
+    if not log_file:
+        return 0, []
+    path = Path(log_file)
+    try:
+        st = path.stat()
+    except OSError:
+        return 0, []
+    key = (str(path), st.st_mtime_ns, st.st_size)
+    cached = _LOG_RECOVERY_CACHE.get(key)
+    if cached is not None:
+        return cached
+    try:
+        content = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return 0, []
+    markers = [m for m in RECOVERY_LOG_MARKERS if m in content]
+    count = sum(content.count(m) for m in markers)
+    value = (count, markers)
+    if len(_LOG_RECOVERY_CACHE) < 4096:
+        _LOG_RECOVERY_CACHE[key] = value
+    return value
+
+
 def evaluate_cone_video_round(run_dir, round_dir, row):
     candidates = recording_candidates(round_dir, CONE_RECORDING_FILES)
     result = base_result("cone_zone_world", run_dir, round_dir, candidates)
@@ -366,6 +407,14 @@ def evaluate_cone_video_round(run_dir, round_dir, row):
             "reason": failed or "round_completed_without_detected_errors",
         }
     )
+    # Non-blocking recovery/escape annotation for later swing/jam review.
+    # Computed after eligibility so it can never affect
+    # eligible_for_recording_deletion / reason. Memoized per (mtime, size).
+    recovery_count, recovery_markers = recovery_events_in_log(
+        row.get("log_file") if row else None
+    )
+    result["recovery_event_count"] = recovery_count
+    result["recovery_markers"] = recovery_markers
     return result
 
 

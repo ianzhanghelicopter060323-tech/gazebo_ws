@@ -1,0 +1,44 @@
+{
+  "created_at": "2026-08-16T22:42:52+08:00",
+  "summary": {
+    "rounds_examined": 1,
+    "eligible_rounds": 1,
+    "retained_rounds": 0,
+    "eligible_bytes": 15549213,
+    "deleted_files": 3,
+    "deleted_bytes": 15549213
+  },
+  "rounds": [
+    {
+      "dataset": "cone_zone_world",
+      "run": "end_to_end_cone_trials_20260816_222257_seed20260816",
+      "round": 7,
+      "round_dir": "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260816_222257_seed20260816/round_007",
+      "eligible_for_recording_deletion": true,
+      "reason": "round_completed_without_detected_errors",
+      "recording_files": [
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260816_222257_seed20260816/round_007/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260816_222257_seed20260816/round_007/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260816_222257_seed20260816/round_007/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 15549213,
+      "deleted_files": [
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260816_222257_seed20260816/round_007/gazebo_world_state.log",
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260816_222257_seed20260816/round_007/gazebo_world_recording.json",
+        "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260816_222257_seed20260816/round_007/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 15549213,
+      "task_success": true,
+      "task_status": "task_completed",
+      "error_code": 0,
+      "preceding_navigation_failure": false,
+      "delivery_navigation_failure": false,
+      "cone_collision": false,
+      "cone_monitor_status": "complete",
+      "contact_stream_status": "stopped",
+      "gazebo_recording_status": "complete",
+      "recovery_event_count": 0,
+      "recovery_markers": []
+    }
+  ]
+}

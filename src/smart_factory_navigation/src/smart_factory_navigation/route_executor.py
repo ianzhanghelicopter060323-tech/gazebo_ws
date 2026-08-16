@@ -114,6 +114,11 @@ class RouteExecutor:
                 "~navigation/recovery/max_attempts_per_waypoint", 1
             )
         )
+        self._recovery_post_escape_wait = float(
+            rospy.get_param(
+                "~navigation/recovery/post_escape_wait", 3.0
+            )
+        )
         if (
             not math.isfinite(self._goal_cancel_timeout)
             or self._goal_cancel_timeout <= 0.0
@@ -130,6 +135,14 @@ class RouteExecutor:
         if self._recovery_max_attempts < 0:
             raise ValueError(
                 "navigation/recovery/max_attempts_per_waypoint must be nonnegative"
+            )
+        if not math.isfinite(self._recovery_post_escape_wait):
+            raise ValueError(
+                "navigation/recovery/post_escape_wait must be finite"
+            )
+        if self._recovery_post_escape_wait < 0.0:
+            raise ValueError(
+                "navigation/recovery/post_escape_wait must be nonnegative"
             )
 
         self._intermediate_pass_radius = float(
@@ -292,6 +305,32 @@ class RouteExecutor:
                     "goal cancellation".format(self._goal_cancel_timeout),
                 )
             time.sleep(0.02)
+
+    def _settle_after_escape(self, context, detail):
+        """Hold the stopped base after an escape before resuming move_base.
+
+        The escape loop has already stopped the base, so this wall-clock hold
+        only delays the next goal. It gives the local planners time to re-race
+        cleanly and, when a post-escape navigation re-triggers stuck, separates
+        the two recovery behaviors so they cannot oscillate.
+        """
+        if self._recovery_post_escape_wait <= 0.0:
+            return
+        self._publish_state(
+            context,
+            "{}; holding {:.1f}s after escape".format(
+                detail, self._recovery_post_escape_wait
+            ),
+        )
+        settled = 0.0
+        while settled < self._recovery_post_escape_wait:
+            if self._preempt_requested() or rospy.is_shutdown():
+                raise RouteNavigationPreempted(
+                    detail
+                    + ": task preempted while settling after bounded recovery"
+                )
+            time.sleep(0.05)
+            settled += 0.05
 
     @staticmethod
     def _quaternion_yaw(quaternion):
@@ -509,6 +548,7 @@ class RouteExecutor:
                     ),
                 )
                 if self._base_alignment.escape(frame_id):
+                    self._settle_after_escape(context, detail)
                     continue
         error_code = (
             error_codes.NAVIGATION_TIMEOUT
@@ -710,6 +750,12 @@ class RouteExecutor:
                         ),
                     )
                     if self._base_alignment.escape(frame_id):
+                        self._settle_after_escape(
+                            context,
+                            "waypoint {}/{}".format(
+                                waypoint_number, waypoint_count
+                            ),
+                        )
                         continue
                 if context.retry_count < self._max_retries:
                     context.retry_count += 1
