@@ -3,6 +3,8 @@
 > 交接文档。目的:把 `src/car3/urdf/car3.urdf` 中不符合竞赛规则的模型层修改回退到与标准模型一致,同时保留规则允许的改动。
 > 交接日:2026-08-16 | 分支:`TEB_test`
 
+> 执行记录(2026-08-16):已恢复四轮与 `laser_link` 的标准碰撞网格，并将深度插件回退为 `libgazebo_ros_depth_camera.so`。为避免 RGB 图像与 32FC1 深度图共用同一 topic，保留已分离的 `rgb/*` 与 `depth/*` topic 参数。XML 校验和 `catkin_make` 均通过，待仿真回归。
+
 ---
 
 ## 一、背景与合规判定
