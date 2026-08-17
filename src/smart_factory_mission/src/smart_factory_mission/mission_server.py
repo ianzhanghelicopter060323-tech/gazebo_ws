@@ -94,6 +94,11 @@ class MissionServer:
             self._delivery_entry_selector = RosDeliveryEntrySelector(
                 rospy.get_param("~delivery/entry_selector", {})
             )
+        self._channel_max_escapes = int(
+            rospy.get_param(
+                "~delivery/entry_selector/channel_max_escapes", 3
+            )
+        )
         self._completed_results = OrderedDict()
         self._preparation_baseline_locked = False
 
@@ -328,6 +333,7 @@ class MissionServer:
         reselections = 0
         reached_waypoints = []
         force_selection = False
+        escape_attempts = 0
 
         def rollback_to_previous(reason):
             nonlocal reselections, force_selection
@@ -410,13 +416,40 @@ class MissionServer:
             force_selection = True
 
         while completed_waypoints <= selector.channel_max_waypoints:
-            channel_pose = selector.resolve_channel_waypoint(
-                destination.pose,
-                safe_entry_pose,
-                completed_waypoints,
-                preempt_requested=self._server.is_preempt_requested,
-                force_selection=force_selection,
-            )
+            try:
+                channel_pose = selector.resolve_channel_waypoint(
+                    destination.pose,
+                    safe_entry_pose,
+                    completed_waypoints,
+                    preempt_requested=self._server.is_preempt_requested,
+                    force_selection=force_selection,
+                )
+            except EntrySelectionUnavailable as exc:
+                # The fan found no viable channel from the current pose (the
+                # robot is jammed nose-to-tail in a cone dead-end; the source16
+                # "goal published but instantly stuck" case).  Ask the
+                # navigation side to run its bounded escape -- strafing toward
+                # the larger side gap, or forward/back -- which repositions the
+                # base so the next selection sees open space.  Bounded by
+                # channel_max_escapes so a genuinely blocked fan still surfaces
+                # as GOAL_UNAVAILABLE instead of looping forever.
+                if escape_attempts >= self._channel_max_escapes:
+                    raise
+                escape_attempts += 1
+                rospy.logwarn(
+                    "delivery channel selection found no path from the "
+                    "current pose; requesting bounded escape before "
+                    "reselection %d/%d",
+                    escape_attempts,
+                    self._channel_max_escapes,
+                )
+                if not self._navigation.recover():
+                    rospy.logwarn(
+                        "bounded escape could not reposition the base; "
+                        "failing the delivery channel selection"
+                    )
+                    raise
+                continue
             force_selection = False
 
             if channel_pose is not None:

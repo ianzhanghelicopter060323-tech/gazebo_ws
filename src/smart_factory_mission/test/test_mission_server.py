@@ -743,6 +743,81 @@ class MissionServerTest(unittest.TestCase):
         )
         server._abort.assert_not_called()
 
+    def test_escape_on_entry_selection_unavailable_then_reselects(self):
+        server = self._server()
+        server._pipeline_stop_after = "TASK_COMPLETED"
+        server._continue_after_arrival = (
+            MissionServer._continue_after_arrival.__get__(server)
+        )
+        destination_pose = PoseStamped()
+        destination_pose.header.frame_id = "map"
+        nominal_entry = PoseStamped()
+        nominal_entry.header.frame_id = "map"
+        safe_entry = PoseStamped()
+        safe_entry.header.frame_id = "map"
+        channel_pose = PoseStamped()
+        channel_pose.header.frame_id = "map"
+        server._goal_provider.get_delivery_destination.return_value = (
+            DeliveryDestination(
+                "daily workshop",
+                destination_pose,
+                nominal_entry,
+                position_tolerance=0.04,
+                yaw_tolerance=math.radians(5.0),
+            )
+        )
+        selector = server._delivery_entry_selector
+        selector.resolve.side_effect = None
+        selector.resolve.return_value = safe_entry
+        selector.channel_enabled = True
+        selector.channel_max_waypoints = 3
+        selector.channel_waypoint_position_tolerance = 0.18
+        selector.channel_waypoint_yaw_tolerance = math.pi
+        selector.channel_handoff_position_tolerance = 0.15
+        selector.channel_handoff_yaw_tolerance = math.pi
+        # The fan cannot select a channel from the current pose (source16-style
+        # dead-end), then succeeds after the bounded escape repositions.
+        selector.resolve_channel_waypoint.side_effect = [
+            EntrySelectionUnavailable("no viable channel from current pose"),
+            channel_pose,
+            None,
+        ]
+        succeeded = NavigationResult(
+            True,
+            navigation_error_codes.SUCCESS,
+            "requested pose reached",
+            completed_waypoints=1,
+        )
+        server._navigation.navigate_pose.side_effect = [
+            succeeded,
+            succeeded,
+            succeeded,
+            succeeded,
+        ]
+        server._navigation.recover.return_value = True
+
+        def grasp(**kwargs):
+            kwargs["state_machine"].transition(
+                states.OBJECT_GRASPED, "target grasped"
+            )
+            return 35
+
+        server._pickup_pipeline.run.side_effect = grasp
+        context = TaskContext("escape-on-unavailable", 1)
+        state_machine = MissionStateMachine(context, server._publish_state)
+
+        with mock.patch(
+            "smart_factory_mission.mission_server.rospy.Time.now",
+            return_value=rospy.Time(42, 0),
+        ):
+            server._continue_after_arrival(
+                context, state_machine, "arrived at pickup staging area"
+            )
+
+        server._navigation.recover.assert_called_once_with()
+        self.assertEqual(4, len(server._navigation.navigate_pose.call_args_list))
+        server._abort.assert_not_called()
+
     def test_handoff_timeout_rolls_back_then_forces_another_waypoint(self):
         server = self._server()
         selector = server._delivery_entry_selector

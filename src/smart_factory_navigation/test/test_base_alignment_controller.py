@@ -230,6 +230,80 @@ class BaseAlignmentControllerTest(unittest.TestCase):
             "escape should reverse after the forward probe stalls",
         )
 
+    def test_escape_strafes_when_front_and_rear_tight_but_side_open(self):
+        from sensor_msgs.msg import LaserScan
+
+        controller, localization, publisher = self._controller()
+        controller._escape_strafe_distance = 0.30
+        controller._escape_strafe_speed = 0.30
+        controller._escape_strafe_max_total = 0.30
+        controller._escape_strafe_wall_timeout = 4.0
+        controller._escape_front_rear_threshold = 0.40
+        controller._escape_side_gap_threshold = 0.50
+        controller._escape_side_sector = 0.78
+        controller._escape_scan_sector = 0.52
+
+        step = 2.0 * math.pi / 720.0
+        scan = LaserScan()
+        scan.angle_min = -math.pi
+        scan.angle_increment = step
+        scan.range_min = 0.1
+        scan.range_max = 10.0
+        scan.ranges = [5.0] * 720
+        for index in range(720):
+            angle = -math.pi + index * step
+            # Front and rear sectors are tight (the robot is jammed
+            # nose-to-tail); the left sector opens up and the right stays tight.
+            if (
+                abs(angle) <= 0.52
+                or abs(angle - math.pi) <= 0.52
+                or abs(angle + math.pi) <= 0.52
+            ):
+                scan.ranges[index] = 0.2
+            elif abs(angle - math.pi / 2.0) <= 0.78:
+                scan.ranges[index] = 1.2
+            elif abs(angle + math.pi / 2.0) <= 0.78:
+                scan.ranges[index] = 0.2
+        with controller._scan_lock:
+            controller._latest_scan = scan
+
+        # The robot strafes left (+y in base_link, map y at yaw 0): start at
+        # (0,0), then move across a few pose queries to (0,0.35).
+        pose_seq = iter(
+            [
+                (0.0, 0.0, 0.0),
+                (0.0, 0.1, 0.0),
+                (0.0, 0.2, 0.0),
+                (0.0, 0.35, 0.0),
+            ]
+        )
+        localization.localized_pose.side_effect = (
+            lambda _frame_id: next(pose_seq)
+        )
+
+        with mock.patch(
+            "smart_factory_navigation.base_alignment_controller.time.monotonic",
+            return_value=1.0,
+        ), mock.patch(
+            "smart_factory_navigation.base_alignment_controller.time.sleep"
+        ), mock.patch(
+            "smart_factory_navigation.base_alignment_controller.rospy.is_shutdown",
+            return_value=False,
+        ), mock.patch(
+            "smart_factory_navigation.base_alignment_controller.rospy.logwarn"
+        ):
+            self.assertTrue(controller.escape("map"))
+
+        commanded_y = [message.linear.y for message in publisher.messages]
+        self.assertTrue(
+            any(value > 0.0 for value in commanded_y),
+            "escape should strafe toward the larger side gap (+y)",
+        )
+        self.assertTrue(
+            all(value >= 0.0 for value in commanded_y),
+            "escape should never strafe away from the larger gap",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

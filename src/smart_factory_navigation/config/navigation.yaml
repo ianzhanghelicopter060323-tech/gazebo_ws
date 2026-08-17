@@ -76,6 +76,23 @@ navigation:
     # clearance, capped at max_distance. 0.7 leaves a 30% safety margin and
     # avoids the fixed 0.08 m cap overshooting into a tight gap.
     distance_scale_factor: 0.7
+    # Lateral (strafe) escape: when BOTH the front and rear sector clearances
+    # are below strafe_front_rear_threshold (robot jammed nose-to-tail in a fan
+    # dead-end) but one side gap reaches strafe_side_gap_threshold, strafe
+    # along the base_link y-axis (linear.y, omnidirectional planar_move) toward
+    # the larger gap so the next channel selection sees open space.
+    strafe_enabled: true
+    strafe_front_rear_threshold: 0.40
+    strafe_side_gap_threshold: 0.50
+    # Side sectors are +-45 deg around the left/right axes (45-135 deg and
+    # 225-315 deg in scan frame).
+    strafe_side_sector_half_angle: 0.78
+    strafe_speed: 0.30
+    strafe_distance: 0.30
+    # One strafe step is 0.30 m; up to two steps per escape, capped at 0.60 m
+    # total, within a 4.0 s wall budget.
+    strafe_max_total: 0.60
+    strafe_wall_timeout: 4.0
 
 localization:
   amcl_topic: /amcl_pose

@@ -6,6 +6,7 @@ import time
 import actionlib
 from geometry_msgs.msg import PoseStamped
 import rospy
+from std_srvs.srv import Trigger, TriggerResponse
 
 from smart_factory_navigation import error_codes, states
 from smart_factory_navigation.base_alignment_controller import (
@@ -78,7 +79,32 @@ class NavigationActionServer:
             progress_callback=self._publish_progress,
         )
         self._server.start()
+        # On-demand bounded escape (strafe or front/back), invoked by the
+        # mission server when the entry fan cannot select a channel from the
+        # current pose (EntrySelectionUnavailable).  The escape repositions
+        # the base so the next channel selection sees open space.
+        self._recover_service = rospy.Service(
+            rospy.get_param("~recover_service_name", "recover"),
+            Trigger,
+            self._handle_recover,
+        )
         rospy.loginfo("smart factory navigation ready on %s", self._action_name)
+
+    def _handle_recover(self, request):
+        """Trigger the navigation-side bounded escape; never crash the node."""
+        try:
+            succeeded = self._route_executor.recover()
+        except Exception as exc:
+            rospy.logerr("recover service failed: %s", exc)
+            return TriggerResponse(success=False, message=str(exc))
+        return TriggerResponse(
+            success=succeeded,
+            message=(
+                "bounded escape completed"
+                if succeeded
+                else "bounded escape failed to move the base"
+            ),
+        )
 
     def _new_result(self, success=False, error_code=error_codes.INTERNAL_ERROR, message=""):
         result = NavigateResult()

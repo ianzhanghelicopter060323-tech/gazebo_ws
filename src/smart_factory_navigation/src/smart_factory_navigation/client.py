@@ -228,6 +228,31 @@ class NavigationClient:
             preempt_requested, feedback_cb
         ).success
 
+    def recover(self, timeout=10.0):
+        """Trigger the navigation-side bounded escape (strafe/forward-back).
+
+        Used by the mission server when the entry fan cannot select a channel
+        from the current pose (EntrySelectionUnavailable).  The escape
+        repositions the base so the next channel selection sees open space.
+        Returns True when the base was repositioned.
+        """
+        import std_srvs.srv as std_srvs
+
+        proxy = getattr(self, "_recover_proxy", None)
+        if proxy is None:
+            proxy = rospy.ServiceProxy(
+                self.action_name + "/recover", std_srvs.srv.Trigger
+            )
+            self._recover_proxy = proxy
+        try:
+            if not proxy.wait_for_service(timeout):
+                rospy.logwarn("navigation recover service not available")
+                return False
+            return bool(proxy().success)
+        except rospy.ROSException as exc:
+            rospy.logwarn("navigation recover call failed: %s", exc)
+            return False
+
     def localized_pose(self, frame_id):
         goal = NavigateGoal()
         goal.command = NavigateGoal.GET_LOCALIZED_POSE

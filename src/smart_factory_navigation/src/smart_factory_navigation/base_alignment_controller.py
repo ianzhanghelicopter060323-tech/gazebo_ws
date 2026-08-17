@@ -53,6 +53,42 @@ class BaseAlignmentController:
         self._escape_distance_scale = float(
             rospy.get_param("~navigation/recovery/distance_scale_factor", 0.7)
         )
+        # Lateral (strafe) escape.  When BOTH the front and rear corridors are
+        # too tight for a forward/back nudge (the robot is jammed in a fan
+        # dead-end) but one side opens up, strafe along the base_link y-axis
+        # toward the larger side gap so the next channel selection sees open
+        # space.  The chassis is omnidirectional (planar_move), so linear.y is
+        # a real, bounded motion primitive shared with the baseline escape.
+        self._escape_strafe_enabled = bool(
+            rospy.get_param("~navigation/recovery/strafe_enabled", True)
+        )
+        self._escape_front_rear_threshold = float(
+            rospy.get_param(
+                "~navigation/recovery/strafe_front_rear_threshold", 0.40
+            )
+        )
+        self._escape_side_gap_threshold = float(
+            rospy.get_param(
+                "~navigation/recovery/strafe_side_gap_threshold", 0.50
+            )
+        )
+        self._escape_side_sector = float(
+            rospy.get_param(
+                "~navigation/recovery/strafe_side_sector_half_angle", 0.78
+            )
+        )
+        self._escape_strafe_speed = float(
+            rospy.get_param("~navigation/recovery/strafe_speed", 0.30)
+        )
+        self._escape_strafe_distance = float(
+            rospy.get_param("~navigation/recovery/strafe_distance", 0.30)
+        )
+        self._escape_strafe_max_total = float(
+            rospy.get_param("~navigation/recovery/strafe_max_total", 0.60)
+        )
+        self._escape_strafe_wall_timeout = float(
+            rospy.get_param("~navigation/recovery/strafe_wall_timeout", 4.0)
+        )
         self._scan_lock = threading.Lock()
         self._latest_scan = None
 
@@ -162,6 +198,13 @@ class BaseAlignmentController:
             ("recovery/wall_timeout", self._escape_wall_timeout),
             ("recovery/scan_sector_half_angle", self._escape_scan_sector),
             ("recovery/distance_scale_factor", self._escape_distance_scale),
+            ("recovery/strafe_front_rear_threshold", self._escape_front_rear_threshold),
+            ("recovery/strafe_side_gap_threshold", self._escape_side_gap_threshold),
+            ("recovery/strafe_side_sector_half_angle", self._escape_side_sector),
+            ("recovery/strafe_speed", self._escape_strafe_speed),
+            ("recovery/strafe_distance", self._escape_strafe_distance),
+            ("recovery/strafe_max_total", self._escape_strafe_max_total),
+            ("recovery/strafe_wall_timeout", self._escape_strafe_wall_timeout),
         ):
             if not math.isfinite(value) or value <= 0.0:
                 raise ValueError("navigation/{} must be positive".format(name))
@@ -212,16 +255,151 @@ class BaseAlignmentController:
         # the closest obstacle across the escape corridor.
         return values[max(0, int(0.1 * (len(values) - 1)))]
 
-    def escape(self, frame_id):
-        """Execute one bounded forward/backward recovery under sole ownership.
+    def _strafe_gate_open(self, scan, front, rear):
+        """True when forward/back are both too tight but a side gap is large.
 
-        The preferred direction is the one with the larger measured sector
-        clearance.  The escape probes that direction first; if the robot stops
-        making progress for a short stall window (e.g. it is pressing into an
-        obstacle the laser cannot see, like a jam cube below the scan plane),
-        it switches to the opposite direction for the remaining wall budget.
-        Total motion stays bounded by ``recovery/max_distance`` and the whole
-        escape by ``recovery/wall_timeout``.
+        This is the "前后均距离不足、左/右距离充足，使用横移" trigger: front
+        and rear 10th-percentile clearances must both sit under the configured
+        threshold (the robot is jammed nose-to-tail in a cone dead-end) while
+        at least one lateral sector offers a gap large enough to strafe into.
+        """
+        if (
+            not math.isfinite(front)
+            or not math.isfinite(rear)
+            or front >= self._escape_front_rear_threshold
+            or rear >= self._escape_front_rear_threshold
+        ):
+            return False
+        left = self._sector_clearance(
+            scan, math.pi / 2.0, self._escape_side_sector
+        )
+        right = self._sector_clearance(
+            scan, -math.pi / 2.0, self._escape_side_sector
+        )
+        return (
+            math.isfinite(left)
+            and math.isfinite(right)
+            and max(left, right) >= self._escape_side_gap_threshold
+        )
+
+    def _strafe_probe(self, direction, frame_id):
+        """Publish one bounded lateral nudge and return the lateral travel.
+
+        ``direction`` is +1 toward the robot's left (+y in base_link) and -1
+        toward the right.  Lateral travel is the map-frame displacement
+        projected onto the robot's lateral axis at the start yaw; a pure
+        strafe keeps the yaw constant so the projection is exact.  The probe
+        stops on target travel, the wall timeout, or a stall (pressing into an
+        obstacle the scan cannot see).
+        """
+        start_pose = self._localization.localized_pose(frame_id)
+        if start_pose is None:
+            return 0.0
+        yaw = start_pose[2]
+        lat_x = -math.sin(yaw)
+        lat_y = math.cos(yaw)
+        stall_timeout = min(0.5, self._escape_strafe_wall_timeout / 4.0)
+        deadline = time.monotonic() + self._escape_strafe_wall_timeout
+        last_moved = 0.0
+        last_progress_at = time.monotonic()
+        moved = 0.0
+        command = Twist()
+        command.linear.y = direction * self._escape_strafe_speed
+        while not rospy.is_shutdown():
+            if self._preempt_requested():
+                raise BaseAlignmentPreempted(
+                    "task preempted during bounded lateral recovery"
+                )
+            current = self._localization.localized_pose(frame_id)
+            if current is not None:
+                signed = (
+                    (current[0] - start_pose[0]) * lat_x
+                    + (current[1] - start_pose[1]) * lat_y
+                )
+                moved = abs(signed)
+            now = time.monotonic()
+            if moved > last_moved:
+                last_moved = moved
+                last_progress_at = now
+            if (
+                moved >= self._escape_strafe_distance
+                or now >= deadline
+                or now - last_progress_at >= stall_timeout
+            ):
+                break
+            self._velocity_publisher.publish(command)
+            time.sleep(0.05)
+        return moved
+
+    def _strafe(self, scan, frame_id):
+        """Strafe toward the larger side gap, bounded by strafe_max_total.
+
+        Re-checks the gate between steps so a robot that has already opened
+        up a forward/back corridor stops instead of drifting past the gap.
+        Returns True when any meaningful lateral travel was achieved.
+        """
+        left = self._sector_clearance(
+            scan, math.pi / 2.0, self._escape_side_sector
+        )
+        right = self._sector_clearance(
+            scan, -math.pi / 2.0, self._escape_side_sector
+        )
+        direction = 1.0 if left >= right else -1.0
+        attempts = []
+        succeeded = False
+        try:
+            total_moved = 0.0
+            while (
+                total_moved < self._escape_strafe_max_total
+                and total_moved < 2.0 * self._escape_strafe_distance
+            ):
+                moved = self._strafe_probe(direction, frame_id)
+                attempts.append(moved)
+                total_moved += moved
+                if moved >= min(0.02, self._escape_strafe_distance):
+                    succeeded = True
+                if moved < min(0.02, self._escape_strafe_distance):
+                    break
+                with self._scan_lock:
+                    fresh = self._latest_scan
+                if fresh is None:
+                    break
+                fresh_front = self._sector_clearance(
+                    fresh, 0.0, self._escape_scan_sector
+                )
+                fresh_rear = self._sector_clearance(
+                    fresh, math.pi, self._escape_scan_sector
+                )
+                if not self._strafe_gate_open(fresh, fresh_front, fresh_rear):
+                    break
+        finally:
+            self.stop()
+        rospy.logwarn(
+            "bounded lateral recovery completed: strafe=%s "
+            "left_clearance=%s right_clearance=%s scale=%.1f wall=%.3fs",
+            "|".join(
+                "{:.3f}m".format(move) for move in attempts
+            ),
+            "unavailable" if not math.isfinite(left) else "{:.3f}".format(left),
+            "unavailable" if not math.isfinite(right) else "{:.3f}".format(right),
+            self._escape_distance_scale,
+            self._escape_strafe_wall_timeout,
+        )
+        return succeeded
+
+    def escape(self, frame_id):
+        """Execute one bounded recovery (strafe or forward/back) under sole ownership.
+
+        When both the front and rear corridors are tight but a side gap is
+        large, the escape strafes along the base_link y-axis toward the larger
+        gap (``recovery/strafe_*`` params).  Otherwise the preferred direction
+        is the one with the larger measured sector clearance.  The escape
+        probes that direction first; if the robot stops making progress for a
+        short stall window (e.g. it is pressing into an obstacle the laser
+        cannot see, like a jam cube below the scan plane), it switches to the
+        opposite direction for the remaining wall budget.  Total motion stays
+        bounded by ``recovery/max_distance`` and the whole escape by
+        ``recovery/wall_timeout``.
         """
         if not self._escape_enabled:
             return False
@@ -231,6 +409,15 @@ class BaseAlignmentController:
         if scan is not None:
             front = self._sector_clearance(scan, 0.0, self._escape_scan_sector)
             rear = self._sector_clearance(scan, math.pi, self._escape_scan_sector)
+        # When the robot is jammed nose-to-tail but a side opens up, a forward
+        # or backward nudge can only press deeper into the dead-end.  Strafe
+        # laterally instead so the fan sees a fresh, clear corridor.
+        if (
+            self._escape_strafe_enabled
+            and scan is not None
+            and self._strafe_gate_open(scan, front, rear)
+        ):
+            return self._strafe(scan, frame_id)
         direction = -1.0
         if math.isfinite(front) and math.isfinite(rear):
             direction = 1.0 if front > rear else -1.0

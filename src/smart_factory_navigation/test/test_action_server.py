@@ -42,6 +42,11 @@ class FakeRouteExecutor:
     def __init__(self, events):
         self.events = events
         self.publish_hook = None
+        self.recover_result = True
+
+    def recover(self):
+        self.events.append("recover")
+        return self.recover_result
 
     def wait_for_server(self):
         self.events.append("move_base")
@@ -94,7 +99,13 @@ class NavigationActionServerTest(unittest.TestCase):
         with mock.patch(
             "smart_factory_navigation.action_server.rospy.get_param",
             side_effect=lambda _name, default=None: default,
-        ), mock.patch("smart_factory_navigation.action_server.rospy.loginfo"):
+        ), mock.patch(
+            "smart_factory_navigation.action_server.rospy.loginfo"
+        ), mock.patch(
+            # Each _server() builds a fresh NavigationActionServer in the same
+            # rospy node; the recover service must not double-register.
+            "smart_factory_navigation.action_server.rospy.Service"
+        ):
             server = NavigationActionServer(
                 action_server=action,
                 localization=FakeLocalization(events),
@@ -176,6 +187,20 @@ class NavigationActionServerTest(unittest.TestCase):
             error_codes.REQUEST_PREEMPTED,
             action.terminal[1].error_code,
         )
+
+    def test_recover_service_invokes_route_escape(self):
+        server, action, events = self._server()
+        server._route_executor.recover_result = True
+        response = server._handle_recover(None)
+        self.assertTrue(response.success)
+        self.assertIn("recover", events)
+
+    def test_recover_service_reports_failure(self):
+        server, action, events = self._server()
+        server._route_executor.recover_result = False
+        response = server._handle_recover(None)
+        self.assertFalse(response.success)
+        self.assertIn("recover", events)
 
     def test_unknown_command_aborts_with_explicit_error(self):
         server, action, events = self._server()

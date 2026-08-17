@@ -86,6 +86,10 @@ delivery:
     # 仍要求路径不进一步接近障碍，并在0.25m内恢复到0.20m硬下限。
     # 正常候选继续使用下方0.198m escape下限。
     channel_reselection_escape_min_clearance: 0.16
+    # 当入口扇形在当前位置一条通道都选不出（EntrySelectionUnavailable，如
+    # source16 卡死在锥桶死胡同），请求导航侧有界逃逸（横移/前后）重新选点。
+    # 超过该次数仍失败则按原逻辑以 GOAL_UNAVAILABLE 结束。
+    channel_max_escapes: 3
     channel_make_plan_service: /move_base/make_plan
     channel_make_plan_wait_timeout: 1.0
     # Lock the large-footprint multi-topology TEB only across rolling goals;

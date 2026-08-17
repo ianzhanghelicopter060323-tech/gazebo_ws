@@ -12,6 +12,7 @@ from smart_factory_navigation import error_codes, states
 from smart_factory_navigation.base_alignment_controller import (
     BaseAlignmentController,
 )
+from smart_factory_navigation.models import RouteExecutionContext
 from smart_factory_navigation.navigation_stage import (
     NavigationOutcome,
     NavigationStage,
@@ -331,6 +332,38 @@ class RouteExecutor:
                 )
             time.sleep(0.05)
             settled += 0.05
+
+    def recover(self, frame_id=None):
+        """Run the bounded escape on demand (mission-level stuck recovery).
+
+        Unlike the internal no-progress path this has no active route
+        ``context``, so a minimal one is synthesized only for state
+        publishing.  The escape reuses the exact same ``BaseAlignmentController``
+        behavior as the baseline stage: strafe toward the larger side gap when
+        the robot is jammed nose-to-tail, otherwise the front/back bounded
+        nudge.  Returns True when the base was repositioned.
+        """
+        frame_id = frame_id or self._localization.map_frame
+        context = RouteExecutionContext(
+            task_id="recover",
+            pickup_staging_goals=[],
+            current_waypoint_index=0,
+            retry_count=0,
+        )
+        detail = "mission-requested bounded escape before reselection"
+        if not self._base_alignment.escape(frame_id):
+            rospy.logwarn(
+                "mission-requested bounded escape failed to move the base"
+            )
+            return False
+        try:
+            self._settle_after_escape(context, detail)
+        except RouteNavigationPreempted:
+            rospy.logwarn(
+                "mission-requested bounded escape preempted while settling"
+            )
+            return False
+        return True
 
     @staticmethod
     def _quaternion_yaw(quaternion):
