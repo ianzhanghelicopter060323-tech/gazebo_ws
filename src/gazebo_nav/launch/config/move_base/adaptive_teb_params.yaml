@@ -170,7 +170,7 @@ AdaptiveTebLocalPlannerROS:
       # 较小参考值：[[0.08,-0.08],[0.08,0.08],[-0.08,0.08],[-0.08,-0.08]]
       vertices: [[0.15, -0.15], [0.15, 0.15], [-0.15, 0.15], [-0.15, -0.15]] # 0.30m保守方形外形
 
-    xy_goal_tolerance: 0.08 # 目标位置允许误差
+    xy_goal_tolerance: 0.10 # 目标位置允许误差
     yaw_goal_tolerance: 0.12 # 锥桶区可以保持较大的方向tolerance
     free_goal_vel: false
 

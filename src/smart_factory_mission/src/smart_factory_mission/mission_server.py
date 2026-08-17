@@ -301,8 +301,19 @@ class MissionServer:
         )
 
     @staticmethod
-    def _is_navigation_timeout(exc):
-        return exc.error_code == error_codes.NAVIGATION_TIMEOUT
+    def _is_channel_reselect_trigger(exc):
+        """Errors that should roll back and force a different channel route.
+
+        Both a client-side wall-clock timeout (NAVIGATION_TIMEOUT) and a
+        server-side abort after stuck recovery (NAVIGATION_ABORTED) mean the
+        current rolling goal is unreachable. Each may indicate the robot is
+        jammed in a cone bottleneck, so either should trigger the bounded
+        rollback/reselection instead of failing the mission outright.
+        """
+        return exc.error_code in (
+            error_codes.NAVIGATION_TIMEOUT,
+            error_codes.NAVIGATION_ABORTED,
+        )
 
     def _navigate_delivery_channel(
         self,
@@ -345,16 +356,57 @@ class MissionServer:
                     timeout=selector.channel_rollback_timeout,
                 )
             else:
-                # The only previous pose is preparation pose 2. Re-entering it
-                # can pull the global plan back into the preceding corridor, so
-                # keep the current pose and only choose another candidate.
-                rospy.logwarn(
-                    "first delivery channel waypoint timed out; preparation "
-                    "pose 2 rollback is disabled, reselecting from the current "
-                    "pose (%d/%d)",
-                    reselections,
-                    selector.channel_max_reselections,
-                )
+                # The only previous confirmed navigation point is the
+                # laser-selected safe entry pose (preparation pose 2). Return
+                # to it so the fan re-selects from a clean, un-jammed position
+                # instead of repeating candidates around the stuck bottleneck.
+                if selector.channel_first_waypoint_rollback:
+                    try:
+                        self._navigate_pose(
+                            context,
+                            state_machine,
+                            safe_entry_pose,
+                            states.NAVIGATE_TO_DELIVERY,
+                            "rolling back to the laser-selected safe entry "
+                            "pose before selecting another path",
+                            position_tolerance=(
+                                selector.channel_waypoint_position_tolerance
+                            ),
+                            yaw_tolerance=(
+                                selector.channel_waypoint_yaw_tolerance
+                            ),
+                            timeout=selector.channel_rollback_timeout,
+                        )
+                        rospy.logwarn(
+                            "first delivery channel waypoint timed out; "
+                            "rolled back to the safe entry pose before "
+                            "reselection %d/%d",
+                            reselections,
+                            selector.channel_max_reselections,
+                        )
+                    except PickupFailure as rollback_exc:
+                        # Could not return to the entry pose (the robot may be
+                        # wedged in the bottleneck). Degrade to re-selecting
+                        # from the current pose rather than failing the mission.
+                        rospy.logwarn(
+                            "could not return to the safe entry pose after the "
+                            "first channel waypoint timed out (%s); reselecting "
+                            "from the current pose (%d/%d)",
+                            rollback_exc,
+                            reselections,
+                            selector.channel_max_reselections,
+                        )
+                else:
+                    # Re-entering preparation pose 2 can pull the global plan
+                    # back into the preceding corridor, so keep the current
+                    # pose and only choose another candidate.
+                    rospy.logwarn(
+                        "first delivery channel waypoint timed out; "
+                        "preparation pose 2 rollback is disabled, reselecting "
+                        "from the current pose (%d/%d)",
+                        reselections,
+                        selector.channel_max_reselections,
+                    )
             force_selection = True
 
         while completed_waypoints <= selector.channel_max_waypoints:
@@ -392,7 +444,7 @@ class MissionServer:
                         timeout=selector.channel_waypoint_timeout,
                     )
                 except PickupFailure as exc:
-                    if not self._is_navigation_timeout(exc):
+                    if not self._is_channel_reselect_trigger(exc):
                         raise
                     selector.reject_channel_waypoint(channel_pose)
                     rollback_to_previous(exc)
@@ -418,7 +470,7 @@ class MissionServer:
                 )
                 return
             except PickupFailure as exc:
-                if not self._is_navigation_timeout(exc):
+                if not self._is_channel_reselect_trigger(exc):
                     raise
                 rollback_to_previous(exc)
 

@@ -1082,6 +1082,14 @@ class RosDeliveryEntrySelector:
         self.channel_max_reselections = int(
             raw.get("channel_max_reselections", 2)
         )
+        # When the FIRST rolling waypoint times out or aborts (the entry
+        # bottleneck), the previous confirmed navigation point is the
+        # laser-selected safe entry pose. Physically return to it before
+        # re-selecting so the fan starts from a clean, un-jammed position
+        # instead of repeating candidates around the stuck spot.
+        self.channel_first_waypoint_rollback = bool(
+            raw.get("channel_first_waypoint_rollback", True)
+        )
         self.channel_failed_candidate_exclusion_radius = float(
             raw.get("channel_failed_candidate_exclusion_radius", 0.30)
         )

@@ -76,8 +76,11 @@ delivery:
     channel_handoff_timeout: 88.0
     channel_rollback_timeout: 45.0
     # 每次超时回到上一个已到达的动态点并重选；第一个动态点失败时
-    # 上一个点是准备位姿2，按规则只原地重选，不物理回退。
+    # 上一个点是准备位姿2。启用后物理回退到准备位姿2再重选，避免
+    # 在卡死的入口瓶颈原地重选(本轮7/40失败全部卡在第一滚动点)。
+    # 关闭则回到旧的原地重选行为。回退导航失败时自动降级为原地重选。
     channel_max_reselections: 2
+    channel_first_waypoint_rollback: true
     channel_failed_candidate_exclusion_radius: 0.30
     # 仅超时强制重选使用：允许从已经陷入的0.16m以上继承瓶颈向外脱困，
     # 仍要求路径不进一步接近障碍，并在0.25m内恢复到0.20m硬下限。
