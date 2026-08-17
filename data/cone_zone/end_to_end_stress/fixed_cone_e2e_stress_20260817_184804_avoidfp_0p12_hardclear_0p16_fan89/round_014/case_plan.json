@@ -1,0 +1,173 @@
+{
+  "round": 14,
+  "scenario_id": "channel_failure_round_033",
+  "source_round": 33,
+  "source_task_id": "cone_e2e_033_1786955341",
+  "repetition": 2,
+  "target_class": "electronics",
+  "target_name": "electronics workshop",
+  "switch_distance": 0.22,
+  "destination": {
+    "frame_id": "map",
+    "x": 2.4891703128814697,
+    "y": -2.1998729705810547,
+    "yaw": 0.0027615150902420282,
+    "position_tolerance": 0.04,
+    "yaw_tolerance": 0.08726646259971647
+  },
+  "cones": {
+    "cone_10": {
+      "position": {
+        "x": -0.356,
+        "y": -2.86,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_11": {
+      "position": {
+        "x": -0.895,
+        "y": -1.76,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0013,
+      "tilt_rad": 0.0
+    },
+    "cone_12": {
+      "position": {
+        "x": 1.99,
+        "y": -2.36,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_13": {
+      "position": {
+        "x": 2.46,
+        "y": -2.79,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_14": {
+      "position": {
+        "x": 1.54,
+        "y": -1.69,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_15": {
+      "position": {
+        "x": -1.53,
+        "y": -2.13,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_16": {
+      "position": {
+        "x": 0.266,
+        "y": -2.0,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_17": {
+      "position": {
+        "x": 2.41,
+        "y": -1.55,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_18": {
+      "position": {
+        "x": 1.55,
+        "y": -2.82,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_19": {
+      "position": {
+        "x": -1.67,
+        "y": -1.49,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    }
+  },
+  "schema_version": 1,
+  "task_id": "fixed_cone_e2e_014_a01_1786966978",
+  "attempt": 1
+}

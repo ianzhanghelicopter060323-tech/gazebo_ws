@@ -164,11 +164,15 @@ AdaptiveTebLocalPlannerROS:
     min_turning_radius: 0.0
 
     is_footprint_dynamic: false
-    footprint_model: # footprint改大以适应锥桶区
+    footprint_model: # footprint改小以改善锥桶区窄口通过性(实验迭代1)
       type: polygon
-      # 当前最大半边长0.15m，实验标签必须使用avoidfp_0p15。
-      # 较小参考值：[[0.08,-0.08],[0.08,0.08],[-0.08,0.08],[-0.08,-0.08]]
-      vertices: [[0.15, -0.15], [0.15, 0.15], [-0.15, 0.15], [-0.15, -0.15]] # 0.30m保守方形外形
+      # 实验：验证减小footprint是否改善通过性。半边长0.15m(0.30m方形)在
+      # 最近40轮7个失败场景全部卡死(净距0.16~0.25m窄口)。此迭代缩小到
+      # 0.12m(0.24m方形)，仍大于local_costmap真实车体0.08m半边长。
+      # 实验标签必须使用avoidfp_0p12。
+      # 若仍卡死可继续缩至0.10(avoidfp_0p10)或0.08(真实车体下限avoidfp_0p08)。
+      # 原0.30m: [[0.15,-0.15],[0.15,0.15],[-0.15,0.15],[-0.15,-0.15]]
+      vertices: [[0.12, -0.12], [0.12, 0.12], [-0.12, 0.12], [-0.12, -0.12]] # 0.24m方形外形
 
     xy_goal_tolerance: 0.10 # 目标位置允许误差
     yaw_goal_tolerance: 0.12 # 锥桶区可以保持较大的方向tolerance
@@ -189,10 +193,10 @@ AdaptiveTebLocalPlannerROS:
     allow_init_with_backwards_motion: false
     exact_arc_length: true
 
-    # 两次 source_round_009 碰撞时，锥桶中心到 avoidance footprint
-    # 外缘的实测余量约为0.098m；取0.10m作为硬净距覆盖物理锥桶底座。
-    # 旧stage24的0.10m曾卡在第4个滚动点，现由提前handoff避免该阶段。
-    min_obstacle_dist: 0.10 # footprint外缘的最小硬净距
+    # 原0.10m硬净距配合0.30m方形(净距需求~0.25m)在窄口卡死；footprint缩小
+    # 到0.12后净距需求~0.20m，对应selector hard_min_clearance 0.20m下限，
+    # 硬净距相应降到0.08m。实验迭代1。
+    min_obstacle_dist: 0.08 # footprint外缘的最小硬净距
     inflation_dist: 0.16 # 软避障区保持已验证值，避免过远绕行和控制耗时
     include_costmap_obstacles: true
     costmap_obstacles_behind_robot_dist: 0.5

@@ -927,29 +927,29 @@
   <gazebo reference="l_out_joint"><damping>2.0</damping><friction>0.1</friction></gazebo>
 
   <gazebo reference="wheel_lf_link">
-    <mu1>0.3</mu1>
-    <mu2>0.3</mu2>
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
     <kp>1e7</kp>
     <kd>1e4</kd>
     <minDepth>0.001</minDepth>
   </gazebo>
   <gazebo reference="wheel_rf_link">
-    <mu1>0.3</mu1>
-    <mu2>0.3</mu2>
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
     <kp>1e7</kp>
     <kd>1e4</kd>
     <minDepth>0.001</minDepth>
   </gazebo>
   <gazebo reference="wheel_lb_link">
-    <mu1>0.3</mu1>
-    <mu2>0.3</mu2>
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
     <kp>1e7</kp>
     <kd>1e4</kd>
     <minDepth>0.001</minDepth>
   </gazebo>
   <gazebo reference="wheel_rb_link">
-    <mu1>0.3</mu1>
-    <mu2>0.3</mu2>
+    <mu1>0.2</mu1>
+    <mu2>0.2</mu2>
     <kp>1e7</kp>
     <kd>1e4</kd>
     <minDepth>0.001</minDepth>

@@ -108,8 +108,12 @@ delivery:
     # The validated fan reaches the wider route without admitting candidates
     # back in the preceding-navigation corridor. Trials at 70/80 deg and up to
     # 1.40 m did not recover a safer source-round-009 entry.
+    # 实验(用户指示): 半角60->接近90(总扇区约178°≈全前向半平面), 让扇形
+    # 扫到官方路径旁充足但60°扇形够不到的空地, 解决"路径穿锥/无可达候选"
+    # 类GOAL_UNAVAILABLE。selector校验要求半角<90°(0,pi/2)开区间, 故用89°。
+    # 风险: 过宽的扇形可能拉回前序走廊或进不去锥桶区; 若无显著改善则撤回。
     channel_fan_radii: [0.45, 0.70, 0.95, 1.05]
-    channel_fan_half_angle_deg: 60.0
+    channel_fan_half_angle_deg: 89.0
     channel_fan_angle_step_deg: 10.0
     channel_min_forward_progress: 0.20
     channel_entry_depth_floor: 0.20
@@ -131,7 +135,10 @@ delivery:
     # Keep candidate generation feasible at the entrance. The cone-base margin
     # is enforced by avoidance TEB's footprint distance instead of globally
     # rejecting every candidate below 0.23 m.
-    channel_hard_min_clearance: 0.20
+    # 实验: 硬净距0.20->0.16, 与real-body 0.16m一致, 允许0.18~0.20m窄口候选
+    # (round 16 走廊0.180m, round 21 最佳候选0.184m)。风险: avoidance净距
+    # 需求~0.20m, 若0.18m窄口仍无法规划, 需同步把footprint缩到0.08。
+    channel_hard_min_clearance: 0.16
     # Laser sees the cone's tapered waist; this larger soft target accounts
     # for the wider base collision mesh plus the 0.15 m avoidance footprint.
     channel_desired_clearance: 0.36
@@ -145,8 +152,11 @@ delivery:
     # while disabling the exception forced an infeasible 1.05m first goal.
     # Admit at most a 2mm inherited drop: reject 0.196m, retain short candidates
     # at 0.198m or better, and still require recovery to the 0.20m hard floor.
+    # 随hard floor降至0.16, escape下限被reselection escape(0.16)钉在
+    # 0.16(校验要求 reselection_escape <= escape <= hard), 2mm drop允许
+    # 收窄为0。正常候选与强制重选的最低净距一致为0.16m。
     channel_escape_distance: 0.25
-    channel_escape_min_clearance: 0.198
+    channel_escape_min_clearance: 0.16
     channel_escape_max_drop: 0.002
   destinations:
     - target_class: 0

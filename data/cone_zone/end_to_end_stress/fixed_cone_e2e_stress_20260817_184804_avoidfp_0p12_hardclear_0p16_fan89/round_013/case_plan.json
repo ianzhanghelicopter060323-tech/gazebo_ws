@@ -1,0 +1,173 @@
+{
+  "round": 13,
+  "scenario_id": "channel_failure_round_024",
+  "source_round": 24,
+  "source_task_id": "cone_e2e_024_1786953572",
+  "repetition": 2,
+  "target_class": "daily",
+  "target_name": "daily workshop",
+  "switch_distance": 0.22,
+  "destination": {
+    "frame_id": "map",
+    "x": 0.9615546464920044,
+    "y": -1.5715368270874024,
+    "yaw": 1.5825541019439697,
+    "position_tolerance": 0.04,
+    "yaw_tolerance": 0.08726646259971647
+  },
+  "cones": {
+    "cone_10": {
+      "position": {
+        "x": 1.94,
+        "y": -1.66,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_11": {
+      "position": {
+        "x": -0.0235,
+        "y": -2.78,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_12": {
+      "position": {
+        "x": 0.302,
+        "y": -2.09,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_13": {
+      "position": {
+        "x": 2.18,
+        "y": -3.0,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_14": {
+      "position": {
+        "x": -0.767,
+        "y": -1.82,
+        "z": -0.0004
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_15": {
+      "position": {
+        "x": 0.985,
+        "y": -2.47,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_16": {
+      "position": {
+        "x": -1.51,
+        "y": -2.7,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_17": {
+      "position": {
+        "x": 0.0057,
+        "y": -1.51,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_18": {
+      "position": {
+        "x": -0.735,
+        "y": -2.51,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    },
+    "cone_19": {
+      "position": {
+        "x": -1.48,
+        "y": -2.02,
+        "z": -0.0002
+      },
+      "orientation": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 1.0
+      },
+      "yaw": 0.0,
+      "tilt_rad": 0.0
+    }
+  },
+  "schema_version": 1,
+  "task_id": "fixed_cone_e2e_013_a01_1786966775",
+  "attempt": 1
+}
