@@ -27,7 +27,7 @@ if __name__ == "__main__":
                 "2.20",
                 "0.0",
                 "--output-format",
-                "/home/ianzhang/gazebo_ws/data/navi_close_quattor_try/close_auto_%04i.png",
+                "/home/ianichinose/gazebo_ws/data/navi_close_quattor_try/close_auto_%04i.png",
             ]
             + sys.argv[1:]
         )

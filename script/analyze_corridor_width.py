@@ -13,9 +13,9 @@ import math
 import sys
 import yaml
 
-MAP_PATH = "/home/ianzhang/gazebo_ws/src/gazebo_map/maps/math_newest.pgm"
-MAP_YAML = "/home/ianzhang/gazebo_ws/src/gazebo_map/maps/math_newest.yaml"
-PATH_YAML = "/home/ianzhang/gazebo_ws/src/smart_factory_navigation/config/pickup_staging_fitted_path.yaml"
+MAP_PATH = "/home/ianichinose/gazebo_ws/src/gazebo_map/maps/math_newest.pgm"
+MAP_YAML = "/home/ianichinose/gazebo_ws/src/gazebo_map/maps/math_newest.yaml"
+PATH_YAML = "/home/ianichinose/gazebo_ws/src/smart_factory_navigation/config/pickup_staging_fitted_path.yaml"
 
 
 def load_pgm(path):

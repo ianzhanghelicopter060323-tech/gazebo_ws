@@ -1,4 +1,4 @@
-image: /home/ianzhang/gazebo_ws/src/gazebo_map/maps/math_newest.pgm
+image: /home/ianichinose/gazebo_ws/src/gazebo_map/maps/math_newest.pgm
 resolution: 0.050000
 origin: [-12.200000, -12.200000, 0.000000]
 negate: 0

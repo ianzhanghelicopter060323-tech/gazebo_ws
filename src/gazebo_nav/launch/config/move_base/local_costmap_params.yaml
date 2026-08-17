@@ -18,7 +18,7 @@ local_costmap:
   # Override both shared/global inflation values. This isolates the wide-route
   # experiment to GlobalPlanner and preserves the validated local cost field.
   inflation_layer:
-    inflation_radius: 0.18
+    inflation_radius: 0.16
     cost_scaling_factor: 15.0
   plugins:
     - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
