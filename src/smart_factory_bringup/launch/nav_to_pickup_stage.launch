@@ -3,6 +3,7 @@
   <arg name="start_gazebo" default="true"/>
   <arg name="gazebo_gui" default="true"/>
   <arg name="start_rviz" default="true"/>
+  <arg name="use_nvidia_gpu" default="true"/>
   <arg name="start_navigation_server" default="true"/>
   <arg name="navigation_action_name"
        default="/smart_factory/navigation"/>
@@ -23,6 +24,7 @@
     <arg name="start_gazebo" value="$(arg start_gazebo)"/>
     <arg name="gazebo_gui" value="$(arg gazebo_gui)"/>
     <arg name="start_rviz" value="$(arg start_rviz)"/>
+    <arg name="use_nvidia_gpu" value="$(arg use_nvidia_gpu)"/>
     <arg name="start_navigation_server"
          value="$(arg start_navigation_server)"/>
     <arg name="navigation_action_name"

@@ -28,7 +28,7 @@ if __name__ == "__main__":
                 "2.10",
                 "0.0",
                 "--output-format",
-                "/home/ianichinose/gazebo_ws/data/mid_second_try/mid_auto_%04i.png",
+                "/home/ianzhang/gazebo_ws/data/mid_second_try/mid_auto_%04i.png",
             ]
             + sys.argv[1:]
         )

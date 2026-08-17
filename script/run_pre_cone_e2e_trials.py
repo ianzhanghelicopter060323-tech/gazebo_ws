@@ -138,7 +138,7 @@ def parse_args(argv):
         default=DEFAULT_RECORDING_ROOT,
         help=(
             "replayable recording root (default: "
-            "/home/ianichinose/gazebo_ws/data/teb_pre_cone)"
+            "/home/ianzhang/gazebo_ws/data/teb_pre_cone)"
         ),
     )
     parser.add_argument(

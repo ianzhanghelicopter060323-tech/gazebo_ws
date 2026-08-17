@@ -18,7 +18,9 @@ roslaunch smart_factory_bringup full_competition.launch
 
 `full_competition.launch` starts each subsystem exactly once. Its main switches
 are `start_navigation`, `start_navigation_server`, `start_gazebo`, `start_rviz`,
-and `start_perception`. Here `start_navigation` controls the existing
+`start_perception`, and `use_nvidia_gpu`. NVIDIA PRIME render offload is enabled
+by default for both Gazebo and RViz. Use `use_nvidia_gpu:=false` to fall back to
+the Intel renderer. Here `start_navigation` controls the existing
 Gazebo/`move_base` component launch, while `start_navigation_server` controls the
 independent `/smart_factory/navigation` Action server. Gazebo is owned by the
 former component, so `start_gazebo` is meaningful only while

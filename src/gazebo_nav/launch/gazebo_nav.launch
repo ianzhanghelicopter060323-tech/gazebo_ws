@@ -5,13 +5,18 @@
   <arg name="start_gazebo" default="true"/>
   <arg name="gazebo_gui" default="true"/>
   <arg name="start_rviz" default="true"/>
+  <arg name="use_nvidia_gpu" default="true"/>
   <arg name="rviz_config" default="$(find gazebo_nav)/config/rviz_default_config.rviz"/>
   <arg name="map_file" default="$(find gazebo_map)/maps/math_newest.yaml"/>
 
-  <!-- WSLg: force Mesa D3D12 acceleration for Gazebo and RViz. -->
-  <env name="GALLIUM_DRIVER" value="d3d12"/>
-  <env name="MESA_D3D12_DEFAULT_ADAPTER_NAME" value="NVIDIA"/>
-  <env name="LIBGL_ALWAYS_SOFTWARE" value="0"/>
+  <!-- Native Ubuntu PRIME render offload. These variables are inherited by
+       both Gazebo and RViz. Set use_nvidia_gpu:=false to use the Intel GPU. -->
+  <env if="$(arg use_nvidia_gpu)"
+       name="__NV_PRIME_RENDER_OFFLOAD" value="1"/>
+  <env if="$(arg use_nvidia_gpu)"
+       name="__GLX_VENDOR_LIBRARY_NAME" value="nvidia"/>
+  <env if="$(arg use_nvidia_gpu)"
+       name="__VK_LAYER_NV_optimus" value="NVIDIA_only"/>
 
   <include if="$(arg start_gazebo)" file="$(find car3)/launch/gazebo.launch">
     <arg name="gui" value="$(arg gazebo_gui)"/>

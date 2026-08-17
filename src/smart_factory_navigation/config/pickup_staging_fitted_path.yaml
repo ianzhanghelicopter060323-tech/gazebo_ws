@@ -2,7 +2,7 @@
 fitted_path:
   configured: true
   frame_id: map
-  source_route: /home/ianichinose/gazebo_ws/src/smart_factory_mission/config/pickup_staging_dev.yaml
+  source_route: /home/ianzhang/gazebo_ws/src/smart_factory_mission/config/pickup_staging_dev.yaml
   generation:
     method: regularized_natural_cubic_with_constraints
     smoothing_lambda: 0.0003

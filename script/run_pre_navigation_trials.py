@@ -66,6 +66,9 @@ DEFAULT_NAVIGATION_CONFIG = (
 )
 CLIENT_SCRIPT = WORKSPACE / "script" / "_run_pre_navigation_route.py"
 RESULT_MARKER = "PRE_NAVIGATION_RESULT="
+BASELINE_LOCK_SERVICE = (
+    "/move_base/AdaptiveTebLocalPlannerROS/set_baseline_lock"
+)
 CSV_FIELDS = (
     "round",
     "task_id",
@@ -517,6 +520,26 @@ def run_trial(args, round_number, output_dir, recording_run_dir):
             if args.startup_settle:
                 time.sleep(args.startup_settle)
 
+            # The isolated client calls NavigationAction directly and bypasses
+            # MissionServer's early-mission lock. Mirror the formal seq1--35
+            # policy before sending any route goal.
+            phase = "baseline_lock"
+            return_code, lock_output = run_owned(
+                [
+                    "rosservice",
+                    "call",
+                    BASELINE_LOCK_SERVICE,
+                    "data: true",
+                ],
+                timeout=10.0,
+            )
+            append_section(log_file, "pre-navigation baseline lock", lock_output)
+            if return_code != 0 or "success: True" not in lock_output:
+                raise AutomationError(
+                    "adaptive TEB did not confirm the pre-navigation "
+                    "baseline lock"
+                )
+
             phase = "gazebo_recording_startup"
             recorder_process, recorder_log, recorder_ready = (
                 start_gazebo_world_recorder(
@@ -707,6 +730,7 @@ def main(argv=None):
             "recording_root": str(args.recording_root.expanduser().resolve()),
             "recording_run_dir": str(recording_run_dir),
             "recording_start": "immediately before navigation client",
+            "baseline_lock_service": BASELINE_LOCK_SERVICE,
         }
         print("workspace={}".format(WORKSPACE))
         print("rounds={} logs={}".format(args.rounds, output_dir))

@@ -25,7 +25,7 @@ if __name__ == "__main__":
                 "--count",
                 "80",
                 "--output-format",
-                "/home/ianichinose/gazebo_ws/data/navi_far_tri_try/far_auto_%04i.png",
+                "/home/ianzhang/gazebo_ws/data/navi_far_tri_try/far_auto_%04i.png",
             ]
         )
     )

@@ -144,7 +144,7 @@ def parse_args(argv):
         default=DEFAULT_VIDEO_ROOT,
         help=(
             "replayable Gazebo state-log root (default: "
-            "/home/ianichinose/gazebo_ws/data/cone_zone/end_to_end_test)"
+            "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_test)"
         ),
     )
     parser.add_argument(
