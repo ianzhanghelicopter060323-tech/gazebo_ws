@@ -6,6 +6,7 @@
   <arg name="start_gazebo" default="true"/>
   <arg name="gazebo_gui" default="true"/>
   <arg name="start_rviz" default="true"/>
+  <arg name="use_nvidia_gpu" default="true"/>
   <arg name="rviz_config"
        default="$(find gazebo_nav)/config/rviz_default_config.rviz"/>
   <arg name="map_file"
@@ -43,6 +44,7 @@
     <arg name="start_gazebo" value="$(arg start_gazebo)"/>
     <arg name="gazebo_gui" value="$(arg gazebo_gui)"/>
     <arg name="start_rviz" value="$(arg start_rviz)"/>
+    <arg name="use_nvidia_gpu" value="$(arg use_nvidia_gpu)"/>
     <arg name="rviz_config" value="$(arg rviz_config)"/>
     <arg name="map_file" value="$(arg map_file)"/>
   </include>

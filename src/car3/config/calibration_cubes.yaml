@@ -44,7 +44,7 @@ calibration_cubes:
 # makes the problem coordinate and camera boundary calibration auditable
 # without adding a deterministic back door to spawn_cubes.py.
 seq35_stress_problem_spot:
-  output_root: /home/ianichinose/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot
+  output_root: /home/ianzhang/gazebo_ws/data/35seq_fix/seq35_stress_problem_spot
   count: 10
   max_attempts: 50
   seed: 770690
