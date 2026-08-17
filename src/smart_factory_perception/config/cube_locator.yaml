@@ -1,7 +1,11 @@
 service_name: /cube_locator/locate
 rgb_topic: /camera/rgb/image_raw
 depth_topic: /depth_camera/depth/image_raw
-camera_info_topic: /depth_camera/depth/camera_info
+# libgazebo_ros_depth_camera.so never publishes its /depth_camera/*/camera_info
+# (the plugin's PublishCameraInfo() override is not on any update path).  Use the
+# independent rgb_camera sensor's info instead: same hfov (1.288), same 640x480,
+# same optical frame, so K is identical and deprojection is unaffected.
+camera_info_topic: /camera/rgb/camera_info
 base_frame: base_footprint
 map_frame: map
 

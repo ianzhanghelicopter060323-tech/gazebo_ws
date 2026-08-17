@@ -1079,7 +1079,7 @@
           <far>4.0</far>
         </clip>
       </camera>
-      <plugin name="depth_plugin" filename="libgazebo_ros_openni_kinect.so">
+      <plugin name="depth_plugin" filename="libgazebo_ros_depth_camera.so">
         <alwaysOn>true</alwaysOn>
         <updateRate>20</updateRate>
         <cameraName>depth_camera</cameraName>
