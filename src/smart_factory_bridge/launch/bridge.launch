@@ -1,0 +1,17 @@
+<launch>
+  <!-- Simulation-side bridge: TCP client that connects to the vehicle
+       server and drives /sim_task/execute. Include this from
+       full_competition.launch; do not launch it twice.
+       vehicle_host is the vehicle LAN IP (never hard-coded here). -->
+  <arg name="vehicle_host" default=""/>
+  <arg name="vehicle_port" default="24580"/>
+  <arg name="bridge_config"
+       default="$(find smart_factory_bridge)/config/bridge.yaml"/>
+
+  <node pkg="smart_factory_bridge" type="vehicle_bridge_node.py"
+        name="vehicle_bridge_node" output="screen" required="false">
+    <param name="vehicle_host" value="$(arg vehicle_host)"/>
+    <param name="vehicle_port" value="$(arg vehicle_port)"/>
+    <param name="bridge_config" value="$(arg bridge_config)"/>
+  </node>
+</launch>

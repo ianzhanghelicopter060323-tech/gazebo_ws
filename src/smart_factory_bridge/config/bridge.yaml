@@ -1,0 +1,71 @@
+# smart_factory_bridge runtime configuration.
+#
+# All values are defaults; the node merges this file over its built-in
+# defaults and command-line rosparams take precedence for the pieces they
+# cover (vehicle_host, vehicle_port). The vehicle LAN IP is deliberately
+# NOT stored here: it must be passed per launch via
+#   vehicle_host:=<vehicle IP>
+# or the SIMULATION_VEHICLE_HOST environment variable.
+
+# TCP port the vehicle server listens on.
+vehicle_port: 24580
+
+# Heartbeat cadence and link health thresholds (seconds), task book 6.1:
+# heartbeat every 1 s, degraded after 3 s of silence, disconnect+reconnect
+# after 10 s of silence.
+heartbeat_interval: 1.0
+degraded_after: 3.0
+disconnect_after: 10.0
+
+# Capped exponential reconnect backoff (seconds).
+reconnect_backoff: [0.5, 1.0, 2.0, 4.0, 5.0]
+
+# NDJSON line limit (task book 6.1).
+max_line_bytes: 65536
+
+# Bounded outgoing queue used while the link is down (result replay).
+send_queue_size: 256
+
+# Topics whose freshness feeds the heartbeat. max_age is judged in sim
+# time, so a paused Gazebo automatically makes the link not-ready
+# (fail-closed). "amcl" drives localization_ready, everything else drives
+# sensors_ready.
+sensor_topics:
+  scan:
+    topic: /scan
+    max_age: 2.0
+  amcl:
+    topic: /amcl_pose
+    max_age: 2.0
+
+# Gazebo is considered ready when the clock topic exists and the required
+# Gazebo service is registered.
+gazebo:
+  require_clock_topic: /clock
+  require_service: /gazebo/get_physics_properties
+
+# RViz readiness.
+#   mode: process -> pgrep -f <process_pattern> (native Ubuntu, default)
+#   mode: topics  -> all check_topics must exist on the master
+rviz:
+  mode: process
+  process_pattern: rviz
+  check_topics: []
+
+# ExecuteTask Action connection and per-task deadline. The vehicle waits
+# SIMULATION_TASK_TIMEOUT on its side; keep these consistent.
+action:
+  name: /sim_task/execute
+  wait_timeout: 15.0
+  task_timeout: 300.0
+
+# In-memory dedup/result cache, bounded by insertion order.
+result_cache:
+  max_entries: 64
+
+# How often the readiness thread re-checks Gazebo/RViz/Action/sensors.
+readiness_period: 2.0
+
+# Publish a compact JSON status on /simulation/bridge_status (debug aid;
+# the vehicle never reads it).
+publish_bridge_status: true
