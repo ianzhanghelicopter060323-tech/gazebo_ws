@@ -2,11 +2,11 @@
 # pickup_staging_dev.yaml route; the offline generator script and its
 # rendered diagram are intentionally left untouched.
 #
-# Hand-trimmed 2026-08-18 (compliance waypoint reduction, third pass):
-# execution waypoints are exactly the twelve active route anchors
-# 6/10/16/17/18/20/21/22/29/33/34/35, and the dense reference points/anchors
-# are trimmed to the seq6..seq35 section with s rebased to 0. Keep
-# navigation.yaml fitted_waypoints/count and required_sequences in sync;
+# Hand-trimmed 2026-08-19 (compliance waypoint reduction, fifth pass):
+# execution waypoints are exactly the thirteen active route anchors
+# 6/9/10/16/17/18/20/21/22/29/33/34/35, and the dense reference
+# points/anchors are trimmed to the seq6..seq35 section with s rebased to 0.
+# Keep navigation.yaml fitted_waypoints/count and required_sequences in sync;
 # regenerating this file from the full route would break the runtime count
 # check.
 fitted_path:
@@ -33,9 +33,10 @@ fitted_path:
       centerline_safe: true
     execution_waypoint_selection:
       method: greedy_chord_error_and_arc_spacing_with_required_sequences
-      count: 12
+      count: 13
       required_sequences:
       - 6
+      - 9
       - 10
       - 16
       - 17
@@ -54,11 +55,12 @@ fitted_path:
       chord_error: 0.05
       min_spacing: 0.16
       max_spacing: 0.5
-      actual_min_spacing: 0.2687766036010002
+      actual_min_spacing: 0.199831476578
       actual_max_spacing: 1.6293791737730001
       intermediate_pass_radius: 0.15
   active_sequences:
   - 6
+  - 9
   - 10
   - 16
   - 17
@@ -75,10 +77,14 @@ fitted_path:
     s: 0.0
     x: 1.1750690078617005
     y: -0.40364965201516473
+  - seq: 9
+    s: 0.284049557811
+    x: 1.4133214248049981
+    y: -0.5308763929455991
   - seq: 10
     s: 0.483881034389
-    x: 1.5958513190190342
-    y: -0.4721968684425722
+    x: 1.6098499298095703
+    y: -0.40627628564834595
   - seq: 16
     s: 1.740094668214
     x: 2.4757238220364925
@@ -529,14 +535,23 @@ fitted_path:
     source_seq_end: 9
     waypoint: 1
     source_seq: 6
+  - s: 0.284049557811
+    x: 1.4133214248049981
+    y: -0.5308763929455991
+    yaw: -0.05914691092741756
+    curvature: 2.298992982902919
+    source_seq_start: 9
+    source_seq_end: 10
+    waypoint: 2
+    source_seq: 9
   - s: 0.483881034389
-    x: 1.5958513190190342
-    y: -0.4721968684425722
-    yaw: 0.9738189800605128
+    x: 1.6098499298095703
+    y: -0.40627628564834595
+    yaw: 0.9213719964027404
     curvature: 10.623450739739846
     source_seq_start: 10
     source_seq_end: 11
-    waypoint: 2
+    waypoint: 3
     source_seq: 10
   - s: 1.740094668214
     x: 2.4757238220364925
@@ -545,7 +560,7 @@ fitted_path:
     curvature: -5.484664085498066
     source_seq_start: 16
     source_seq_end: 17
-    waypoint: 3
+    waypoint: 4
     source_seq: 16
   - s: 2.01538051898
     x: 2.594888962366013
@@ -554,7 +569,7 @@ fitted_path:
     curvature: -1.528408128578297
     source_seq_start: 17
     source_seq_end: 18
-    waypoint: 4
+    waypoint: 5
     source_seq: 17
   - s: 2.323676589738
     x: 2.609259501846263
@@ -563,7 +578,7 @@ fitted_path:
     curvature: 1.0730160039186976
     source_seq_start: 18
     source_seq_end: 20
-    waypoint: 5
+    waypoint: 6
     source_seq: 18
   - s: 2.600344168778
     x: 2.605
@@ -572,7 +587,7 @@ fitted_path:
     curvature: -7.368438694672544
     source_seq_start: 20
     source_seq_end: 21
-    waypoint: 6
+    waypoint: 7
     source_seq: 20
   - s: 2.869120772379
     x: 2.381951103210449
@@ -581,7 +596,7 @@ fitted_path:
     curvature: -0.0
     source_seq_start: 21
     source_seq_end: 22
-    waypoint: 7
+    waypoint: 8
     source_seq: 21
   - s: 4.498499946152
     x: 0.7525417423248291
@@ -590,7 +605,7 @@ fitted_path:
     curvature: -2.1286123909289256
     source_seq_start: 22
     source_seq_end: 23
-    waypoint: 8
+    waypoint: 9
     source_seq: 22
   - s: 5.483232914637
     x: 0.10708080093256003
@@ -599,7 +614,7 @@ fitted_path:
     curvature: 4.567046532431391
     source_seq_start: 28
     source_seq_end: 29
-    waypoint: 9
+    waypoint: 10
     source_seq: 29
   - s: 6.240187207218
     x: -0.4804755730299789
@@ -608,7 +623,7 @@ fitted_path:
     curvature: -0.5373873301933119
     source_seq_start: 33
     source_seq_end: 34
-    waypoint: 10
+    waypoint: 11
     source_seq: 33
   - s: 7.430826328635
     x: -1.5811774484529137
@@ -618,7 +633,7 @@ fitted_path:
     source_seq_start: 33
     source_seq_end: 34
     source_seq: 34
-    waypoint: 11
+    waypoint: 12
   - s: 7.860712301307
     x: -1.26
     y: -0.525
@@ -626,7 +641,7 @@ fitted_path:
     curvature: 0.0
     source_seq_start: 34
     source_seq_end: 35
-    waypoint: 12
+    waypoint: 13
     source_seq: 35
   final_goal:
     x: -1.26

@@ -1,14 +1,14 @@
 # DEVELOPMENT-ONLY pickup staging route.
 #
-# Compliance-trimmed route (2026-08-18): only the twelve waypoints below are
-# active (seqs 6, 10, 16, 17, 18, 20, 21, 22, 29, 33, 34, 35). The earlier
-# and mid-route captures remain as commented records only for traceability;
-# they are NOT sent as navigation goals. The full 30-point execution subset
-# is gone: the regenerated fitted path now carries exactly these twelve
-# anchors, and the leg from the robot start into the route is planned
-# directly by the global planner. Navigation logic is unchanged (fitted path
-# + sequential execution, orientation-required anchors 17/18/21, final seq35
-# tolerances).
+# Compliance-trimmed route (2026-08-19): only the thirteen waypoints below
+# are active (seqs 6, 9, 10, 16, 17, 18, 20, 21, 22, 29, 33, 34, 35). The
+# earlier and mid-route captures remain as commented records only for
+# traceability; they are NOT sent as navigation goals. The full 30-point
+# execution subset is gone: the regenerated fitted path now carries exactly
+# these thirteen anchors, and the leg from the robot start into the route is
+# planned directly by the global planner. Navigation logic is unchanged
+# (fitted path + sequential execution, orientation-required anchors 17/18/21,
+# final seq35 tolerances).
 #
 # An intermediate waypoint advances when the localized base enters the
 # configured pass radius. The final seq35 waypoint uses the global
@@ -60,12 +60,12 @@ pickup_staging:
     #  y: -0.5337331295013428
     #  yaw: 0.16758532822132111
     # seq 9
-    #- x: 1.4104515314102173
-    #  y: -0.5313190221786499
-    #  yaw: 0.013734286651015283
+    - x: 1.4104515314102173
+      y: -0.5313190221786499
+      yaw: 0.013734286651015283
     # seq 10
     - x: 1.6098499298095703
-      y: -0.4797421395778656
+      y: -0.40627628564834595
       yaw: 0.9213719964027404
     # seq 11
     #- x: 1.616
