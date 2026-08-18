@@ -62,6 +62,14 @@ roslaunch smart_factory_bridge bridge.launch \
   绝不进入。
 - `laser_ready` 表示"最近收到新鲜且基本有效的 /scan"（非空、range 边界合法、
   无 NaN），**不是**"检测到障碍物"；与 `sensors_ready` 同时保留（车端兼容）。
+- `localization_ready` 判定（AMCL 静止兼容）：必须收到过真实 `/amcl_pose`
+  （未初始化一律 false）；`amcl.max_age` 内（默认 2 s）有新位姿 →
+  `localization_source=fresh_pose`；位姿超过 `max_age` 但 `/amcl` 节点仍在
+  master 注册（静止时 AMCL 因 `update_min_d/update_min_a` 不重发位姿）→
+  `localization_source=initialized_stationary`，仍保持 `localization_ready=true`；
+  `/amcl` 节点退出或从未收到真实位姿 → 立即 false（fail-closed）。心跳新增
+  `localization_source` 字段（车端忽略未知字段）。不做人工发布/伪造
+  `/amcl_pose`，不放大超时；`/clock`、`/scan`、RViz、Action server 检查不变。
 - 同一 `request_id` + 相同内容重复到达：不重复执行，补发缓存
   ack/progress/result；同 ID 不同内容：`request_conflict`；执行期间新请求：
   `busy`。

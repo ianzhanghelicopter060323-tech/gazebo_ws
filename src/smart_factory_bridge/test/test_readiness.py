@@ -19,6 +19,7 @@ from smart_factory_bridge import protocol
 from smart_factory_bridge.readiness import (
     FaultLatch,
     FreshnessState,
+    LocalizationState,
     build_heartbeat,
     laser_scan_is_valid,
     live_refresh,
@@ -157,6 +158,85 @@ class FaultLatchTest(unittest.TestCase):
         self.assertFalse(FaultLatch().is_latched())
 
 
+class LocalizationStateTest(unittest.TestCase):
+    """AMCL stationary-freshness fallback (teammate fix plan).
+
+    AMCL stops republishing /amcl_pose while the robot is stationary
+    (update_min_d/update_min_a), so a pure max_age window must not
+    decide localization_ready: once a real pose was seen and the AMCL
+    node is still online, a stale pose means "stationary", not "lost".
+    """
+
+    def test_uninitialized_refuses_ready(self):
+        state = LocalizationState(2.0, clock=FakeClock())
+        self.assertEqual(state.status(), (False, "uninitialized"))
+        self.assertFalse(state.is_fresh())
+        # node online alone must not substitute for a real pose
+        state.set_amcl_online(True)
+        self.assertEqual(state.status(), (False, "uninitialized"))
+
+    def test_fresh_pose_within_max_age(self):
+        clock = FakeClock()
+        state = LocalizationState(2.0, clock=clock)
+        state.mark()
+        clock.advance(1.5)
+        self.assertEqual(state.status(), (True, "fresh_pose"))
+        self.assertTrue(state.is_fresh())
+
+    def test_stationary_with_amcl_online_stays_ready(self):
+        clock = FakeClock()
+        state = LocalizationState(2.0, clock=clock)
+        state.mark()
+        state.set_amcl_online(True)
+        clock.advance(10.0)  # long stop: no new /amcl_pose
+        self.assertEqual(
+            state.status(), (True, "initialized_stationary")
+        )
+
+    def test_stationary_with_amcl_offline_fails_closed(self):
+        clock = FakeClock()
+        state = LocalizationState(2.0, clock=clock)
+        state.mark()
+        clock.advance(10.0)  # never observed online -> not ready
+        self.assertEqual(state.status(), (False, "node_offline"))
+        state.set_amcl_online(False)  # node crashed mid-stop
+        self.assertEqual(state.status(), (False, "node_offline"))
+
+    def test_pose_rearrival_returns_to_fresh_pose(self):
+        clock = FakeClock()
+        state = LocalizationState(2.0, clock=clock)
+        state.mark()
+        state.set_amcl_online(True)
+        clock.advance(10.0)
+        self.assertEqual(state.status()[1], "initialized_stationary")
+        state.mark()  # robot moved again
+        self.assertEqual(state.status(), (True, "fresh_pose"))
+
+    def test_thread_safe_mark_status_online(self):
+        import threading
+        clock = FakeClock()
+        state = LocalizationState(2.0, clock=clock)
+        state.mark()
+        errors = []
+
+        def hammer():
+            try:
+                for _ in range(100):
+                    state.mark()
+                    state.status()
+                    state.set_amcl_online(True)
+                    state.set_amcl_online(False)
+            except Exception as exc:  # pragma: no cover
+                errors.append(exc)
+
+        threads = [threading.Thread(target=hammer) for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(errors, [])
+
+
 class LiveRefreshTest(unittest.TestCase):
     def test_stale_probe_weakens_its_flag(self):
         flags = dict(ALL_READY)
@@ -243,25 +323,35 @@ class WallClockWaitRegressionTest(unittest.TestCase):
 
 class HeartbeatTest(unittest.TestCase):
     def test_heartbeat_carries_laser_ready_and_sensors_ready(self):
-        heartbeat = build_heartbeat("sim-test", ALL_READY, busy=False)
+        heartbeat = build_heartbeat(
+            "sim-test", ALL_READY, busy=False,
+            localization_source="fresh_pose",
+        )
         self.assertEqual(heartbeat["message_type"], "heartbeat")
         self.assertTrue(heartbeat["laser_ready"])
         self.assertTrue(heartbeat["sensors_ready"])
         self.assertTrue(heartbeat["ready"])
         self.assertFalse(heartbeat["busy"])
         self.assertFalse(heartbeat["fault_latched"])
+        self.assertEqual(heartbeat["localization_source"], "fresh_pose")
 
     def test_laser_stale_keeps_ready_false(self):
         """laser_ready=false must fail the whole ready gate closed."""
         flags = dict(ALL_READY, laser=False)
-        heartbeat = build_heartbeat("sim-test", flags, busy=False)
+        heartbeat = build_heartbeat(
+            "sim-test", flags, busy=False,
+            localization_source="fresh_pose",
+        )
         self.assertFalse(heartbeat["laser_ready"])
         self.assertFalse(heartbeat["ready"], "ready must AND in laser")
         self.assertTrue(heartbeat["sensors_ready"],
                         "sensors_ready stays independent (vehicle compat)")
 
     def test_busy_keeps_ready_false(self):
-        heartbeat = build_heartbeat("sim-test", ALL_READY, busy=True)
+        heartbeat = build_heartbeat(
+            "sim-test", ALL_READY, busy=True,
+            localization_source="fresh_pose",
+        )
         self.assertTrue(heartbeat["laser_ready"])
         self.assertFalse(heartbeat["ready"])
         self.assertTrue(heartbeat["busy"])
@@ -271,23 +361,47 @@ class HeartbeatTest(unittest.TestCase):
         # the whole gate closed, exactly like busy, while staying
         # distinct for the vehicle's diagnostics.
         heartbeat = build_heartbeat(
-            "sim-test", ALL_READY, busy=False, fault_latched=True
+            "sim-test", ALL_READY, busy=False, fault_latched=True,
+            localization_source="fresh_pose",
         )
         self.assertTrue(heartbeat["fault_latched"])
         self.assertFalse(heartbeat["ready"])
         self.assertFalse(heartbeat["busy"])
 
+    def test_localization_source_carried_verbatim(self):
+        heartbeat = build_heartbeat(
+            "sim-test", ALL_READY, busy=False,
+            localization_source="initialized_stationary",
+        )
+        self.assertEqual(
+            heartbeat["localization_source"], "initialized_stationary"
+        )
+        self.assertTrue(heartbeat["localization_ready"])
+        self.assertTrue(heartbeat["ready"])
+
+    def test_uninitialized_localization_defaults_not_ready(self):
+        # build_heartbeat defaults to uninitialized; a caller that
+        # forgets the source must fail closed rather than claim ready.
+        flags = dict(ALL_READY, localization=False)
+        heartbeat = build_heartbeat("sim-test", flags, busy=False)
+        self.assertEqual(heartbeat["localization_source"], "uninitialized")
+        self.assertFalse(heartbeat["localization_ready"])
+        self.assertFalse(heartbeat["ready"])
+
     def test_heartbeat_encodes_as_one_ndjson_line(self):
         """A real heartbeat example for the handover/vehicle-side review."""
-        heartbeat = build_heartbeat("sim-test", ALL_READY, busy=False)
+        heartbeat = build_heartbeat(
+            "sim-test", ALL_READY, busy=False,
+            localization_source="initialized_stationary",
+        )
         raw = protocol.encode(heartbeat)
         self.assertTrue(raw.endswith(b"\n"))
         decoded = json.loads(raw.decode("utf-8"))
         for key in (
             "schema_version", "message_type", "session_id", "timestamp",
             "ready", "gazebo_ready", "rviz_ready", "action_server_ready",
-            "localization_ready", "laser_ready", "sensors_ready", "busy",
-            "fault_latched",
+            "localization_ready", "localization_source", "laser_ready",
+            "sensors_ready", "busy", "fault_latched",
         ):
             self.assertIn(key, decoded)
         print("\nheartbeat example: %s" % raw.decode("utf-8").rstrip("\n"))

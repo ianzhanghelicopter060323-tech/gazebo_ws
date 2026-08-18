@@ -1,6 +1,6 @@
 # smart_factory_bridge 双机 TCP 通信接入与联调交接单
 
-> 编写日期：2026-08-18（v2.4：故障锁死锁修复 + 合规裁定修正为"部分允许"，见第 6、7 节）
+> 编写日期：2026-08-19（v2.5：AMCL 静止新鲜度修复——`localization_source` 字段 + 节点在线判定，见第 6、7 节；v2.4：故障锁死锁修复 + 合规裁定修正为"部分允许"）
 > 接收人：Gazebo 仿真任务开发队友 / 实体车联调队友
 > 目标环境：原生 Ubuntu 20.04 + ROS Noetic + Gazebo Classic + RViz
 > 当前分支：`TEB_test_bridge_fix`（基线 `TEB_test@39d750c`）
@@ -54,6 +54,7 @@ setup.py / CMakeLists.txt / package.xml / README.md
 | 墙钟超时 | 新鲜度（/scan、/amcl_pose、/clock）与 Action 总超时（默认 300 s）一律用 `time.monotonic()` 判定；**任务等待用 done callback + `threading.Event.wait()`（纯墙钟轮询）**——`wait_for_result(rospy.Duration)` 的剩余时间由仿真时钟计算，暂停时会永久阻塞导致墙钟超时无法执行，故弃用；**Action server 连接探测同样墙钟化**：弃用 `wait_for_server(Duration)`（同一暂停卡死问题），改为轮询 `is_server_connected()`（0.5 s 截止、50 ms 步长）；ROS 消息 `header.stamp` 由 ROS 自动填充，不受影响；Gazebo 暂停中已开始的任务在墙钟超时后返回 `failed`（fail-closed，车端可接受） |
 | 心跳发送时实时新鲜度 | `_build_heartbeat` 构造心跳时对 /clock、/scan、/amcl_pose 探针**实时复查**（纯 monotonic 比较，只弱化不恢复，fail-closed）：就绪线程刷新周期（1 s）不再影响检测延迟——暂停检测 ≤ 对应 max_age（如 /clock 1 s），车端观察 ≤ 检测 + 下一条心跳间隔（1 s）≈ 2 s |
 | 取消确认与故障锁定 | 任务超时后 `cancel_goal()` **墙钟等待确认终止**（`cancel_confirm_timeout` 默认 2 s）；未确认则 `fault_latched=true`：heartbeat `ready=false` + 新请求一律 `busy`（reason 注明 fault latched），直到 Action 到达终止状态（done callback 清闩）——旧任务取消未决期间新任务绝不进入 |
+| AMCL 静止新鲜度（队友方案） | `localization_ready` 不再只由 /amcl_pose 新鲜度决定：必须收到过**真实** /amcl_pose（未初始化一律 false）；`amcl.max_age`（默认 2 s）内有新位姿 → `localization_source=fresh_pose`；位姿过期但 `/amcl` 节点仍在 master 注册（静止时 AMCL 因 `update_min_d/update_min_a` 不重发位姿）→ `localization_source=initialized_stationary`，`localization_ready` 保持 true；节点退出或从未初始化 → 立即 false（fail-closed）。心跳新增 `localization_source` 字段（车端忽略未知字段）。**不发布/伪造 /amcl_pose，不放大超时**；/clock、/scan、RViz、Action server 检查不变。节点在线检测：独立 watch 线程每 `amcl_watch_period`（默认 2 s）查 master 节点注册表，master 不可达按离线处理 |
 | 健壮性 | 所有异常只记录不退出；socket 全部确定性关闭（ResourceWarning 零泄漏）；`/simulation/bridge_status` 发布本机状态 JSON（调试用，车端不读取） |
 
 ### 1.4 约定与红线（代码层面已保证）
@@ -267,7 +268,7 @@ python3 tools/mock_vehicle_server.py --crash-after 5 --crash-duration 3  # 模�
 - Action server 真实反馈下的 stage 名称映射、Gazebo 暂停就绪失效的实际表现，本机按墙钟逻辑
   实现并通过单测 + mock 车端（2.5）演练，建议联调时现场复核。
 
-## 6. 版本记录（v2.4，TEB_test_bridge_fix）
+## 6. 版本记录（v2.5，TEB_test_bridge_fix）
 
 ### 6.1 第一阶段：bridge 修改（本分支全部改动，未触碰其他包）
 
@@ -280,6 +281,7 @@ python3 tools/mock_vehicle_server.py --crash-after 5 --crash-duration 3  # 模�
 | 心跳发送时实时新鲜度（队友核查补充） | 就绪线程周期（readiness_period 2.0→1.0）会滞后于 max_age 窗口：`_build_heartbeat` 构造心跳时对 /clock、/scan、/amcl_pose 探针**实时复查**（`live_refresh`，只弱化不恢复），暂停检测 ≤ 对应 max_age，车端观察 ≤ 检测 + 心跳间隔 ≈ 2 s（原"1 s 内"表述已改为精确界限） |
 | 取消确认与故障锁定（队友核查补充） | 超时后 `cancel_goal()` 不再立即返回：墙钟等待 `cancel_confirm_timeout`（默认 2 s）确认终止；未确认 → `fault_latched`（心跳 `ready=false` + 新请求 `busy`，reason 注明 fault latched），done callback 到达终止状态后清闩——旧任务取消未决期间新任务绝不进入，杜绝 PREEMPTING 竞态。**v2.4 死锁修复**：`_clear_fault_latch` 原在持任务锁时调用 `_publish_status()`（后者再取同一把不可重入锁 → done callback 线程永久卡死，闩无法恢复）；已把闩逻辑提取为 ROS-free `FaultLatch`（`clear()` 返回是否实际清闩），发布严格移出锁外，并新增真实线程并发回归测试 |
 | gazebo_ready 需 /clock 活跃（队友核查补充） | `_check_gazebo` 在主题存在 + 服务注册之外，增加 **/clock 墙钟新鲜度探针**（`gazebo.clock_max_age` 默认 1 s）；暂停 → 主题仍在但停发 → 检测 ≤ 1 s（配合心跳发送时实时复查，§1.3） |
+| AMCL 静止新鲜度（队友方案 v2.5） | 新增 ROS-free `LocalizationState`：未初始化拒绝（必须真实 /amcl_pose）；max_age 内 → `fresh_pose`；过期但 `/amcl` 节点在线 → `initialized_stationary` 保持 ready（AMCL 静止时不重发位姿，`update_min_d/update_min_a`）；节点退出或未初始化 → false。心跳新增 `localization_source` 字段；`_amcl_watch_loop` 线程每 2 s 查 master 节点注册表（`rosnode.get_node_names()`，异常 fail-closed）。不发布/伪造位姿，不放大超时。新增 8 个单测（含线程安全） |
 | 删除无条件补发 | `_on_link_state` 重连上升沿仅补发心跳；结果只经"离线队列 flush 一次"或"车端重发请求 → 去重缓存应答"两条路径；`drop_pending` 移除队列中与缓存重放重复的副本，杜绝同一结果双发；无请求不推送残留结果 |
 | ResourceWarning | 客户端 `_connect_once` 任何失败路径确定性关闭 socket；测试 handler 全部 try/finally 关闭连接；全套以 `-W error::ResourceWarning` 运行通过 |
 | 配套 | 新增 `src/smart_factory_bridge/readiness.py`（ROS-free：FreshnessState / FaultLatch / laser_scan_is_valid / build_heartbeat / live_refresh）、`test/test_readiness.py`（18 项，含墙钟等待回归防护、live_refresh 语义与 FaultLatch 并发回归）、tcp 新增 2 项测试、`tools/mock_vehicle_server.py`、package.xml 增加 `sensor_msgs` 依赖 |

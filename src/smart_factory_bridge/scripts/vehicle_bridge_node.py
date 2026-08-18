@@ -38,7 +38,9 @@ import time
 import uuid
 
 import actionlib
+import rosnode
 import rospy
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 import yaml
@@ -52,6 +54,7 @@ from smart_factory_bridge.action_adapter import ActionAdapter
 from smart_factory_bridge.readiness import (
     FaultLatch,
     FreshnessState,
+    LocalizationState,
     build_heartbeat,
     laser_scan_is_valid,
     live_refresh,
@@ -270,7 +273,9 @@ class VehicleBridgeNode(object):
 
         # Sensor freshness probes. The scan topic uses the stricter
         # LaserFreshness (fresh + structurally valid) for laser_ready;
-        # all other probes are liveness-only.
+        # amcl uses LocalizationState (fresh pose OR initialized + AMCL
+        # node online, because AMCL stops republishing /amcl_pose while
+        # the robot is stationary); the rest are liveness-only.
         sensor_config = self._config.get("sensor_topics", {})
         self._freshness = {}
         for name, spec in sensor_config.items():
@@ -278,6 +283,16 @@ class VehicleBridgeNode(object):
             max_age = spec.get("max_age", 2.0)
             if name == "scan":
                 self._freshness[name] = LaserFreshness(topic, max_age)
+            elif name == "amcl":
+                state = LocalizationState(max_age)
+                try:
+                    rospy.Subscriber(
+                        topic, PoseWithCovarianceStamped,
+                        lambda _message, s=state: s.mark(),
+                    )
+                except Exception as exc:
+                    rospy.logwarn("cannot subscribe %s: %s", topic, exc)
+                self._freshness[name] = state
             else:
                 self._freshness[name] = TopicFreshness(topic, max_age)
 
@@ -333,8 +348,36 @@ class VehicleBridgeNode(object):
             target=self._readiness_loop, name="bridge-readiness", daemon=True
         ).start()
         threading.Thread(
+            target=self._amcl_watch_loop, name="bridge-amcl-watch",
+            daemon=True,
+        ).start()
+        threading.Thread(
             target=self._worker_loop, name="bridge-worker", daemon=True
         ).start()
+
+    def _amcl_watch_loop(self):
+        """Track whether the /amcl node is registered with the master.
+
+        AMCL stops republishing /amcl_pose while the robot is stationary
+        (update_min_d/update_min_a), so localization liveness cannot be
+        judged from pose messages alone: the stationary fallback in
+        LocalizationState is only armed while this loop observes the
+        node in the master registry. Master failures fail closed.
+        """
+        period = float(self._config.get("amcl_watch_period", 2.0))
+        while not rospy.is_shutdown() and not self._stop_event.is_set():
+            try:
+                names = rosnode.get_node_names()
+                online = any(
+                    name == "/amcl" or name.endswith("/amcl")
+                    for name in names
+                )
+            except Exception:
+                online = False  # master unreachable -> fail closed
+            state = self._freshness.get("amcl")
+            if state is not None:
+                state.set_amcl_online(online)
+            self._stop_event.wait(period)
 
     def shutdown(self):
         self._stop_event.set()
@@ -360,11 +403,15 @@ class VehicleBridgeNode(object):
         probe = self._freshness.get("scan")
         if probe is not None:
             checks.append(("laser", probe.is_ready))
+        localization_source = "uninitialized"
         if "amcl" in self._freshness:
-            checks.append(("localization", self._freshness["amcl"].is_fresh))
+            state = self._freshness["amcl"]
+            checks.append(("localization", state.is_fresh))
+            _, localization_source = state.status()
         live_refresh(ready_flags, checks)
         return build_heartbeat(
-            self._session_id, ready_flags, busy, fault_latched
+            self._session_id, ready_flags, busy, fault_latched,
+            localization_source=localization_source,
         )
 
     def _refresh_readiness(self):

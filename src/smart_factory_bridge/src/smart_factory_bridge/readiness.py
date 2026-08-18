@@ -77,6 +77,65 @@ class FaultLatch(object):
             return True
 
 
+class LocalizationState(object):
+    """AMCL pose freshness with a stationary fallback, ROS-free.
+
+    AMCL stops republishing /amcl_pose while the robot is stationary
+    (update_min_d/update_min_a thresholds), so a pure max_age freshness
+    would wrongly flip localization_ready=false while localization is
+    actually fine. Localization is judged as:
+
+    - ``uninitialized``: no real /amcl_pose ever received -> NOT ready
+    - ``fresh_pose``: a real pose arrived within max_age -> ready
+    - ``initialized_stationary``: last pose older than max_age but the
+      AMCL node is still registered with the master -> ready (the robot
+      is not moving, so a stationary pose stays valid)
+    - ``node_offline``: last pose older than max_age and AMCL is no
+      longer registered -> NOT ready
+
+    This never publishes or fabricates a pose and never enlarges the
+    timeout: the ``max_age`` window is unchanged, and node liveness is
+    set externally from the master's registry by the bridge. ``mark()``
+    is called from the /amcl_pose subscriber callback only.
+    """
+
+    def __init__(self, max_age, clock=time.monotonic):
+        self._max_age = float(max_age)
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._last = None  # monotonic instant of the last real /amcl_pose
+        self._amcl_online = False
+
+    def mark(self):
+        """Record a real /amcl_pose arrival (subscriber callback)."""
+        with self._lock:
+            self._last = self._clock()
+
+    def set_amcl_online(self, online):
+        """Set whether the AMCL node is registered with the master."""
+        with self._lock:
+            self._amcl_online = bool(online)
+
+    def status(self):
+        """Return ``(ready, source)`` with source in
+        ``{uninitialized, fresh_pose, initialized_stationary,
+        node_offline}``."""
+        with self._lock:
+            last = self._last
+            online = self._amcl_online
+        if last is None:
+            return False, "uninitialized"
+        if self._clock() - last <= self._max_age:
+            return True, "fresh_pose"
+        if online:
+            return True, "initialized_stationary"
+        return False, "node_offline"
+
+    def is_fresh(self):
+        """Compatibility with the readiness probes (fail-closed)."""
+        return self.status()[0]
+
+
 def laser_scan_is_valid(ranges, range_min, range_max):
     """Structural validity of a LaserScan message for laser_ready.
 
@@ -111,7 +170,13 @@ def live_refresh(ready_flags, checks):
     return ready_flags
 
 
-def build_heartbeat(session_id, ready_flags, busy, fault_latched=False):
+def build_heartbeat(
+    session_id,
+    ready_flags,
+    busy,
+    fault_latched=False,
+    localization_source="uninitialized",
+):
     """Heartbeat payload from the readiness flag dict.
 
     ``ready_flags`` keys: gazebo, rviz, action_server, localization,
@@ -122,6 +187,10 @@ def build_heartbeat(session_id, ready_flags, busy, fault_latched=False):
     (fail-closed). ``fault_latched`` reports that the previous task's
     cancellation was never confirmed by the Action server, so the bridge
     refuses new tasks until the Action returns to a terminal state.
+    ``localization_source`` explains why ``localization_ready`` holds:
+    ``uninitialized`` (no real /amcl_pose yet, NOT ready),
+    ``fresh_pose`` (pose seen within max_age) or
+    ``initialized_stationary`` (robot stationary, AMCL node online).
     """
     all_ready = (
         ready_flags["gazebo"]
@@ -141,6 +210,7 @@ def build_heartbeat(session_id, ready_flags, busy, fault_latched=False):
         rviz_ready=ready_flags["rviz"],
         action_server_ready=ready_flags["action_server"],
         localization_ready=ready_flags["localization"],
+        localization_source=localization_source,
         laser_ready=ready_flags["laser"],
         sensors_ready=ready_flags["sensors"],
         busy=busy,
