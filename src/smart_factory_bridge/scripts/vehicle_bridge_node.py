@@ -830,6 +830,10 @@ class VehicleBridgeNode(object):
             last_state = (
                 self._last_result.get("state") if self._last_result else None
             )
+        localization_source = "uninitialized"
+        state = self._freshness.get("amcl")
+        if state is not None:
+            _, localization_source = state.status()
         status = {
             "session_id": self._session_id,
             "connected": self._connected,
@@ -841,6 +845,7 @@ class VehicleBridgeNode(object):
             "fault_latched": fault_latched,
             "active_request_id": active_id,
             "last_result_state": last_state,
+            "localization_source": localization_source,
         }
         status.update(ready_flags)
         payload_json = json.dumps(status, sort_keys=True)
