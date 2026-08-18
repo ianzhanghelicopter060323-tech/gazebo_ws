@@ -39,6 +39,7 @@ import uuid
 
 import actionlib
 import rosnode
+from rosgraph.masterapi import Master
 import rospy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from sensor_msgs.msg import LaserScan
@@ -446,14 +447,14 @@ class VehicleBridgeNode(object):
     def _check_gazebo(self):
         gazebo_cfg = self._config.get("gazebo", {})
         try:
-            topics = {name for name, _ in rospy.get_topic_types()}
+            topics = {name for name, _ in rospy.get_published_topics()}
         except Exception:
             return False
         clock_topic = gazebo_cfg.get("require_clock_topic")
         if clock_topic and clock_topic not in topics:
             return False
         service = gazebo_cfg.get("require_service")
-        if service and service not in rospy.get_service_names():
+        if service and service not in self._master_service_names():
             return False
         # gazebo_ready must also mean a LIVE clock: /clock keeps existing
         # while Gazebo is paused, so without freshness the field would
@@ -463,12 +464,20 @@ class VehicleBridgeNode(object):
             return False
         return True
 
+    def _master_service_names(self):
+        """Registered service names, read from the master (fail-closed)."""
+        try:
+            _, _, services = Master(rospy.get_name()).getSystemState()
+            return {name for name, _ in services}
+        except Exception:
+            return set()
+
     def _check_rviz(self):
         rviz_cfg = self._config.get("rviz", {})
         mode = rviz_cfg.get("mode", "process")
         if mode == "topics":
             try:
-                topics = {name for name, _ in rospy.get_topic_types()}
+                topics = {name for name, _ in rospy.get_published_topics()}
             except Exception:
                 return False
             return all(
@@ -488,20 +497,23 @@ class VehicleBridgeNode(object):
 
     def _check_action_server(self):
         try:
-            if not self._action_client.is_server_connected():
-                # Wall-clock bounded poll. The Duration-based
-                # wait_for_server computes its deadline from sim time,
-                # so a paused /clock freezes it and this thread would
-                # spin forever; the readiness loop must stay fail-closed
-                # on pause just like the task wait does.
-                deadline = time.monotonic() + 0.5
-                while not rospy.is_shutdown():
-                    if self._action_client.is_server_connected():
-                        break
-                    if time.monotonic() > deadline:
-                        break
-                    time.sleep(0.05)
-            return self._action_client.is_server_connected()
+            # Noetic's python actionlib has no is_server_connected() (that
+            # is a C++ API); wait_for_server derives "connected" from
+            # having received any /status message, but its deadline is
+            # sim-time based and freezes while /clock is paused. Replicate
+            # the predicate with a wall-clock bounded poll: the Action
+            # server publishes status at 5 Hz once it is up, so one
+            # received message means the server is reachable (fail-closed
+            # until then, just like the task wait).
+            client = self._action_client.action_client
+            if client.last_status_msg is not None:
+                return True
+            deadline = time.monotonic() + 0.5
+            while not rospy.is_shutdown() and client.last_status_msg is None:
+                if time.monotonic() > deadline:
+                    break
+                time.sleep(0.05)
+            return client.last_status_msg is not None
         except Exception:
             return False
 

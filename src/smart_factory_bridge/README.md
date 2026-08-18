@@ -51,8 +51,9 @@ roslaunch smart_factory_bridge bridge.launch \
   `ready=false`。已开始的任务在暂停中也会墙钟超时（默认 300 s）返回
   `failed`——任务等待全程使用 done callback + `threading.Event.wait()`
   （纯墙钟），不依赖可能被暂停仿真时钟卡死的 `wait_for_result`；
-  `action_server_ready` 探测同样用墙钟轮询 `is_server_connected()`，
-  不调用基于仿真时钟计算超时的 `wait_for_server`。心跳发送时对 /clock、
+  `action_server_ready` 探测用墙钟轮询 actionlib 客户端"已收到任意
+  /status 消息"的谓词（即 `wait_for_server` 的判定依据），不用其基于
+  仿真时钟计算超时的版本。心跳发送时对 /clock、
   /scan、/amcl_pose **实时复查新鲜度**（纯 monotonic 比较、只弱化不恢复）：
   暂停检测 ≤ 对应 max_age（如 /clock 1 s），车端观察 ≤ 检测 + 下一条心跳
   间隔 ≈ 2 s，就绪刷新周期不影响检测延迟。任务超时后 `cancel_goal()` 墙钟
