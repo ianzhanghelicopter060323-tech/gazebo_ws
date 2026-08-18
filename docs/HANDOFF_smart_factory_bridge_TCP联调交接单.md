@@ -17,11 +17,13 @@
 ```text
 scripts/vehicle_bridge_node.py         # ROS 节点：NDJSON 请求 ↔ /sim_task/execute Action ↔ 就绪检查
 src/smart_factory_bridge/protocol.py   # NDJSON 编解码、严格校验、请求指纹、ack/progress/result/error 构造
-src/smart_factory_bridge/tcp_client.py # 心跳、退化/断连检测、指数退避重连、离线发送队列
+src/smart_factory_bridge/tcp_client.py # 心跳、退化/断连检测、指数退避重连、离线发送队列、drop_pending
 src/smart_factory_bridge/action_adapter.py  # Action feedback/result → progress/result 消息映射
+src/smart_factory_bridge/readiness.py  # ROS-free：墙钟新鲜度（FreshnessState）、laser 有效性、heartbeat 构造
 config/bridge.yaml                     # 端口、超时、传感器新鲜度、RViz 检查、结果缓存等配置
 launch/bridge.launch                   # 独立启动入口
-test/                                  # 桌面单测（39 项，不依赖 ROS Master）
+test/                                  # 桌面单测（50 项，不依赖 ROS Master）
+tools/mock_vehicle_server.py           # mock 车端 TCP 服务端（纯标准库，本地联调用）
 setup.py / CMakeLists.txt / package.xml / README.md
 ```
 
@@ -268,3 +270,31 @@ fitted_waypoints）、拟合路线（fitted_path.py / route_executor.py / action
   4. 三类货品（food / daily / electronics）各连续多轮；
   5. 每轮重新运行官方 `spawn_cubes.py` 后复测；
   6. 人工通过腾讯会议中的 Gazebo 画面确认实际放置效果（录像要求见 5）。
+
+## 7. 交付记录（2026-08-18，TEB_test_bridge_fix）
+
+| 项 | 结果 |
+|---|---|
+| 分支 | `TEB_test_bridge_fix`（基线 `TEB_test@39d750c`，原分支未被覆盖） |
+| 提交 | `1f582c5`（第一阶段 bridge 修改 + 测试 + mock 工具）；`7197a82`（阶段二合规清单）；`333cde9`（本文档 v2）；`（后续提交哈希见 git log）` |
+| 编译 | `catkin_make` 100% 成功（含新增 `sensor_msgs` 依赖） |
+| 桌面单测 | 50 项全部通过，`-W error::ResourceWarning` 下 socket 零泄漏 |
+| heartbeat 示例 | 见 §3.1 引用块（含 `laser_ready`、`sensors_ready`、`ready`、`busy`） |
+| Gazebo 暂停测试 | 单测级暂停模拟已过（§3.1）；真机步骤见 §4.2，配合 mock 车端（§2.5）观察 |
+| 断线重连测试 | TCP 层 4 项真实 socket 测试（§3.1）；mock 车端 `--crash-after` 演练步骤见 §2.5 |
+| 三类货品完整录像 | **待原生 Ubuntu 仿真电脑生成**（要求见 §5/§6.3） |
+
+### 7.1 剩余风险清单
+
+1. **推送状态**：本机无 GitHub 凭据，分支尚未推送；由提交人执行
+   `git push -u origin TEB_test_bridge_fix` 后补齐远端哈希。
+2. **墙钟超时行为变更**：暂停中已开始的任务 300 s 后返回 `failed`（fail-closed）——
+   按队友确认实现，真机联调现场验证（§4.2）。
+3. **laser_ready"基本有效"定义**：当前为结构校验（非空、range 边界合法、无 NaN，
+   全 inf 无回波仍有效）；若车端有更强要求（如最小光束数），联调时调整。
+4. **阶段二合规结论待定**：固定坐标 / 拟合路线 / 动态中间 goal / make_plan 四类用法
+   全部原样保留（`docs/路线合规使用清单.md`），等裁判/队友结论后再动。
+5. **阶段三稳定性实测待做**：释放位姿与稳定时间调参、反弹/滑出测试、三类货品多轮
+   复测、每轮重跑官方 `spawn_cubes.py`（计划见 §6.3）。
+6. **车端契约联调**：`ready` 字段集（含 `laser_ready`）与重连行为（车端重发
+   pending_request）需与 `simulation_link_node.py` 实际实现现场核对（§4 清单）。
