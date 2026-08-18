@@ -715,7 +715,13 @@ class VehicleBridgeNode(object):
     # Action execution (worker thread only)
 
     def _run_action(self, payload, entry):
-        if not self._action_client.is_server_connected():
+        # Noetic python actionlib has no is_server_connected(); the real
+        # predicate is a received /status message plus goal/cancel
+        # connections (what wait_for_server checks). Its deadline is
+        # computed from rostime; this node runs without use_sim_time, so
+        # rospy.Duration is wall clock and the 0.2 s bound holds even
+        # during a paused sim.
+        if not self._action_client.wait_for_server(rospy.Duration(0.2)):
             result = protocol.make_result(
                 self._session_id, payload, False, 0,
                 MISSION_ERROR_INTERNAL,

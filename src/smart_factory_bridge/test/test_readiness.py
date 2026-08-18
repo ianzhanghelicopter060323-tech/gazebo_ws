@@ -285,10 +285,15 @@ class WallClockWaitRegressionTest(unittest.TestCase):
             source = handle.read()
         # Call-site patterns only (e.g. ".wait_for_result("): comments and
         # docstrings may mention the APIs by name without being calls.
+        # wait_for_server is only permitted in its bounded 0.2 s probe
+        # form: the node runs without use_sim_time, so rospy.Duration is
+        # wall clock and the bound holds even during a paused sim; any
+        # other call site (infinite or sim-time-derived deadline) is
+        # banned the same way wait_for_result is.
         for pattern in (
             r"\.wait_for_result\(",
             r"\.send_goal_and_wait\(",
-            r"wait_for_server\s*\(",
+            r"wait_for_server\s*\((?!\s*rospy\.Duration\(0\.2\))",
             r"rospy\.sleep\(",
         ):
             self.assertIsNone(
