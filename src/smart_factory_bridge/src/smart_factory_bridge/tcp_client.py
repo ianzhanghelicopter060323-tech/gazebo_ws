@@ -304,6 +304,19 @@ class TcpClient(object):
                         payload = None
                     if payload is not None:
                         self.send(payload)
+                        # One rolling line per heartbeat so the launch
+                        # terminal visibly tracks the link and readiness.
+                        LOGGER.info(
+                            "heartbeat: ready=%s gazebo=%s loc=%s(%s) "
+                            "laser=%s busy=%s fault=%s",
+                            payload.get("ready"),
+                            payload.get("gazebo_ready"),
+                            payload.get("localization_ready"),
+                            payload.get("localization_source"),
+                            payload.get("laser_ready"),
+                            payload.get("busy"),
+                            payload.get("fault_latched"),
+                        )
             if self._connected:
                 idle = _monotonic() - self._last_received
                 if idle > self._disconnect_after:
