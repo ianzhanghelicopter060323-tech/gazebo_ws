@@ -5,7 +5,9 @@ The simulation computer runs this node as a TCP *client* that connects to
 the vehicle's TCP server (default port 24580). Responsibilities:
 
 - send heartbeats whose ``ready`` field truthfully reflects Gazebo, RViz,
-  the Action server, localization and sensor freshness (task book 6.3)
+  the Action server, localization, laser and sensor freshness (task book
+  6.3); ``laser_ready`` means a fresh, basically valid /scan, never
+  obstacle *presence*
 - receive ``request`` messages, validate and deduplicate them, then call
   the ``/sim_task/execute`` Action once per unique request (6.4, 6.7)
 - map Action feedback to ``progress`` and the terminal result to a
@@ -14,8 +16,10 @@ the vehicle's TCP server (default port 24580). Responsibilities:
 - replay cached ack/progress/result for duplicate requests, reject
   ``request_conflict`` for same-id different-content requests, answer
   ``busy`` while another request is active
-- resend the cached terminal result once after a reconnect so a short
-  drop never loses the outcome (6.7)
+- never push a stale result on its own: after a reconnect the vehicle
+  re-sends its pending request and the bridge answers from the dedup
+  cache; a result produced while the link was down is flushed once via
+  the offline send queue (6.7)
 
 Threads never block ROS callbacks, and no exception kills the node: the
 link stays closed but the process stays alive for inspection.
@@ -30,10 +34,12 @@ import os
 import queue
 import subprocess
 import threading
+import time
 import uuid
 
 import actionlib
 import rospy
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 import yaml
 
@@ -43,6 +49,11 @@ from smart_factory_interfaces.msg import (
 )
 from smart_factory_bridge import protocol
 from smart_factory_bridge.action_adapter import ActionAdapter
+from smart_factory_bridge.readiness import (
+    FreshnessState,
+    build_heartbeat,
+    laser_scan_is_valid,
+)
 from smart_factory_bridge.tcp_client import TcpClient
 
 LOGGER = logging.getLogger("smart_factory_bridge")
@@ -126,13 +137,18 @@ class _RosLogHandler(logging.Handler):
 
 
 class TopicFreshness(object):
-    """Freshness of one subscribed topic, judged in sim time."""
+    """Freshness of one subscribed topic, judged in wall-clock time.
+
+    ``rospy.AnyMsg`` is enough to prove a topic is alive; the laser gets
+    a stricter subscriber because ``laser_ready`` also requires a
+    structurally valid scan. Wall-clock freshness means a paused Gazebo
+    (which stops publishing /scan and /clock) expires on its own and
+    flips the heartbeat to ``ready=false`` (fail-closed).
+    """
 
     def __init__(self, topic, max_age):
         self._topic = topic
-        self._max_age = max_age
-        self._last = None
-        self._lock = threading.Lock()
+        self._state = FreshnessState(max_age)
         try:
             self._subscriber = rospy.Subscriber(
                 topic, rospy.AnyMsg, self._callback
@@ -142,15 +158,51 @@ class TopicFreshness(object):
             self._subscriber = None
 
     def _callback(self, _message):
-        with self._lock:
-            self._last = rospy.Time.now()
+        self._state.mark()
 
     def is_fresh(self):
+        return self._state.is_fresh()
+
+
+class LaserFreshness(object):
+    """Freshness AND structural validity of /scan (drives laser_ready).
+
+    ``laser_ready`` is defined as "recently received a fresh and
+    basically valid /scan message". Validity is structural only
+    (non-empty ranges, sane bounds, no NaN) — a scan with no returns is
+    still valid. Obstacle *presence* is never judged here.
+    """
+
+    def __init__(self, topic, max_age):
+        self._topic = topic
+        self._state = FreshnessState(max_age)
+        self._valid = False
+        self._lock = threading.Lock()
+        try:
+            self._subscriber = rospy.Subscriber(
+                topic, LaserScan, self._callback
+            )
+        except Exception as exc:  # keep the bridge alive if sub fails
+            rospy.logwarn("cannot subscribe %s: %s", topic, exc)
+            self._subscriber = None
+
+    def _callback(self, message):
+        valid = laser_scan_is_valid(
+            message.ranges, message.range_min, message.range_max
+        )
         with self._lock:
-            last = self._last
-        if last is None:
-            return False
-        return (rospy.Time.now() - last).to_sec() <= self._max_age
+            self._valid = valid
+        self._state.mark()
+
+    def is_fresh(self):
+        """Topic liveness only (feeds sensors_ready)."""
+        return self._state.is_fresh()
+
+    def is_ready(self):
+        """Fresh AND basically valid (feeds laser_ready)."""
+        with self._lock:
+            valid = self._valid
+        return self._state.is_fresh() and valid
 
 
 class VehicleBridgeNode(object):
@@ -185,6 +237,7 @@ class VehicleBridgeNode(object):
             "rviz": False,
             "action_server": False,
             "localization": False,
+            "laser": False,
             "sensors": False,
         }
 
@@ -202,13 +255,18 @@ class VehicleBridgeNode(object):
         self._degraded = False
         self._stop_event = threading.Event()
 
-        # Sensor freshness probes.
+        # Sensor freshness probes. The scan topic uses the stricter
+        # LaserFreshness (fresh + structurally valid) for laser_ready;
+        # all other probes are liveness-only.
         sensor_config = self._config.get("sensor_topics", {})
         self._freshness = {}
         for name, spec in sensor_config.items():
-            self._freshness[name] = TopicFreshness(
-                spec.get("topic", "/%s" % name), spec.get("max_age", 2.0)
-            )
+            topic = spec.get("topic", "/%s" % name)
+            max_age = spec.get("max_age", 2.0)
+            if name == "scan":
+                self._freshness[name] = LaserFreshness(topic, max_age)
+            else:
+                self._freshness[name] = TopicFreshness(topic, max_age)
 
         action_cfg = self._config["action"]
         self._action_client = actionlib.SimpleActionClient(
@@ -270,25 +328,7 @@ class VehicleBridgeNode(object):
             ready_flags = dict(self._readiness)
         with self._task_lock:
             busy = self._active_request is not None
-        all_ready = (
-            ready_flags["gazebo"]
-            and ready_flags["rviz"]
-            and ready_flags["action_server"]
-            and ready_flags["localization"]
-            and ready_flags["sensors"]
-            and not busy
-        )
-        return protocol.make_message(
-            "heartbeat",
-            self._session_id,
-            ready=all_ready,
-            gazebo_ready=ready_flags["gazebo"],
-            rviz_ready=ready_flags["rviz"],
-            action_server_ready=ready_flags["action_server"],
-            localization_ready=ready_flags["localization"],
-            sensors_ready=ready_flags["sensors"],
-            busy=busy,
-        )
+        return build_heartbeat(self._session_id, ready_flags, busy)
 
     def _refresh_readiness(self):
         flags = {
@@ -297,6 +337,7 @@ class VehicleBridgeNode(object):
             "action_server": self._check_action_server(),
             "localization": self._freshness.get("amcl").is_fresh()
             if "amcl" in self._freshness else False,
+            "laser": self._check_laser(),
             "sensors": self._check_sensors(),
         }
         changed = False
@@ -365,10 +406,17 @@ class VehicleBridgeNode(object):
         except Exception:
             return False
 
+    def _check_laser(self):
+        # laser_ready: fresh AND basically valid /scan. No laser probe
+        # configured means not ready (fail-closed).
+        probe = self._freshness.get("scan")
+        return probe.is_ready() if probe is not None else False
+
     def _check_sensors(self):
-        # Localization (amcl) is judged separately; this covers the rest.
+        # Localization (amcl) and laser are judged separately; this covers
+        # the remaining probes as liveness-only (sensors_ready).
         for name, freshness in self._freshness.items():
-            if name == "amcl":
+            if name in ("amcl", "scan"):
                 continue
             if not freshness.is_fresh():
                 return False
@@ -393,15 +441,13 @@ class VehicleBridgeNode(object):
         self._connected = connected
         self._degraded = degraded
         if connected and not self._was_connected:
-            # Rising edge: refresh the vehicle with a heartbeat and replay
-            # the latest terminal result so a short drop never loses it.
+            # Rising edge: only ping with a fresh heartbeat. No stale
+            # result is pushed on our own — the vehicle re-sends its
+            # pending request after a reconnect and the dedup cache
+            # answers it (task book 6.7). A result produced while the
+            # link was down is flushed exactly once by the offline queue.
             heartbeat = self._build_heartbeat()
             self._tcp.send(heartbeat)
-            with self._task_lock:
-                last_result = self._last_result
-            if last_result is not None:
-                rospy.loginfo("resending cached result after reconnect")
-                self._tcp.send(last_result)
         self._was_connected = connected
         self._publish_status()
 
@@ -505,6 +551,16 @@ class VehicleBridgeNode(object):
         if cached["progress"] is not None:
             self._tcp.send(cached["progress"])
         if cached["result"] is not None:
+            # If this result was produced while the link was down it may
+            # still sit in the offline queue (and would be flushed on the
+            # next connect). Drop that copy so the same result is never
+            # delivered twice through the queue AND the replay.
+            raw = protocol.encode(cached["result"])
+            if self._tcp.drop_pending(raw):
+                rospy.loginfo(
+                    "dropped queued duplicate of result %s",
+                    request_id,
+                )
             self._tcp.send(cached["result"])
 
     def _cache_put(self, request_id, entry):
@@ -537,13 +593,16 @@ class VehicleBridgeNode(object):
         self._latest_feedback = None
         self._action_client.send_goal(goal, feedback_cb=self._on_feedback)
 
-        timeout = rospy.Duration(self._task_timeout)
-        deadline = rospy.Time.now() + timeout
+        # Deadline is judged in monotonic wall-clock time: a paused
+        # Gazebo must still make the task time out (fail-closed), which
+        # sim time would never do. The actionlib wait still uses
+        # rospy.Duration as its API requires.
+        deadline = time.monotonic() + self._task_timeout
         last_sent_progress = None
         while not rospy.is_shutdown():
             if self._action_client.wait_for_result(rospy.Duration(1.0)):
                 break
-            if rospy.Time.now() > deadline:
+            if time.monotonic() > deadline:
                 rospy.logwarn(
                     "task %s timed out after %.0fs, cancelling",
                     payload["request_id"], self._task_timeout,

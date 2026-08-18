@@ -8,6 +8,10 @@ import sys
 import threading
 import time
 import unittest
+import warnings
+
+# Unclosed sockets fail the suite instead of warning at GC.
+warnings.simplefilter("error", ResourceWarning)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -96,23 +100,26 @@ class TcpClientTest(unittest.TestCase):
         reply_received = threading.Event()
 
         def handler(conn):
-            reader = LineReader(conn)
-            line = reader.read_line()
-            if line is None:
-                return
-            server_lines.append(line)
-            reply = {
-                "schema_version": 1,
-                "message_type": "ack",
-                "session_id": "car-test",
-                "request_session_id": "sim-test",
-                "request_id": "order-1:simulation:r1",
-                "order_id": "order-1",
-                "state": "accepted",
-                "timestamp": 0.0,
-            }
-            conn.sendall(protocol.encode(reply))
-            time.sleep(3)  # keep the connection open until the test ends
+            try:
+                reader = LineReader(conn)
+                line = reader.read_line()
+                if line is None:
+                    return
+                server_lines.append(line)
+                reply = {
+                    "schema_version": 1,
+                    "message_type": "ack",
+                    "session_id": "car-test",
+                    "request_session_id": "sim-test",
+                    "request_id": "order-1:simulation:r1",
+                    "order_id": "order-1",
+                    "state": "accepted",
+                    "timestamp": 0.0,
+                }
+                conn.sendall(protocol.encode(reply))
+                time.sleep(3)  # keep the connection open until the test ends
+            finally:
+                conn.close()
 
         server = LineServer(handler)
         server.start()
@@ -173,14 +180,18 @@ class TcpClientTest(unittest.TestCase):
                 time.sleep(0.3)  # hold conn1 briefly, then drop it
                 conn.close()
                 return
-            # The first line is used for the conn1 probe above; on later
-            # connections it may already be the flushed result, so keep it.
-            conn2_lines.append(line)
-            while True:
-                line = reader.read_line()
-                if line is None:
-                    break
+            try:
+                # The first line is used for the conn1 probe above; on
+                # later connections it may already be the flushed result,
+                # so keep it.
                 conn2_lines.append(line)
+                while True:
+                    line = reader.read_line()
+                    if line is None:
+                        break
+                    conn2_lines.append(line)
+            finally:
+                conn.close()
 
         server = LineServer(handler)
         server.start()
@@ -236,6 +247,141 @@ class TcpClientTest(unittest.TestCase):
             client.stop()
             server.close()
 
+    def test_reconnect_alone_sends_no_stale_result(self):
+        """A reconnect must not push any result on its own.
+
+        The vehicle re-sends its pending request after a reconnect and the
+        dedup cache answers it; results are only sent for a request or
+        through the offline queue when the bridge produced them. A plain
+        reconnect with no queued message must send heartbeats only.
+        """
+        first_seen = threading.Event()
+        conn2_lines = []
+
+        def handler(conn):
+            reader = LineReader(conn)
+            line = reader.read_line()
+            if line is None:
+                return
+            try:
+                if not first_seen.is_set():
+                    first_seen.set()
+                    time.sleep(0.3)  # hold conn1 briefly, then drop it
+                    conn.close()
+                    return
+                conn2_lines.append(line)
+                while True:
+                    line = reader.read_line()
+                    if line is None:
+                        break
+                    conn2_lines.append(line)
+            finally:
+                conn.close()
+
+        server = LineServer(handler)
+        server.start()
+        client = TcpClient(
+            "127.0.0.1",
+            server.port,
+            heartbeat_provider=lambda: dict(HEARTBEAT),
+            **FAST,
+        )
+        client.start()
+        try:
+            self.assertTrue(first_seen.wait(5.0), "conn1 never connected")
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                if client._connected:
+                    time.sleep(0.2)
+                    continue
+                break
+            # Wait until the reconnect settles and heartbeats flow again.
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                if any(b'"message_type": "heartbeat"' in line
+                       for line in conn2_lines):
+                    break
+                time.sleep(0.05)
+            time.sleep(0.3)  # give any stale push time to (not) appear
+            messages = [
+                json.loads(line) for line in conn2_lines if line
+            ]
+            self.assertTrue(
+                all(m["message_type"] == "heartbeat" for m in messages),
+                "reconnect alone must only send heartbeats, got %r"
+                % [m["message_type"] for m in messages],
+            )
+        finally:
+            client.stop()
+            server.close()
+
+    def test_drop_pending_cancels_queued_flush(self):
+        """A dropped queued copy must not be flushed after reconnect.
+
+        This is the mechanism that stops the same terminal result from
+        being delivered twice: once via the offline queue flush and once
+        via the duplicate-request cache replay.
+        """
+        got_result = threading.Event()
+        received = []
+
+        def handler(conn):
+            try:
+                reader = LineReader(conn)
+                while True:
+                    line = reader.read_line()
+                    if line is None:
+                        break
+                    received.append(line)
+                    if b'"message_type": "result"' in line:
+                        got_result.set()
+            finally:
+                conn.close()
+
+        server = LineServer(handler)
+        server.start()
+        client = TcpClient(
+            "127.0.0.1",
+            server.port,
+            heartbeat_provider=lambda: dict(HEARTBEAT),
+            **FAST,
+        )
+        result = {
+            "schema_version": 1,
+            "message_type": "result",
+            "session_id": "sim-test",
+            "request_session_id": "car-test",
+            "request_id": "order-1:simulation:r1",
+            "order_id": "order-1",
+            "state": "completed",
+            "success": True,
+            "completed_stage": 20,
+            "timestamp": 0.0,
+        }
+        raw = protocol.encode(result)
+        self.assertFalse(
+            client.drop_pending(raw), "nothing queued yet must not drop"
+        )
+        client.send(result)  # queued while not connected
+        self.assertTrue(
+            client.drop_pending(raw), "queued copy must be droppable"
+        )
+        client.start()
+        try:
+            time.sleep(1.0)  # connect + flush window
+            self.assertFalse(
+                got_result.is_set(),
+                "dropped queued result was still flushed: %r" % received,
+            )
+            self.assertTrue(
+                any(b'"message_type": "heartbeat"' in line
+                    for line in received),
+                "link should be alive with heartbeats",
+            )
+        finally:
+            client.stop()
+            server.close()
+
     def test_overlong_line_dropped_next_processed(self):
         valid = {
             "schema_version": 1,
@@ -250,8 +396,11 @@ class TcpClientTest(unittest.TestCase):
         got_valid = threading.Event()
 
         def handler(conn):
-            conn.sendall(b"x" * (protocol.MAX_MESSAGE_BYTES + 1) + b"\n")
-            conn.sendall(protocol.encode(valid))
+            try:
+                conn.sendall(b"x" * (protocol.MAX_MESSAGE_BYTES + 1) + b"\n")
+                conn.sendall(protocol.encode(valid))
+            finally:
+                conn.close()
 
         server = LineServer(handler)
         server.start()

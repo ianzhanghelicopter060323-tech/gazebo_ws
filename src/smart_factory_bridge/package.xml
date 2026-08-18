@@ -15,6 +15,7 @@
 
   <depend>actionlib</depend>
   <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>smart_factory_interfaces</depend>
 </package>

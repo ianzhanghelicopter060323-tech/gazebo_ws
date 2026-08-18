@@ -23,13 +23,18 @@ reconnect_backoff: [0.5, 1.0, 2.0, 4.0, 5.0]
 # NDJSON line limit (task book 6.1).
 max_line_bytes: 65536
 
-# Bounded outgoing queue used while the link is down (result replay).
+# Bounded outgoing queue used while the link is down. Messages are
+# flushed exactly once on the next connect; a terminal result produced
+# while down is delivered via the flush, and a queued copy is dropped
+# before the duplicate-request cache replays it (no double delivery).
 send_queue_size: 256
 
-# Topics whose freshness feeds the heartbeat. max_age is judged in sim
-# time, so a paused Gazebo automatically makes the link not-ready
-# (fail-closed). "amcl" drives localization_ready, everything else drives
-# sensors_ready.
+# Topics whose freshness feeds the heartbeat. max_age is judged in
+# monotonic wall-clock time, so a paused Gazebo (which stops publishing
+# /scan and /clock) expires on its own and makes the link not-ready
+# within seconds (fail-closed). "scan" drives laser_ready (fresh AND
+# structurally valid /scan — never obstacle presence); "amcl" drives
+# localization_ready; remaining topics drive sensors_ready.
 sensor_topics:
   scan:
     topic: /scan

@@ -190,14 +190,24 @@ class TcpClient(object):
                 self._host, self._port, attempt,
             )
             return False
-        sock.settimeout(_RECV_TIMEOUT)
-        with self._socket_lock:
-            self._socket = sock
-        self._last_received = _monotonic()
-        self._set_connected(True)
-        LOGGER.info("connected to %s:%s", self._host, self._port)
-        self._flush_pending()
-        return True
+        try:
+            sock.settimeout(_RECV_TIMEOUT)
+            with self._socket_lock:
+                self._socket = sock
+            self._last_received = _monotonic()
+            self._set_connected(True)
+            LOGGER.info("connected to %s:%s", self._host, self._port)
+            self._flush_pending()
+            return True
+        except Exception:
+            # Any failure between connect and registration must close the
+            # socket: an orphaned descriptor would linger until GC and
+            # trip ResourceWarning.
+            LOGGER.exception(
+                "connect handshake failed on %s:%s", self._host, self._port
+            )
+            self._mark_disconnected()
+            return False
 
     def _run_receive(self):
         buffer = b""
@@ -243,6 +253,18 @@ class TcpClient(object):
             self._on_message(payload)
         except Exception:  # keep the reader loop alive no matter what
             LOGGER.exception("on_message callback raised")
+
+    def drop_pending(self, raw):
+        """Remove one encoded message from the offline queue, if present.
+
+        Used so a terminal result is never delivered twice: once through
+        the reconnect flush and once through the duplicate-request replay.
+        """
+        with self._send_lock:
+            if raw in self._pending:
+                self._pending.remove(raw)
+                return True
+            return False
 
     def _flush_pending(self):
         with self._send_lock:
