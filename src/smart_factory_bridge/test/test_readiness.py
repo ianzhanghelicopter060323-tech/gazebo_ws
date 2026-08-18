@@ -296,7 +296,12 @@ class WallClockWaitRegressionTest(unittest.TestCase):
             )
         self.assertIn("done_cb", source)
         self.assertIn("goal_done.wait", source)
-        self.assertIn("is_server_connected()", source)
+        # The Action-server probe is a wall-clock poll of the actionlib
+        # client's received-status predicate (Noetic python actionlib has
+        # no is_server_connected(); wait_for_server's deadline is
+        # sim-time based).
+        self.assertIn("last_status_msg", source)
+        self.assertIn("time.monotonic() + 0.5", source)
 
     def test_clear_fault_latch_publishes_outside_task_lock(self):
         """Deadlock regression: status publishing must not run under
