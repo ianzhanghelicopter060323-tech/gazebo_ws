@@ -1,8 +1,17 @@
 # DEVELOPMENT-ONLY pickup staging route.
 #
-# The active poses below were captured from manual move_base goals and are sent
-# sequentially. An intermediate waypoint advances when the localized base enters
-# the configured pass radius. The final seq35 waypoint uses the global
+# Compliance-trimmed route (2026-08-18): only the twelve waypoints below are
+# active (seqs 6, 10, 16, 17, 18, 20, 21, 22, 29, 33, 34, 35). The earlier
+# and mid-route captures remain as commented records only for traceability;
+# they are NOT sent as navigation goals. The full 30-point execution subset
+# is gone: the regenerated fitted path now carries exactly these twelve
+# anchors, and the leg from the robot start into the route is planned
+# directly by the global planner. Navigation logic is unchanged (fitted path
+# + sequential execution, orientation-required anchors 17/18/21, final seq35
+# tolerances).
+#
+# An intermediate waypoint advances when the localized base enters the
+# configured pass radius. The final seq35 waypoint uses the global
 # navigation/final_pass_radius together with navigation/final_yaw_tolerance.
 # yaw is calculated from each recorded planar quaternion with
 # yaw = 2 * atan2(orientation.z, orientation.w).
@@ -19,25 +28,25 @@ pickup_staging:
   frame_id: map
   waypoints:
     # seq 1
-    - x: 0.9269627523422241
-      y: 0.006324544548988342
-      yaw: -0.025351181626319885
+    #- x: 0.9269627523422241
+    #  y: 0.006324544548988342
+    #  yaw: -0.025351181626319885
     # seq 2
     #- x: 1.0217628479003906
     #  y: 0.07854776084423065
     #  yaw: -0.34669366478919983
     # seq 3
-    - x: 1.1313876914978027
-      y: -0.08713756501674652
-      yaw: -1.0079600811004639
+    #- x: 1.1313876914978027
+    #  y: -0.08713756501674652
+    #  yaw: -1.0079600811004639
     # seq 4 (source header repeats seq 1)
     #- x: 1.1962604522705078
     #  y: -0.13771581649780273
     #  yaw: -1.6639446020126343
     # seq 5
-    - x: 1.1656703357696533
-      y: -0.15135257959365845
-      yaw: -1.5980843305587769
+    #- x: 1.1656703357696533
+    #  y: -0.15135257959365845
+    #  yaw: -1.5980843305587769
     # seq 6
     - x: 1.165300838470459
       y: -0.40627628564834595
@@ -51,33 +60,33 @@ pickup_staging:
     #  y: -0.5337331295013428
     #  yaw: 0.16758532822132111
     # seq 9
-    - x: 1.4104515314102173
-      y: -0.5313190221786499
-      yaw: 0.013734286651015283
+    #- x: 1.4104515314102173
+    #  y: -0.5313190221786499
+    #  yaw: 0.013734286651015283
     # seq 10
     - x: 1.6098499298095703
       y: -0.4797421395778656
       yaw: 0.9213719964027404
     # seq 11
-    - x: 1.616
-      y: -0.3353423476219177
-      yaw: 1.5357884168624878
+    #- x: 1.616
+    #  y: -0.3353423476219177
+    #  yaw: 1.5357884168624878
     # seq 12
-    - x: 1.64
-      y: -0.09910142421722412
-      yaw: 1.1904590129852295
+    #- x: 1.64
+    #  y: -0.09910142421722412
+    #  yaw: 1.1904590129852295
     # seq 13
     #- x: 1.6999197006225586
     #  y: 0.04712587594985962
     #  yaw: 0.03262258321046829
     # seq 14
-    - x: 1.9525374174118042
-      y: 0.023571543049812317
-      yaw: -0.0356578454375267
+    #- x: 1.9525374174118042
+    #  y: 0.023571543049812317
+    #  yaw: -0.0356578454375267
     # seq 15
-    - x: 2.3800587940216064
-      y: 0.002357830755710602
-      yaw: 0.020619681105017662
+    #- x: 2.3800587940216064
+    #  y: 0.002357830755710602
+    #  yaw: 0.020619681105017662
     # seq 16
     - x: 2.4815396308898926
       y: -0.02775260388851166
@@ -108,29 +117,29 @@ pickup_staging:
       y: -0.995
       yaw: 2.759993314743042
     # seq 23
-    - x: 0.6856163334846497
-      y: -0.7878620672225952
-      yaw: 1.7913811206817627
+    #- x: 0.6856163334846497
+    #  y: -0.7878620672225952
+    #  yaw: 1.7913811206817627
     # seq 24
-    - x: 0.653471031188965
-      y: -0.7147330045700073
-      yaw: 1.8590172529220581
+    #- x: 0.653471031188965
+    #  y: -0.7147330045700073
+    #  yaw: 1.8590172529220581
     # seq 25
-    - x: 0.6488758897781372
-      y: -0.5874739074707031
-      yaw: 2.9282889366149902
+    #- x: 0.6488758897781372
+    #  y: -0.5874739074707031
+    #  yaw: 2.9282889366149902
     # seq 26
     #- x: 0.5421633720397949
     #  y: -0.48145240545272827
     #  yaw: -3.0803327560424805
     # seq 27
-    - x: 0.49556970596313477
-      y: -0.50049149680137634
-      yaw: 3.1260967254638672
+    #- x: 0.49556970596313477
+    #  y: -0.50049149680137634
+    #  yaw: 3.1260967254638672
     # seq 28
-    - x: 0.36521705985069275
-      y: -0.4969532768726349
-      yaw: 3.126121759414673
+    #- x: 0.36521705985069275
+    #  y: -0.4969532768726349
+    #  yaw: 3.126121759414673
     # seq 29
     - x: 0.10443931758403778
       y: -0.5245162558555603
@@ -144,9 +153,9 @@ pickup_staging:
     #  y: -0.916366457939148
     #  yaw: -2.945608377456665
     # seq 32
-    - x: -0.1335484313964844
-      y: -0.8095332050323486
-      yaw: -3.1115407943725586
+    #- x: -0.1335484313964844
+    #  y: -0.8095332050323486
+    #  yaw: -3.1115407943725586
     # seq 33
     - x: -0.480312294960022
       y: -0.9595332050323486
