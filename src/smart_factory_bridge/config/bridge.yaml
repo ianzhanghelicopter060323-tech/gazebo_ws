@@ -43,11 +43,15 @@ sensor_topics:
     topic: /amcl_pose
     max_age: 2.0
 
-# Gazebo is considered ready when the clock topic exists and the required
-# Gazebo service is registered.
+# Gazebo is considered ready when the clock topic exists, the required
+# Gazebo service is registered, AND /clock is live (wall-clock freshness
+# within clock_max_age). The topic itself keeps existing while Gazebo is
+# paused; the freshness probe makes gazebo_ready flip to false within
+# clock_max_age of a pause (fail-closed).
 gazebo:
   require_clock_topic: /clock
   require_service: /gazebo/get_physics_properties
+  clock_max_age: 1.0
 
 # RViz readiness.
 #   mode: process -> pgrep -f <process_pattern> (native Ubuntu, default)

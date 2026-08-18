@@ -9,6 +9,7 @@ heartbeat carries the vehicle-read ``laser_ready`` flag while retaining
 
 import json
 import os
+import re
 import sys
 import unittest
 
@@ -116,6 +117,37 @@ class LaserScanValidityTest(unittest.TestCase):
         # presence is NOT what laser_ready measures.
         self.assertTrue(laser_scan_is_valid([float("inf")] * 720, 0.0, 12.0))
         self.assertTrue(laser_scan_is_valid([1.2, 3.4, 5.6], 0.08, 12.0))
+
+
+class WallClockWaitRegressionTest(unittest.TestCase):
+    def test_node_has_no_sim_time_blocking_wait(self):
+        """The Action wait must never block on sim time (regression guard).
+
+        A paused Gazebo freezes the sim clock; the Duration-based
+        actionlib waits compute their deadlines from it and would never
+        return, so the wall-clock task deadline could never fire. The
+        node must wait with a done callback + threading.Event.wait(),
+        and probe the Action server connection on the wall clock.
+        """
+        node_path = os.path.join(
+            os.path.dirname(__file__), "..", "scripts", "vehicle_bridge_node.py"
+        )
+        with open(node_path) as handle:
+            source = handle.read()
+        # Call-site patterns only (e.g. ".wait_for_result("): comments and
+        # docstrings may mention the APIs by name without being calls.
+        for pattern in (
+            r"\.wait_for_result\(",
+            r"\.send_goal_and_wait\(",
+            r"wait_for_server\s*\(",
+            r"rospy\.sleep\(",
+        ):
+            self.assertIsNone(
+                re.search(pattern, source), "forbidden call site: %s" % pattern
+            )
+        self.assertIn("done_cb", source)
+        self.assertIn("goal_done.wait", source)
+        self.assertIn("is_server_connected()", source)
 
 
 class HeartbeatTest(unittest.TestCase):

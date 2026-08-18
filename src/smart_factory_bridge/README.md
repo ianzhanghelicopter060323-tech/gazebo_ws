@@ -46,8 +46,13 @@ roslaunch smart_factory_bridge bridge.launch \
 - `ready` 由 Gazebo、RViz、Action server、定位（`/amcl_pose`）、
   `laser_ready`（/scan 新鲜且基本有效）、传感器新鲜度和 `busy` 共同决定；
   任何一项不满足即 `ready=false`（fail-closed，车端据此阻塞发车）。
-  Gazebo 暂停 → `/clock`、`/scan` 停止发布 → 墙钟新鲜度数秒内失效 →
-  `ready=false`。已开始的任务在暂停中也会墙钟超时（默认 300 s）返回 `failed`。
+  `gazebo_ready` 要求 **/clock 活跃**（墙钟 1 s 内），不只是主题存在：
+  Gazebo 暂停 → `/clock`、`/scan` 停止发布 → 墙钟新鲜度 1 s 内失效 →
+  `ready=false`。已开始的任务在暂停中也会墙钟超时（默认 300 s）返回
+  `failed`——任务等待全程使用 done callback + `threading.Event.wait()`
+  （纯墙钟），不依赖可能被暂停仿真时钟卡死的 `wait_for_result`；
+  `action_server_ready` 探测同样用墙钟轮询 `is_server_connected()`，
+  不调用基于仿真时钟计算超时的 `wait_for_server`。
 - `laser_ready` 表示"最近收到新鲜且基本有效的 /scan"（非空、range 边界合法、
   无 NaN），**不是**"检测到障碍物"；与 `sensors_ready` 同时保留（车端兼容）。
 - 同一 `request_id` + 相同内容重复到达：不重复执行，补发缓存

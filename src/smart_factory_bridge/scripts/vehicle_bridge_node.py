@@ -73,6 +73,10 @@ DEFAULT_CONFIG = {
     "gazebo": {
         "require_clock_topic": "/clock",
         "require_service": "/gazebo/get_physics_properties",
+        # Wall-clock freshness window for /clock. The topic can exist
+        # while Gazebo is paused; gazebo_ready additionally requires a
+        # live clock so a pause reads not-ready within this window.
+        "clock_max_age": 1.0,
     },
     "rviz": {
         # "process" probes a running process (pgrep); "topics" checks that
@@ -268,6 +272,13 @@ class VehicleBridgeNode(object):
             else:
                 self._freshness[name] = TopicFreshness(topic, max_age)
 
+        # /clock liveness probe for gazebo_ready (wall-clock freshness).
+        gazebo_cfg = self._config.get("gazebo", {})
+        self._clock_freshness = TopicFreshness(
+            gazebo_cfg.get("require_clock_topic", "/clock"),
+            gazebo_cfg.get("clock_max_age", 1.0),
+        )
+
         action_cfg = self._config["action"]
         self._action_client = actionlib.SimpleActionClient(
             action_cfg["name"], ExecuteTaskAction
@@ -371,6 +382,12 @@ class VehicleBridgeNode(object):
         service = gazebo_cfg.get("require_service")
         if service and service not in rospy.get_service_names():
             return False
+        # gazebo_ready must also mean a LIVE clock: /clock keeps existing
+        # while Gazebo is paused, so without freshness the field would
+        # stay true during a pause. The wall-clock probe flips it within
+        # clock_max_age (fail-closed), consistent with laser_ready.
+        if not self._clock_freshness.is_fresh():
+            return False
         return True
 
     def _check_rviz(self):
@@ -399,9 +416,18 @@ class VehicleBridgeNode(object):
     def _check_action_server(self):
         try:
             if not self._action_client.is_server_connected():
-                self._action_client.wait_for_server(
-                    rospy.Duration(0.5)
-                )
+                # Wall-clock bounded poll. The Duration-based
+                # wait_for_server computes its deadline from sim time,
+                # so a paused /clock freezes it and this thread would
+                # spin forever; the readiness loop must stay fail-closed
+                # on pause just like the task wait does.
+                deadline = time.monotonic() + 0.5
+                while not rospy.is_shutdown():
+                    if self._action_client.is_server_connected():
+                        break
+                    if time.monotonic() > deadline:
+                        break
+                    time.sleep(0.05)
             return self._action_client.is_server_connected()
         except Exception:
             return False
@@ -591,16 +617,24 @@ class VehicleBridgeNode(object):
         goal.task_id = payload["request_id"]
         goal.target_class = payload["target_class"]
         self._latest_feedback = None
-        self._action_client.send_goal(goal, feedback_cb=self._on_feedback)
+        goal_done = threading.Event()
+        self._action_client.send_goal(
+            goal,
+            feedback_cb=self._on_feedback,
+            done_cb=lambda _state, _result: goal_done.set(),
+        )
 
-        # Deadline is judged in monotonic wall-clock time: a paused
-        # Gazebo must still make the task time out (fail-closed), which
-        # sim time would never do. The actionlib wait still uses
-        # rospy.Duration as its API requires.
+        # The whole wait loop runs on the monotonic wall clock. A paused
+        # Gazebo freezes sim time, which would make
+        # wait_for_result(rospy.Duration) / rospy.sleep never return
+        # (their timeouts are computed from the frozen sim clock), so the
+        # wall-clock deadline could never fire. A threading.Event set by
+        # the actionlib done callback plus wall-clock waits keeps the
+        # pause-timeout fail-closed: the deadline fires on schedule.
         deadline = time.monotonic() + self._task_timeout
         last_sent_progress = None
         while not rospy.is_shutdown():
-            if self._action_client.wait_for_result(rospy.Duration(1.0)):
+            if goal_done.wait(1.0):
                 break
             if time.monotonic() > deadline:
                 rospy.logwarn(
