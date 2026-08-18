@@ -44,6 +44,39 @@ class FreshnessState(object):
         return self._clock() - last <= self._max_age
 
 
+class FaultLatch(object):
+    """Thread-safe cancel-confirmation latch, ROS-free.
+
+    The bridge sets it when a task-timeout cancellation is not confirmed
+    within ``cancel_confirm_timeout``; the Action done callback clears it
+    once the server reaches a terminal state. While latched the
+    heartbeat must read ``ready=false`` and new tasks must be rejected
+    (fail-closed). ``clear()`` reports whether a latch was actually
+    held, so callers can publish/notify strictly outside the lock —
+    the publisher re-acquires the bridge's own non-reentrant lock.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._latched = False
+
+    def set(self):
+        with self._lock:
+            self._latched = True
+
+    def is_latched(self):
+        with self._lock:
+            return self._latched
+
+    def clear(self):
+        """Clear the latch. Returns True if a latch was actually held."""
+        with self._lock:
+            if not self._latched:
+                return False
+            self._latched = False
+            return True
+
+
 def laser_scan_is_valid(ranges, range_min, range_max):
     """Structural validity of a LaserScan message for laser_ready.
 

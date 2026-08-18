@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from smart_factory_bridge import protocol
 from smart_factory_bridge.readiness import (
+    FaultLatch,
     FreshnessState,
     build_heartbeat,
     laser_scan_is_valid,
@@ -120,6 +121,42 @@ class LaserScanValidityTest(unittest.TestCase):
         self.assertTrue(laser_scan_is_valid([1.2, 3.4, 5.6], 0.08, 12.0))
 
 
+class FaultLatchTest(unittest.TestCase):
+    def test_clear_from_other_thread_returns_and_unlatches(self):
+        """Deadlock regression: clear() must return promptly.
+
+        A previous implementation cleared the latch and published the
+        status while still holding the bridge's non-reentrant task
+        lock, so the done-callback thread deadlocked and the latch
+        could never recover. Run the clear path from a real thread and
+        bound the wait with join(timeout).
+        """
+        import threading
+        latch = FaultLatch()
+        latch.set()
+        self.assertTrue(latch.is_latched())
+        cleared = []
+
+        def worker():
+            cleared.append(latch.clear())
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join(timeout=1.0)
+        self.assertFalse(
+            thread.is_alive(), "clear() must return promptly (deadlock)"
+        )
+        self.assertEqual(cleared, [True], "a held latch reports True")
+        self.assertFalse(latch.is_latched(), "latch must actually clear")
+        self.assertFalse(
+            latch.clear(),
+            "clearing an unlatched latch reports False (idempotent)",
+        )
+
+    def test_default_state_unlatched(self):
+        self.assertFalse(FaultLatch().is_latched())
+
+
 class LiveRefreshTest(unittest.TestCase):
     def test_stale_probe_weakens_its_flag(self):
         flags = dict(ALL_READY)
@@ -180,6 +217,28 @@ class WallClockWaitRegressionTest(unittest.TestCase):
         self.assertIn("done_cb", source)
         self.assertIn("goal_done.wait", source)
         self.assertIn("is_server_connected()", source)
+
+    def test_clear_fault_latch_publishes_outside_task_lock(self):
+        """Deadlock regression: status publishing must not run under
+        the (non-reentrant) task lock, or the done-callback thread
+        deadlocks and the fault latch can never recover."""
+        node_path = os.path.join(
+            os.path.dirname(__file__), "..", "scripts", "vehicle_bridge_node.py"
+        )
+        with open(node_path) as handle:
+            source = handle.read()
+        method = re.search(
+            r"def _clear_fault_latch\(self\):.*?(?=\n    def |\n    # ----)",
+            source, re.S,
+        )
+        self.assertIsNotNone(method, "_clear_fault_latch must exist")
+        body = method.group(0)
+        self.assertIn("_publish_status", body)
+        self.assertNotIn(
+            "_task_lock", body,
+            "publishing inside the task lock would deadlock "
+            "(threading.Lock is not reentrant)",
+        )
 
 
 class HeartbeatTest(unittest.TestCase):

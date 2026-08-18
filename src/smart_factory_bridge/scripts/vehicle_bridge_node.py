@@ -50,6 +50,7 @@ from smart_factory_interfaces.msg import (
 from smart_factory_bridge import protocol
 from smart_factory_bridge.action_adapter import ActionAdapter
 from smart_factory_bridge.readiness import (
+    FaultLatch,
     FreshnessState,
     build_heartbeat,
     laser_scan_is_valid,
@@ -253,8 +254,8 @@ class VehicleBridgeNode(object):
         self._task_lock = threading.Lock()
         self._active_request = None
         self._last_result = None
-        self._fault_latched = False  # set when a cancel never reached a
-        # terminal state; new tasks are rejected until the Action server
+        self._fault_latch = FaultLatch()  # set when a cancel never reached
+        # a terminal state; new tasks are rejected until the Action server
         # confirms (fail-closed, see _run_action)
         self._request_queue = queue.Queue()
 
@@ -350,7 +351,7 @@ class VehicleBridgeNode(object):
             ready_flags = dict(self._readiness)
         with self._task_lock:
             busy = self._active_request is not None
-            fault_latched = self._fault_latched
+            fault_latched = self._fault_latch.is_latched()
         # Live freshness at send time. The readiness loop period lags
         # behind the per-probe max_age windows, so re-judge the cheap
         # monotonic probes here: a heartbeat must never claim fresh what
@@ -507,16 +508,16 @@ class VehicleBridgeNode(object):
 
         Called from the actionlib done callback (any goal's terminal
         transition), so it is idempotent and safe from the status
-        thread. While latched, the heartbeat says ready=false and new
-        requests are rejected with busy (fail-closed).
+        thread. Publishing happens strictly outside the latch: the
+        status publisher re-acquires the same non-reentrant task lock,
+        so publishing while it is held would deadlock this thread and
+        the latch could never recover.
         """
-        with self._task_lock:
-            if self._fault_latched:
-                self._fault_latched = False
-                rospy.logwarn(
-                    "fault latch cleared: Action reached a terminal state"
-                )
-                self._publish_status()
+        if self._fault_latch.clear():
+            rospy.logwarn(
+                "fault latch cleared: Action reached a terminal state"
+            )
+            self._publish_status()
 
     # ------------------------------------------------------------------
     # request handling (worker thread)
@@ -564,7 +565,7 @@ class VehicleBridgeNode(object):
                     )
                 )
                 return
-            if self._fault_latched:
+            if self._fault_latch.is_latched():
                 # Previous task's cancel never reached a terminal state;
                 # reject until the Action server confirms (fail-closed).
                 self._tcp.send(
@@ -705,8 +706,7 @@ class VehicleBridgeNode(object):
                 cancel_deadline = time.monotonic() + self._cancel_confirm_timeout
                 while not rospy.is_shutdown() and not goal_done.is_set():
                     if time.monotonic() > cancel_deadline:
-                        with self._task_lock:
-                            self._fault_latched = True
+                        self._fault_latch.set()
                         rospy.logerr(
                             "task %s cancel not confirmed within %.0fs, "
                             "fault latched: new tasks rejected until the "
@@ -775,7 +775,7 @@ class VehicleBridgeNode(object):
             ready_flags = dict(self._readiness)
         with self._task_lock:
             busy = self._active_request is not None
-            fault_latched = self._fault_latched
+            fault_latched = self._fault_latch.is_latched()
             active_id = (
                 self._active_request.get("request_id")
                 if self._active_request else None
