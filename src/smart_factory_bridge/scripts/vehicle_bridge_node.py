@@ -53,6 +53,7 @@ from smart_factory_bridge.readiness import (
     FreshnessState,
     build_heartbeat,
     laser_scan_is_valid,
+    live_refresh,
 )
 from smart_factory_bridge.tcp_client import TcpClient
 
@@ -89,11 +90,15 @@ DEFAULT_CONFIG = {
         "name": "/sim_task/execute",
         "wait_timeout": 15.0,
         "task_timeout": 300.0,
+        # Wall-clock window to wait for a timed-out task's cancellation
+        # to reach a terminal state (PREEMPTED/ABORTED/...) before
+        # latching a fault that rejects new tasks.
+        "cancel_confirm_timeout": 2.0,
     },
     "result_cache": {
         "max_entries": 64,
     },
-    "readiness_period": 2.0,
+    "readiness_period": 1.0,
     "publish_bridge_status": True,
 }
 
@@ -248,6 +253,9 @@ class VehicleBridgeNode(object):
         self._task_lock = threading.Lock()
         self._active_request = None
         self._last_result = None
+        self._fault_latched = False  # set when a cancel never reached a
+        # terminal state; new tasks are rejected until the Action server
+        # confirms (fail-closed, see _run_action)
         self._request_queue = queue.Queue()
 
         self._cache_lock = threading.Lock()
@@ -285,6 +293,9 @@ class VehicleBridgeNode(object):
         )
         self._action_wait_timeout = action_cfg.get("wait_timeout", 15.0)
         self._task_timeout = action_cfg.get("task_timeout", 300.0)
+        self._cancel_confirm_timeout = action_cfg.get(
+            "cancel_confirm_timeout", 2.0
+        )
         self._latest_feedback = None
 
         self._status_pub = None
@@ -339,7 +350,21 @@ class VehicleBridgeNode(object):
             ready_flags = dict(self._readiness)
         with self._task_lock:
             busy = self._active_request is not None
-        return build_heartbeat(self._session_id, ready_flags, busy)
+            fault_latched = self._fault_latched
+        # Live freshness at send time. The readiness loop period lags
+        # behind the per-probe max_age windows, so re-judge the cheap
+        # monotonic probes here: a heartbeat must never claim fresh what
+        # already expired (fail-closed, detection bounded by max_age).
+        checks = [("gazebo", self._clock_freshness.is_fresh)]
+        probe = self._freshness.get("scan")
+        if probe is not None:
+            checks.append(("laser", probe.is_ready))
+        if "amcl" in self._freshness:
+            checks.append(("localization", self._freshness["amcl"].is_fresh))
+        live_refresh(ready_flags, checks)
+        return build_heartbeat(
+            self._session_id, ready_flags, busy, fault_latched
+        )
 
     def _refresh_readiness(self):
         flags = {
@@ -477,6 +502,22 @@ class VehicleBridgeNode(object):
         self._was_connected = connected
         self._publish_status()
 
+    def _clear_fault_latch(self):
+        """Clear the fault latch once the Action reaches a terminal state.
+
+        Called from the actionlib done callback (any goal's terminal
+        transition), so it is idempotent and safe from the status
+        thread. While latched, the heartbeat says ready=false and new
+        requests are rejected with busy (fail-closed).
+        """
+        with self._task_lock:
+            if self._fault_latched:
+                self._fault_latched = False
+                rospy.logwarn(
+                    "fault latch cleared: Action reached a terminal state"
+                )
+                self._publish_status()
+
     # ------------------------------------------------------------------
     # request handling (worker thread)
 
@@ -520,6 +561,17 @@ class VehicleBridgeNode(object):
                     protocol.make_error(
                         self._session_id, payload, protocol.ERR_BUSY,
                         "another simulation request is active",
+                    )
+                )
+                return
+            if self._fault_latched:
+                # Previous task's cancel never reached a terminal state;
+                # reject until the Action server confirms (fail-closed).
+                self._tcp.send(
+                    protocol.make_error(
+                        self._session_id, payload, protocol.ERR_BUSY,
+                        "previous task cancellation not confirmed "
+                        "(fault latched)",
                     )
                 )
                 return
@@ -621,7 +673,9 @@ class VehicleBridgeNode(object):
         self._action_client.send_goal(
             goal,
             feedback_cb=self._on_feedback,
-            done_cb=lambda _state, _result: goal_done.set(),
+            done_cb=lambda _state, _result: (
+                goal_done.set(), self._clear_fault_latch(),
+            ),
         )
 
         # The whole wait loop runs on the monotonic wall clock. A paused
@@ -642,6 +696,26 @@ class VehicleBridgeNode(object):
                     payload["request_id"], self._task_timeout,
                 )
                 self._action_client.cancel_goal()
+                # Wall-clock cancellation confirmation: the old goal may
+                # still be PREEMPTING on the server. Wait briefly for
+                # its terminal state so a new request cannot race into a
+                # half-cancelled Action. If the terminal state never
+                # arrives, latch a fault and reject new tasks until the
+                # Action server confirms (fail-closed).
+                cancel_deadline = time.monotonic() + self._cancel_confirm_timeout
+                while not rospy.is_shutdown() and not goal_done.is_set():
+                    if time.monotonic() > cancel_deadline:
+                        with self._task_lock:
+                            self._fault_latched = True
+                        rospy.logerr(
+                            "task %s cancel not confirmed within %.0fs, "
+                            "fault latched: new tasks rejected until the "
+                            "Action reaches a terminal state",
+                            payload["request_id"],
+                            self._cancel_confirm_timeout,
+                        )
+                        break
+                    time.sleep(0.05)
                 result = protocol.make_result(
                     self._session_id, payload, False, 0,
                     MISSION_ERROR_INTERNAL,
@@ -701,6 +775,7 @@ class VehicleBridgeNode(object):
             ready_flags = dict(self._readiness)
         with self._task_lock:
             busy = self._active_request is not None
+            fault_latched = self._fault_latched
             active_id = (
                 self._active_request.get("request_id")
                 if self._active_request else None
@@ -714,8 +789,9 @@ class VehicleBridgeNode(object):
             "degraded": self._degraded,
             "ready": all(
                 ready_flags.values()
-            ) and not busy,
+            ) and not busy and not fault_latched,
             "busy": busy,
+            "fault_latched": fault_latched,
             "active_request_id": active_id,
             "last_result_state": last_state,
         }

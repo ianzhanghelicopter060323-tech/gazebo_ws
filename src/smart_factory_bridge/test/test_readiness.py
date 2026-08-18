@@ -20,6 +20,7 @@ from smart_factory_bridge.readiness import (
     FreshnessState,
     build_heartbeat,
     laser_scan_is_valid,
+    live_refresh,
 )
 
 
@@ -119,6 +120,37 @@ class LaserScanValidityTest(unittest.TestCase):
         self.assertTrue(laser_scan_is_valid([1.2, 3.4, 5.6], 0.08, 12.0))
 
 
+class LiveRefreshTest(unittest.TestCase):
+    def test_stale_probe_weakens_its_flag(self):
+        flags = dict(ALL_READY)
+        live_refresh(flags, [("gazebo", lambda: False)])
+        self.assertFalse(flags["gazebo"])
+        self.assertTrue(flags["laser"], "other flags must stay untouched")
+
+    def test_fresh_probe_leaves_flag(self):
+        flags = dict(ALL_READY)
+        live_refresh(flags, [("gazebo", lambda: True)])
+        self.assertTrue(flags["gazebo"])
+
+    def test_never_reenables(self):
+        # Fail-closed: probes only weaken flags, never re-enable one —
+        # a heartbeat cannot flip a false flag back to true.
+        flags = dict(ALL_READY, laser=False)
+        live_refresh(flags, [("laser", lambda: True)])
+        self.assertFalse(flags["laser"])
+
+    def test_false_flag_skips_its_probe(self):
+        calls = []
+        flags = {"gazebo": False}
+
+        def probe():
+            calls.append(1)
+            return False
+
+        live_refresh(flags, [("gazebo", probe)])
+        self.assertEqual(calls, [], "false flag must short-circuit the probe")
+
+
 class WallClockWaitRegressionTest(unittest.TestCase):
     def test_node_has_no_sim_time_blocking_wait(self):
         """The Action wait must never block on sim time (regression guard).
@@ -158,6 +190,7 @@ class HeartbeatTest(unittest.TestCase):
         self.assertTrue(heartbeat["sensors_ready"])
         self.assertTrue(heartbeat["ready"])
         self.assertFalse(heartbeat["busy"])
+        self.assertFalse(heartbeat["fault_latched"])
 
     def test_laser_stale_keeps_ready_false(self):
         """laser_ready=false must fail the whole ready gate closed."""
@@ -174,6 +207,17 @@ class HeartbeatTest(unittest.TestCase):
         self.assertFalse(heartbeat["ready"])
         self.assertTrue(heartbeat["busy"])
 
+    def test_fault_latched_keeps_ready_false(self):
+        # A cancellation that never reached a terminal state must fail
+        # the whole gate closed, exactly like busy, while staying
+        # distinct for the vehicle's diagnostics.
+        heartbeat = build_heartbeat(
+            "sim-test", ALL_READY, busy=False, fault_latched=True
+        )
+        self.assertTrue(heartbeat["fault_latched"])
+        self.assertFalse(heartbeat["ready"])
+        self.assertFalse(heartbeat["busy"])
+
     def test_heartbeat_encodes_as_one_ndjson_line(self):
         """A real heartbeat example for the handover/vehicle-side review."""
         heartbeat = build_heartbeat("sim-test", ALL_READY, busy=False)
@@ -184,6 +228,7 @@ class HeartbeatTest(unittest.TestCase):
             "schema_version", "message_type", "session_id", "timestamp",
             "ready", "gazebo_ready", "rviz_ready", "action_server_ready",
             "localization_ready", "laser_ready", "sensors_ready", "busy",
+            "fault_latched",
         ):
             self.assertIn(key, decoded)
         print("\nheartbeat example: %s" % raw.decode("utf-8").rstrip("\n"))

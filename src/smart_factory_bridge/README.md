@@ -52,7 +52,14 @@ roslaunch smart_factory_bridge bridge.launch \
   `failed`——任务等待全程使用 done callback + `threading.Event.wait()`
   （纯墙钟），不依赖可能被暂停仿真时钟卡死的 `wait_for_result`；
   `action_server_ready` 探测同样用墙钟轮询 `is_server_connected()`，
-  不调用基于仿真时钟计算超时的 `wait_for_server`。
+  不调用基于仿真时钟计算超时的 `wait_for_server`。心跳发送时对 /clock、
+  /scan、/amcl_pose **实时复查新鲜度**（纯 monotonic 比较、只弱化不恢复）：
+  暂停检测 ≤ 对应 max_age（如 /clock 1 s），车端观察 ≤ 检测 + 下一条心跳
+  间隔 ≈ 2 s，就绪刷新周期不影响检测延迟。任务超时后 `cancel_goal()` 墙钟
+  等待确认终止（`cancel_confirm_timeout` 默认 2 s）；未确认 →
+  `fault_latched`：心跳 `ready=false`、新请求一律 `busy`（reason 注明 fault
+  latched），直到 Action 到达终止状态自动清闩——旧任务取消未决期间新任务
+  绝不进入。
 - `laser_ready` 表示"最近收到新鲜且基本有效的 /scan"（非空、range 边界合法、
   无 NaN），**不是**"检测到障碍物"；与 `sensors_ready` 同时保留（车端兼容）。
 - 同一 `request_id` + 相同内容重复到达：不重复执行，补发缓存

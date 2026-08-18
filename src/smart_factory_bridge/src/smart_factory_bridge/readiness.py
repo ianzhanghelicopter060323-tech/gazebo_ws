@@ -62,14 +62,33 @@ def laser_scan_is_valid(ranges, range_min, range_max):
     return not any(math.isnan(value) for value in ranges)
 
 
-def build_heartbeat(session_id, ready_flags, busy):
+def live_refresh(ready_flags, checks):
+    """Re-judge cheap wall-clock probes at heartbeat send time.
+
+    The readiness loop period can lag behind the per-probe max_age
+    windows, so a heartbeat must not claim "fresh" what already expired
+    on the wall clock. ``checks`` is a list of ``(flag_name, is_fresh)``
+    pairs; a flag that is currently true is turned off when its probe is
+    stale. Probes are only ever consulted to *weaken* flags, never to
+    re-enable one (fail-closed).
+    """
+    for name, is_fresh in checks:
+        if ready_flags.get(name) and not is_fresh():
+            ready_flags[name] = False
+    return ready_flags
+
+
+def build_heartbeat(session_id, ready_flags, busy, fault_latched=False):
     """Heartbeat payload from the readiness flag dict.
 
     ``ready_flags`` keys: gazebo, rviz, action_server, localization,
     laser, sensors. ``laser_ready`` is the fresh-and-basically-valid
     /scan flag; ``sensors_ready`` is retained alongside it for vehicle
     compatibility (the vehicle ignores unknown fields). ``ready`` is the
-    strict AND of every flag and not busy (fail-closed).
+    strict AND of every flag, not busy and not fault_latched
+    (fail-closed). ``fault_latched`` reports that the previous task's
+    cancellation was never confirmed by the Action server, so the bridge
+    refuses new tasks until the Action returns to a terminal state.
     """
     all_ready = (
         ready_flags["gazebo"]
@@ -79,6 +98,7 @@ def build_heartbeat(session_id, ready_flags, busy):
         and ready_flags["laser"]
         and ready_flags["sensors"]
         and not busy
+        and not fault_latched
     )
     return protocol.make_message(
         "heartbeat",
@@ -91,4 +111,5 @@ def build_heartbeat(session_id, ready_flags, busy):
         laser_ready=ready_flags["laser"],
         sensors_ready=ready_flags["sensors"],
         busy=busy,
+        fault_latched=fault_latched,
     )
