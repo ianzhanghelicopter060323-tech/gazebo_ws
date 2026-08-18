@@ -1,12 +1,12 @@
 # smart_factory_bridge 双机 TCP 通信接入与联调交接单
 
-> 编写日期：2026-08-18（v2：TEB_test_bridge_fix 分支修改落地，见第 6 节版本记录）
+> 编写日期：2026-08-18（v2.2：队友核查修复 + 合规结论/真值接口处置定案，见第 6、7 节）
 > 接收人：Gazebo 仿真任务开发队友 / 实体车联调队友
 > 目标环境：原生 Ubuntu 20.04 + ROS Noetic + Gazebo Classic + RViz
 > 当前分支：`TEB_test_bridge_fix`（基线 `TEB_test@39d750c`）
 > 协议基线：`docs/Gazebo仿真双机通信接口开发任务书.md` 第 6 节
 > 　　＋ `docs/Gazebo仿真双机通信接口开发任务书_本机偏差勘误.md`（阶段 15–18 delivery 命名、无阶段 19、progress 格式冻结）
-> 当前结论：**仿真侧 bridge 包已实现完毕，50 项桌面单测全部通过（含 ResourceWarning 零泄漏）；尚未与实体车做真实局域网联调。** 下文给出使用方法和联调测试清单。
+> 当前结论：**仿真侧 bridge 包已实现完毕，51 项桌面单测全部通过（含 ResourceWarning 零泄漏）；尚未与实体车做真实局域网联调。** 下文给出使用方法和联调测试清单。
 
 ## 1. 当前进度
 
@@ -22,7 +22,7 @@ src/smart_factory_bridge/action_adapter.py  # Action feedback/result → progres
 src/smart_factory_bridge/readiness.py  # ROS-free：墙钟新鲜度（FreshnessState）、laser 有效性、heartbeat 构造
 config/bridge.yaml                     # 端口、超时、传感器新鲜度、RViz 检查、结果缓存等配置
 launch/bridge.launch                   # 独立启动入口
-test/                                  # 桌面单测（50 项，不依赖 ROS Master）
+test/                                  # 桌面单测（51 项，不依赖 ROS Master）
 tools/mock_vehicle_server.py           # mock 车端 TCP 服务端（纯标准库，本地联调用）
 setup.py / CMakeLists.txt / package.xml / README.md
 ```
@@ -51,21 +51,25 @@ setup.py / CMakeLists.txt / package.xml / README.md
 | 忙碌 | 执行期间新请求：`busy`（ERR_BUSY） |
 | 成功判定 | **只有 `success=true && completed_stage=20` 才发送 `completed`**；阶段 14、aborted、preempted、任务超时一律如实发送 `failed`，绝不伪装成功（fail-closed 是桥的职责，fail-open 是车端职责） |
 | 断线恢复 | **无条件下发**：重连上升沿只补发一条心跳；断线期间产生的 result 经离线队列**恰好补发一次**；车端重发 pending_request 时由去重缓存应答；若同一 result 同时存在于离线队列与缓存，先移除队列副本再重放（`drop_pending`），保证同一结果不因两种机制发送两遍；无对应请求绝不推送上一局残留结果 |
-| 墙钟超时 | 新鲜度（/scan、/amcl_pose、/clock）与 Action 总超时（默认 300 s）一律用 `time.monotonic()` 判定；**任务等待用 done callback + `threading.Event.wait()`（纯墙钟轮询）**——`wait_for_result(rospy.Duration)` 的剩余时间由仿真时钟计算，暂停时会永久阻塞导致墙钟超时无法执行，故弃用；ROS 消息 `header.stamp`、TF 查询仍用 `rospy.Time`（未机械替换）；Gazebo 暂停中已开始的任务在墙钟超时后返回 `failed`（fail-closed，车端可接受） |
+| 墙钟超时 | 新鲜度（/scan、/amcl_pose、/clock）与 Action 总超时（默认 300 s）一律用 `time.monotonic()` 判定；**任务等待用 done callback + `threading.Event.wait()`（纯墙钟轮询）**——`wait_for_result(rospy.Duration)` 的剩余时间由仿真时钟计算，暂停时会永久阻塞导致墙钟超时无法执行，故弃用；**Action server 连接探测同样墙钟化**：弃用 `wait_for_server(Duration)`（同一暂停卡死问题），改为轮询 `is_server_connected()`（0.5 s 截止、50 ms 步长）；ROS 消息 `header.stamp` 由 ROS 自动填充，不受影响；Gazebo 暂停中已开始的任务在墙钟超时后返回 `failed`（fail-closed，车端可接受） |
 | 健壮性 | 所有异常只记录不退出；socket 全部确定性关闭（ResourceWarning 零泄漏）；`/simulation/bridge_status` 发布本机状态 JSON（调试用，车端不读取） |
 
 ### 1.4 约定与红线（代码层面已保证）
 
 - **bridge 与 mission 无任何 Gazebo 真值接口**（无 `/gazebo/model_states`、
   `get_model_state`、`set_model_state`）。
-- 全仓库存在两处 Gazebo 真值接口，**合规状态待确认**（不因此宣称全工程合规）：
+- 全仓库两处 Gazebo 真值接口的处置（2026-08-18 已定）：
   ① `car3/scripts/grasp_attach.py`——官方 car3 包自带的抓取随动机制，使用
   `/gazebo/get_link_state`、`/gazebo/get_model_state`、`/gazebo/get_world_properties`、
-  `/gazebo/set_model_state`，由 `car3/launch/gazebo.launch:34` 启动；是否属于官方
-  允许的仿真抓取机制需裁判/队友确认；② `smart_factory_tests/scripts/monitor_navigation_safety.py`
-  订阅 `/gazebo/model_states`——测试监控工具，无 launch 引用，是否移出仓库待定。
-- 无第二个全局规划器（使用官方全局规划器）；路线相关 4 类用法见
-  `docs/路线合规使用清单.md`，等待合规结论。
+  `/gazebo/set_model_state`，由 `car3/launch/gazebo.launch:34` 启动；属官方包自带
+  仿真机制，**保持原样，不做改动**；② `smart_factory_tests/scripts/monitor_navigation_safety.py`
+  订阅 `/gazebo/model_states`——测试监控脚本，**正式比赛前从仓库移除**（当前保留
+  供联调排查使用）。
+- 无第二个全局规划器（使用官方全局规划器）。路线合规结论（2026-08-18 确认）：
+  **规则允许设定中途导航点**——固定坐标（仓库口/准备位姿/拟合点）与动态中间
+  goal 属中途导航点范畴，合规；`/move_base/make_plan` 仅用于调用官方全局规划器
+  筛选候选路线，无二次规划、无干预输出。四类用法**零代码修改、零调参**，
+  明细见 `docs/路线合规使用清单.md`。
 - 无硬编码 IP：`vehicle_host` 只能来自 launch 参数或环境变量 `SIMULATION_VEHICLE_HOST`。
 - 无阶段 19；阶段 15–18 命名遵守偏差勘误文档。
 
@@ -117,7 +121,7 @@ roslaunch smart_factory_bridge bridge.launch \
 ```bash
 cd /home/ianzhang/gazebo_ws/src/smart_factory_bridge
 python3 -W error::ResourceWarning -m unittest discover -s test
-# 期望输出：Ran 50 tests ... OK（ResourceWarning 视为错误，socket 零泄漏）
+# 期望输出：Ran 51 tests ... OK（ResourceWarning 视为错误，socket 零泄漏）
 ```
 
 ### 2.5 无实体车本地联调（mock 车端）
@@ -133,14 +137,14 @@ python3 tools/mock_vehicle_server.py --crash-after 5 --crash-duration 3  # 模�
 
 ## 3. 本机（仿真侧）已进行的测试
 
-### 3.1 单测覆盖（50 项，全部通过；`-W error::ResourceWarning` 运行，socket 零泄漏）
+### 3.1 单测覆盖（51 项，全部通过；`-W error::ResourceWarning` 运行，socket 零泄漏）
 
 | 模块 | 数量 | 覆盖点 |
 |---|---|---|
 | `test_protocol.py` | 25 | 编解码往返；超长/非法 JSON/非对象/坏 schema/未知类型/缺 session 拒绝；request 校验（缺字段/类型错误/未知类别/类别与 target_class 不一致/未知任务类型）；请求指纹（同内容同指纹——timestamp/issued_at 不计入；不同内容不同指纹）；ack/progress/result/error 构造均回显 request_session_id/request_id/order_id/target_class；result 仅在 `success && stage==20` 时为 completed；无 request 的 error 构造 |
 | `test_action_adapter.py` | 10 | ack；feedback→progress 映射（阶段 16→NAVIGATE_TO_DELIVERY，15–18 delivery 命名）；SUCCEEDED+stage 20→completed；**SUCCEEDED+stage 14 必须为 failed**；success=false 即使 stage 20 也为 failed；aborted 透传 error_code、无 error_code 用 255；preempted→8；lost→failed；身份字段恒回显；rehearsal 恒为 false |
 | `test_tcp_client.py` | 6 | 真实 socket（127.0.0.1 监听端口）心跳往返与 ack 接收；服务端主动断开→客户端上报 disconnected；**断线重连后离线队列中的 result 补发成功**；**重连本身不补发任何残留结果（仅心跳）**；**`drop_pending` 移除队列副本后不再被 flush（同一结果不会双发）**；超长行丢弃且下一行正常处理 |
-| `test_readiness.py` | 9 | 墙钟新鲜度（max_age 内新鲜、过期失效、从未标记不新鲜、多线程安全）；**Gazebo 暂停模拟（停止投喂 → 墙钟推进 → 新鲜度失效，等效 ready=false）**；laser 结构有效性（空 ranges/负 range_min/range_min≥range_max/NaN 一律 fail-closed；全 inf 无回波仍有效——laser_ready ≠ 检测到障碍）；heartbeat 含 `laser_ready`+`sensors_ready`、laser 或 busy 任一不满足即 `ready=false`、heartbeat 可编码为单行 NDJSON（示例见下） |
+| `test_readiness.py` | 10 | 墙钟新鲜度（max_age 内新鲜、过期失效、从未标记不新鲜、多线程安全）；**Gazebo 暂停模拟（停止投喂 → 墙钟推进 → 新鲜度失效，等效 ready=false）**；laser 结构有效性（空 ranges/负 range_min/range_min≥range_max/NaN 一律 fail-closed；全 inf 无回波仍有效——laser_ready ≠ 检测到障碍）；heartbeat 含 `laser_ready`+`sensors_ready`、laser 或 busy 任一不满足即 `ready=false`、heartbeat 可编码为单行 NDJSON（示例见下）；**回归防护：节点源码禁止出现 `wait_for_result(`、`send_goal_and_wait(`、`wait_for_server(`、`rospy.sleep(` 调用点，且必须使用 done_cb + `goal_done.wait` 与 `is_server_connected()` 轮询** |
 
 > heartbeat 示例（测试运行输出，字段为就绪全真 + 空闲）：
 > `{"action_server_ready": true, "busy": false, "gazebo_ready": true, "laser_ready": true, "localization_ready": true, "message_type": "heartbeat", "ready": true, "rviz_ready": true, "schema_version": 1, "sensors_ready": true, "session_id": "sim-test", "timestamp": ...}`
@@ -150,7 +154,7 @@ python3 tools/mock_vehicle_server.py --crash-after 5 --crash-duration 3  # 模�
 - `py_compile` 全部 Python 文件（src、scripts、tools、test）无语法错误。
 - `bridge.launch`、`full_competition.launch` XML 解析通过。
 - 红线扫描：无 `/gazebo/model_states`；生产代码无硬编码 IP（仅测试代码使用 127.0.0.1 环回）；无阶段 19；`completed` 仅在 `success && stage==20` 路径产生。
-- 墙钟替换审计：`rospy.Time` 仅保留于 actionlib API 调用（`wait_for_server`）与 ROS 消息 stamp；新鲜度判定、任务截止时间与任务等待（done callback + Event.wait）全部走 `time.monotonic()`，**不再有依赖仿真时钟的阻塞等待**（TCP 层本就为墙钟）。
+- 墙钟替换审计：节点内 actionlib 已无任何依赖仿真时钟的调用——任务等待为 done callback + `threading.Event.wait()`，Action server 连接探测为墙钟轮询 `is_server_connected()`（0.5 s 截止、50 ms 步长）；新鲜度判定与任务截止时间全部走 `time.monotonic()`，**不再有依赖仿真时钟的阻塞等待**（TCP 层本就为墙钟）；ROS 消息 `header.stamp` 由 ROS 自动填充，不受影响。
 - 无 `_last_result` 无条件重发路径（`_on_link_state` 仅补发心跳）；`drop_pending` 保证离线队列与去重缓存不同时持有同一 result。
 
 ### 3.3 调试记录（重要，供联调参考）
@@ -242,7 +246,7 @@ python3 tools/mock_vehicle_server.py --crash-after 5 --crash-duration 3  # 模�
 - 桌面单测命令使用 `python3 -W error::ResourceWarning -m unittest discover -s test`（环境无 pytest）；
   README 中已同步。
 
-## 6. 版本记录（v2，TEB_test_bridge_fix）
+## 6. 版本记录（v2.2，TEB_test_bridge_fix）
 
 ### 6.1 第一阶段：bridge 修改（本分支全部改动，未触碰其他包）
 
@@ -251,18 +255,22 @@ python3 tools/mock_vehicle_server.py --crash-after 5 --crash-duration 3  # 模�
 | laser_ready | heartbeat 新增 `"laser_ready"`：新鲜（墙钟 2 s 内）+ 结构有效的 /scan（非空、range 边界合法、无 NaN），**不代表检测到障碍**；保留 `sensors_ready`；`ready` 的 AND 门加入 laser（缺 scan 探针即 fail-closed） |
 | 单调墙钟 | `TopicFreshness`/`LaserFreshness` 与 Action 总超时改用 `time.monotonic()`；TCP 重连退避本就为墙钟；`header.stamp`、TF 保持 `rospy.Time`。Gazebo 暂停 → `/scan` 停发 → 数秒后 `ready=false`；已开始的任务暂停中也会墙钟超时返回 `failed` |
 | 任务等待纯墙钟（队友核查补充） | 弃用 `wait_for_result(rospy.Duration(1.0))`——其剩余时间由仿真时钟计算，暂停时永久阻塞、墙钟超时无法执行；改为 **done callback + `threading.Event.wait(1.0)`**，全部等待为墙钟 |
+| Action server 探测墙钟化（队友核查补充） | `_check_action_server` 弃用 `wait_for_server(rospy.Duration(0.5))`——截止时间同样由仿真时钟计算，服务端未连上 + 暂停时就绪线程永久挂起；改为墙钟轮询 `is_server_connected()`（0.5 s 截止、50 ms 步长），就绪线程保持 fail-closed |
 | gazebo_ready 需 /clock 活跃（队友核查补充） | `_check_gazebo` 在主题存在 + 服务注册之外，增加 **/clock 墙钟新鲜度探针**（`gazebo.clock_max_age` 默认 1 s）；暂停 → 主题仍在但停发 → 1 s 内 `gazebo_ready=false` |
 | 删除无条件补发 | `_on_link_state` 重连上升沿仅补发心跳；结果只经"离线队列 flush 一次"或"车端重发请求 → 去重缓存应答"两条路径；`drop_pending` 移除队列中与缓存重放重复的副本，杜绝同一结果双发；无请求不推送残留结果 |
 | ResourceWarning | 客户端 `_connect_once` 任何失败路径确定性关闭 socket；测试 handler 全部 try/finally 关闭连接；全套以 `-W error::ResourceWarning` 运行通过 |
-| 配套 | 新增 `src/smart_factory_bridge/readiness.py`（ROS-free：FreshnessState / laser_scan_is_valid / build_heartbeat）、`test/test_readiness.py`（9 项）、tcp 新增 2 项测试、`tools/mock_vehicle_server.py`、package.xml 增加 `sensor_msgs` 依赖 |
+| 配套 | 新增 `src/smart_factory_bridge/readiness.py`（ROS-free：FreshnessState / laser_scan_is_valid / build_heartbeat）、`test/test_readiness.py`（10 项，含墙钟等待回归防护）、tcp 新增 2 项测试、`tools/mock_vehicle_server.py`、package.xml 增加 `sensor_msgs` 依赖 |
 
-### 6.2 第二阶段：路线合规使用清单（零修改）
+### 6.2 第二阶段：路线合规使用清单（零修改，合规结论已确认）
 
 `docs/路线合规使用清单.md`：固定坐标（delivery_goals.yaml 仓库口与准备位姿、pickup_staging_fitted_path.yaml、
 fitted_waypoints）、拟合路线（fitted_path.py / route_executor.py / action_server.py / plot_fitted_navigation_path.py）、
 动态中间 goal（delivery_entry_selector.py 扇形候选与滚动点、mission_server.py `_navigate_delivery_channel`）、
-`/move_base/make_plan` 筛选（delivery_entry_selector.py 的 GetPlan 调用与候选加权）——全部带 file:line，
-**等待合规结论，不调参、不改动**。
+`/move_base/make_plan` 筛选（delivery_entry_selector.py 的 GetPlan 调用与候选加权）——全部带 file:line。
+
+**合规结论（2026-08-18 确认）：规则允许设定中途导航点**——固定坐标与拟合路线的执行点、
+动态中间 goal 均属中途导航点范畴，合规；`/move_base/make_plan` 仅调用官方全局规划器
+筛选候选路线，无二次规划、无干预输出。四类用法**零代码修改、零调参**，维持现状。
 
 ### 6.3 第三阶段：放置验证方案（按队友最终决定，不做视觉二次验证）
 
@@ -287,10 +295,10 @@ fitted_waypoints）、拟合路线（fitted_path.py / route_executor.py / action
 | 项 | 结果 |
 |---|---|
 | 分支 | `TEB_test_bridge_fix`（基线 `TEB_test@39d750c`，原分支未被覆盖） |
-| 提交 | `1f582c5`（第一阶段 bridge 修改 + 测试 + mock 工具）；`7197a82`（阶段二合规清单）；`333cde9`（本文档 v2）；`0ad14f0`（本文档 v2.1）；`（本轮队友核查修复见 git log）` |
-| 推送 | **已推送至 GitHub**：`origin/TEB_test_bridge_fix @ 0ad14f0`（推送由提交人完成） |
+| 提交 | `1f582c5`（第一阶段 bridge 修改 + 测试 + mock 工具）；`7197a82`（阶段二合规清单）；`333cde9`/`0ad14f0`（本文档 v2/v2.1）；`dfc04f0`（队友核查修复：任务等待与 Action server 探测墙钟化、gazebo_ready 需 /clock 活跃、回归测试）；`（本文档 v2.2：合规结论与真值接口处置定案，待推送）` |
+| 推送 | 已推送至 GitHub：`origin/TEB_test_bridge_fix @ 0ad14f0`；`dfc04f0` 与本文档 v2.2 **待推送**（推送由提交人完成） |
 | 编译 | `catkin_make` 100% 成功（含新增 `sensor_msgs` 依赖） |
-| 桌面单测 | 50 项全部通过，`-W error::ResourceWarning` 下 socket 零泄漏 |
+| 桌面单测 | 51 项全部通过，`-W error::ResourceWarning` 下 socket 零泄漏 |
 | heartbeat 示例 | 见 §3.1 引用块（含 `laser_ready`、`sensors_ready`、`ready`、`busy`） |
 | Gazebo 暂停测试 | 单测级暂停模拟已过（§3.1）；真机步骤见 §4.2，配合 mock 车端（§2.5）观察 |
 | 断线重连测试 | TCP 层 6 项真实 socket 测试（§3.1）；mock 车端 `--crash-after` 演练步骤见 §2.5 |
@@ -305,13 +313,13 @@ fitted_waypoints）、拟合路线（fitted_path.py / route_executor.py / action
    （`gazebo_ready=false` 在 1 s 内）真机联调现场复核（§4.2）。
 3. **laser_ready"基本有效"定义**：当前为结构校验（非空、range 边界合法、无 NaN，
    全 inf 无回波仍有效）；若车端有更强要求（如最小光束数），联调时调整。
-4. **阶段二合规结论待定（最大阻塞项）**：固定坐标 / 拟合路线 / 动态中间 goal /
-   make_plan 四类用法全部原样保留（`docs/路线合规使用清单.md`），等裁判/队友结论
-   后再动；可能需按结论移除或改造成"仅跟随官方全局规划器输出"。
-5. **Gazebo 真值接口合规待确认**：`car3/scripts/grasp_attach.py`（官方包抓取随动，
-   gazebo.launch 启动）与 `smart_factory_tests/scripts/monitor_navigation_safety.py`
-   （未启动的测试工具）——前者是否官方允许的仿真抓取机制、后者是否移出仓库，
-   均待队友/裁判确认（§1.4）。
+4. ~~阶段二合规结论待定~~ **已闭环（2026-08-18）**：规则允许设定中途导航点，
+   固定坐标 / 拟合路线执行点 / 动态中间 goal 合规，`/move_base/make_plan` 仅筛选
+   候选；四类用法零代码修改、零调参，明细见 `docs/路线合规使用清单.md`（§6.2）。
+   联调期间若裁判现场提出异议，按结论修改后重测。
+5. **Gazebo 真值接口处置已定（2026-08-18）**：`car3/scripts/grasp_attach.py` 为官方
+   car3 包自带抓取随动机制，保持原样；`smart_factory_tests/scripts/monitor_navigation_safety.py`
+   为测试监控脚本，**正式比赛前从仓库移除**（当前保留供联调排查，§1.4）。
 6. **阶段三稳定性实测待做**：释放位姿与稳定时间调参、反弹/滑出测试、三类货品多轮
    复测、每轮重跑官方 `spawn_cubes.py`（计划见 §6.3）。
 7. **车端契约联调**：`ready` 字段集（含 `laser_ready`）与重连行为（车端重发
