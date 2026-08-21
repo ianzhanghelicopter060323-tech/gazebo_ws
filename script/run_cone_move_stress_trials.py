@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay eight recorded cone layouts five times from preparation pose 2."""
+"""Replay fixed cone layouts from preparation pose 2 to workshop goals."""
 
 import argparse
 import csv
@@ -112,12 +112,24 @@ CSV_FIELDS = (
 )
 
 
+def parse_target_sequence(value):
+    targets = tuple(part.strip() for part in value.split(",") if part.strip())
+    if not targets:
+        raise argparse.ArgumentTypeError("target sequence must not be empty")
+    invalid = [target for target in targets if target not in TARGET_CLASS_IDS]
+    if invalid:
+        raise argparse.ArgumentTypeError(
+            "invalid target class: {}".format(", ".join(invalid))
+        )
+    return targets
+
+
 def parse_args(argv):
     parser = argparse.ArgumentParser(
         description=(
             "restart an isolated headless simulation for each fixed cone layout, "
-            "start at preparation pose 2, and navigate to the template-bound "
-            "workshop while recording Gazebo world state"
+            "start at preparation pose 2, and navigate to configured workshop "
+            "goals while recording Gazebo world state"
         )
     )
     parser.add_argument(
@@ -131,6 +143,14 @@ def parse_args(argv):
     )
     parser.add_argument(
         "--repetitions", type=int, default=5, help="runs per template (default: 5)"
+    )
+    parser.add_argument(
+        "--target-sequence",
+        type=parse_target_sequence,
+        help=(
+            "comma-separated workshop sequence; requires one selected template "
+            "and defines exactly one round per listed target"
+        ),
     )
     display = parser.add_mutually_exclusive_group()
     display.add_argument("--gui", dest="gui", action="store_true")
@@ -290,7 +310,37 @@ def load_runtime_config():
     }
 
 
-def build_plans(templates, repetitions, runtime):
+def build_plans(templates, repetitions, runtime, target_sequence=None):
+    if target_sequence is not None:
+        if len(templates) != 1:
+            raise AutomationError(
+                "--target-sequence requires exactly one selected template"
+            )
+        template = templates[0]
+        plans = []
+        for round_number, target_class in enumerate(target_sequence, start=1):
+            destination = runtime["destinations"][target_class]
+            plans.append(
+                {
+                    "round": round_number,
+                    "scenario_id": template["template_id"],
+                    "source_round": int(template["source_round"]),
+                    "source_task_id": template.get("source_task_id", ""),
+                    "repetition": round_number,
+                    "target_class": target_class,
+                    "target_name": destination["name"],
+                    "robot_start": dict(runtime["robot_start"]),
+                    "switch_distance": runtime["switch_distance"],
+                    "destination": {
+                        key: value
+                        for key, value in destination.items()
+                        if key != "name"
+                    },
+                    "cones": template["cones"],
+                }
+            )
+        return plans
+
     plans = []
     round_number = 0
     for template in templates:
@@ -672,13 +722,19 @@ def main(argv=None):
         validate_args(args)
         templates = load_templates(args.templates, args.template_ids)
         runtime = load_runtime_config()
-        plans = build_plans(templates, args.repetitions, runtime)
+        plans = build_plans(
+            templates,
+            args.repetitions,
+            runtime,
+            target_sequence=args.target_sequence,
+        )
         metadata = {
             "created_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
             "template_manifest": str(args.templates.expanduser().resolve()),
             "template_manifest_sha256": sha256(args.templates.expanduser().resolve()),
             "template_ids": [template["template_id"] for template in templates],
             "repetitions_per_template": args.repetitions,
+            "target_sequence": list(args.target_sequence or ()),
             "schedule": [
                 {
                     "round": plan["round"],

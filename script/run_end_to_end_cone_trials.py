@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import random
 import secrets
+import shutil
 import subprocess
 import sys
 import time
@@ -718,7 +719,15 @@ def make_summary(results, requested_rounds, seed):
     }
 
 
-def write_reports(output_dir, results, templates, requested_rounds, seed, metadata):
+def write_reports(
+    output_dir,
+    results,
+    templates,
+    requested_rounds,
+    seed,
+    metadata,
+    mirror_dir=None,
+):
     csv_path = output_dir / "trials.csv"
     with csv_path.open("w", encoding="utf-8", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=CSV_FIELDS)
@@ -757,6 +766,10 @@ def write_reports(output_dir, results, templates, requested_rounds, seed, metada
         + "\n",
         encoding="utf-8",
     )
+    if mirror_dir is not None:
+        mirror_dir.mkdir(parents=True, exist_ok=True)
+        for report in (csv_path, report_path, templates_path):
+            shutil.copy2(report, mirror_dir / report.name)
     return csv_path, report_path, templates_path, summary
 
 
@@ -820,6 +833,10 @@ def main(argv=None):
             ),
             "navigation_isolation": (
                 "Gazebo evidence is read-only and is never fed to the planner"
+            ),
+            "scene_policy": (
+                "normal random scene from unchanged spawn_cubes.py; no fixed "
+                "cone stress template is loaded"
             ),
             "gazebo_recording": {
                 "enabled": not args.disable_gazebo_recording,
@@ -915,6 +932,11 @@ def main(argv=None):
                 args.rounds,
                 seed,
                 metadata,
+                (
+                    recording_run_dir
+                    if not args.disable_gazebo_recording
+                    else None
+                ),
             )
             print(
                 "  status={} success={} pre_nav_failure={} cone_collision={} "
@@ -934,7 +956,13 @@ def main(argv=None):
                 time.sleep(args.restart_settle)
 
         csv_path, report_path, templates_path, summary = write_reports(
-            output_dir, results, templates, args.rounds, seed, metadata
+            output_dir,
+            results,
+            templates,
+            args.rounds,
+            seed,
+            metadata,
+            recording_run_dir if not args.disable_gazebo_recording else None,
         )
         print_summary(summary, csv_path, report_path, templates_path)
         return 0
@@ -942,7 +970,17 @@ def main(argv=None):
         print("interrupted by user", file=sys.stderr)
         if output_dir is not None and metadata is not None:
             paths = write_reports(
-                output_dir, results, templates, args.rounds, seed, metadata
+                output_dir,
+                results,
+                templates,
+                args.rounds,
+                seed,
+                metadata,
+                (
+                    recording_run_dir
+                    if not args.disable_gazebo_recording
+                    else None
+                ),
             )
             print_summary(paths[3], paths[0], paths[1], paths[2])
         return 130
@@ -950,7 +988,17 @@ def main(argv=None):
         print("run_end_to_end_cone_trials: {}".format(exc), file=sys.stderr)
         if output_dir is not None and metadata is not None:
             paths = write_reports(
-                output_dir, results, templates, args.rounds, seed, metadata
+                output_dir,
+                results,
+                templates,
+                args.rounds,
+                seed,
+                metadata,
+                (
+                    recording_run_dir
+                    if not args.disable_gazebo_recording
+                    else None
+                ),
             )
             print_summary(paths[3], paths[0], paths[1], paths[2])
         return 1

@@ -12,8 +12,8 @@ navigation:
   # /move_base/make_plan. Wait for move_base to leave ACTIVE/PREEMPTING so the
   # public planning service does not reject an otherwise valid request.
   goal_cancel_timeout: 2.0
-  # Generate a 13-waypoint fitted reference (route anchors 6/9/10/16/17/18/
-  # 20/21/22/29/33/34/35) and follow its executable goals. Intermediate goals
+  # Follow 13 executable route anchors
+  # (6/9/10/16/17/18/20/21/22/29/33/34/35). Intermediate goals
   # normally advance on a position-only radius; orientation-required anchors
   # and seq35 additionally check yaw.
   fitted_waypoints:
@@ -28,12 +28,12 @@ navigation:
     required_sequences: [6, 9, 10, 16, 17, 18, 20, 21, 22, 29, 33, 34]
     # These fitted-route anchors advance only after both position and heading
     # are correct. Seq17 and seq18 both require position and heading before
-    # leaving the narrow outbound corridor. Seq21 starts the 180-degree turn
-    # and must satisfy both position and heading. Seq22 remains a required
-    # coordinate, but advances on the normal intermediate pass radius so its
-    # following turn is not over-constrained.
+    # leaving the narrow outbound corridor. Seq21 must satisfy its tighter
+    # position radius and heading before execution advances to seq22.
     orientation_required_sequences: [17, 18, 21]
     orientation_yaw_tolerance: 0.15
+    orientation_position_tolerance_overrides:
+      "21": 0.10
     # Offline-only geometry constraints used by the path/PNG generator.
     direct_segments:
       - [21, 22]

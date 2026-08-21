@@ -1,0 +1,44 @@
+{
+  "created_at": "2026-08-22T01:40:19+08:00",
+  "summary": {
+    "rounds_examined": 1,
+    "eligible_rounds": 1,
+    "retained_rounds": 0,
+    "eligible_bytes": 6858570,
+    "deleted_files": 3,
+    "deleted_bytes": 6858570
+  },
+  "rounds": [
+    {
+      "dataset": "cone_zone_world",
+      "run": "end_to_end_cone_trials_20260822_013602_seed7750974399130199110",
+      "round": 2,
+      "round_dir": "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260822_013602_seed7750974399130199110/round_002",
+      "eligible_for_recording_deletion": true,
+      "reason": "round_completed_without_detected_errors",
+      "recording_files": [
+        "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260822_013602_seed7750974399130199110/round_002/gazebo_world_state.log",
+        "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260822_013602_seed7750974399130199110/round_002/gazebo_world_recording.json",
+        "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260822_013602_seed7750974399130199110/round_002/gazebo_world_recorder.log"
+      ],
+      "recording_bytes": 6858570,
+      "deleted_files": [
+        "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260822_013602_seed7750974399130199110/round_002/gazebo_world_state.log",
+        "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260822_013602_seed7750974399130199110/round_002/gazebo_world_recording.json",
+        "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_test/end_to_end_cone_trials_20260822_013602_seed7750974399130199110/round_002/gazebo_world_recorder.log"
+      ],
+      "deleted_bytes": 6858570,
+      "task_success": true,
+      "task_status": "task_completed",
+      "error_code": 0,
+      "preceding_navigation_failure": false,
+      "delivery_navigation_failure": false,
+      "cone_collision": false,
+      "cone_monitor_status": "complete",
+      "contact_stream_status": "stopped",
+      "gazebo_recording_status": "complete",
+      "recovery_event_count": 0,
+      "recovery_markers": []
+    }
+  ]
+}

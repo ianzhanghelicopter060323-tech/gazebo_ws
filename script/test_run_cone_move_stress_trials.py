@@ -134,6 +134,47 @@ class ConeMoveStressRunnerTest(unittest.TestCase):
             all(plan["source_round"] == 37 for plan in plans)
         )
 
+    def test_one_fixed_scene_can_cover_an_explicit_target_sequence(self):
+        template = stress.load_templates(
+            self.manifest, ["collision_round_002"]
+        )
+
+        plans = stress.build_plans(
+            template,
+            5,
+            self.runtime(),
+            target_sequence=(
+                "food",
+                "daily",
+                "electronics",
+                "food",
+                "daily",
+            ),
+        )
+
+        self.assertEqual(5, len(plans))
+        self.assertEqual(
+            ["food", "daily", "electronics", "food", "daily"],
+            [plan["target_class"] for plan in plans],
+        )
+        self.assertEqual(
+            {"collision_round_002"},
+            {plan["scenario_id"] for plan in plans},
+        )
+
+    def test_target_sequence_requires_one_fixed_scene(self):
+        templates = stress.load_templates(self.manifest)
+
+        with self.assertRaisesRegex(
+            stress.AutomationError, "exactly one selected template"
+        ):
+            stress.build_plans(
+                templates,
+                5,
+                self.runtime(),
+                target_sequence=("food",),
+            )
+
     def test_generated_case_is_accepted_by_both_runtime_helpers(self):
         template = stress.load_templates(
             self.manifest, ["collision_round_002"]

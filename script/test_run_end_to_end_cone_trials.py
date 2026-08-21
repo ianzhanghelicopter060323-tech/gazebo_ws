@@ -50,6 +50,12 @@ class FailureClassificationTest(unittest.TestCase):
 
 
 class ArgumentDefaultsTest(unittest.TestCase):
+    def test_default_is_40_normal_random_scene_rounds(self):
+        args = trials.parse_args([])
+
+        self.assertEqual(args.rounds, 40)
+        self.assertEqual(args.recording_root, trials.DEFAULT_VIDEO_ROOT)
+
     def test_gazebo_gui_is_disabled_by_default(self):
         args = trials.parse_args([])
 
@@ -64,6 +70,12 @@ class ArgumentDefaultsTest(unittest.TestCase):
         args = trials.parse_args(["--headless"])
 
         self.assertFalse(args.gui)
+
+    def test_gui_and_recording_remain_enabled_together(self):
+        args = trials.parse_args(["--gui"])
+
+        self.assertTrue(args.gui)
+        self.assertFalse(args.disable_gazebo_recording)
 
 
 class StressTemplateTest(unittest.TestCase):
@@ -143,6 +155,41 @@ class GazeboRecordingResultTest(unittest.TestCase):
 
             self.assertEqual(
                 value["gazebo_recording_status"], "manifest_invalid"
+            )
+
+
+class ReportMirroringTest(unittest.TestCase):
+    def test_reports_are_mirrored_beside_gazebo_recordings(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output_dir = root / "logs"
+            mirror_dir = root / "recordings"
+            output_dir.mkdir()
+            record = trials.new_record(
+                1,
+                "normal_e2e_001",
+                "food",
+                output_dir / "round_001",
+                mirror_dir / "round_001",
+            )
+
+            trials.write_reports(
+                output_dir,
+                [record],
+                [],
+                requested_rounds=40,
+                seed=123,
+                metadata={
+                    "random_spawner": "/tmp/spawn_cubes.py",
+                    "random_spawner_sha256": "test-sha256",
+                },
+                mirror_dir=mirror_dir,
+            )
+
+            self.assertTrue((mirror_dir / "trials.csv").is_file())
+            self.assertTrue((mirror_dir / "summary.json").is_file())
+            self.assertTrue(
+                (mirror_dir / "collision_templates.json").is_file()
             )
 
 

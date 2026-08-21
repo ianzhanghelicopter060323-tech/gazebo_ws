@@ -51,11 +51,16 @@ def parse_args(argv):
     )
     parser.add_argument("--data-root", type=Path, default=DEFAULT_DATA_ROOT)
     parser.add_argument(
+        "--normal-e2e-root",
         "--cone-recording-root",
         "--cone-video-root",
         dest="cone_video_root",
         type=Path,
         default=DEFAULT_CONE_VIDEO_ROOT,
+        help=(
+            "normal random-scene end-to-end Gazebo recording root; "
+            "default: data/cone_zone/end_to_end_test"
+        ),
     )
     parser.add_argument(
         "--cone-stress-root",
@@ -102,6 +107,14 @@ def parse_args(argv):
         type=float,
         default=5.0,
         help="seconds between scans in --watch mode (default: 5)",
+    )
+    parser.add_argument(
+        "--stop-after-rounds",
+        type=int,
+        help=(
+            "in targeted --watch mode, exit after this many rounds have "
+            "final trial rows and the last cleanup scan has completed"
+        ),
     )
     return parser.parse_args(argv)
 
@@ -1008,9 +1021,26 @@ def print_watch_result(result, previous_signature, apply):
     print("[KEEP] {}: {}".format(label, result["reason"]), flush=True)
 
 
+def finalized_target_rounds(results, run_name):
+    return {
+        result["round"]
+        for result in results
+        if result["run"] == run_name
+        and result["round"] is not None
+        and result["reason"] != "trial_result_missing"
+    }
+
+
 def watch(args):
     if args.interval <= 0.0:
         raise CleanupError("--interval must be positive")
+    if args.stop_after_rounds is not None:
+        if args.stop_after_rounds <= 0:
+            raise CleanupError("--stop-after-rounds must be positive")
+        if not args.runs or len(args.runs) != 1:
+            raise CleanupError(
+                "--stop-after-rounds requires exactly one targeted --run"
+            )
     logs_root = args.logs_root.expanduser().resolve()
     if not logs_root.is_dir():
         raise CleanupError("logs root does not exist: {}".format(logs_root))
@@ -1066,6 +1096,19 @@ def watch(args):
                     except OSError as exc:
                         print("[ERROR] deletion audit report failed: {}".format(exc),
                               flush=True)
+                if args.stop_after_rounds is not None:
+                    completed = finalized_target_rounds(results, args.runs[0])
+                    if len(completed) >= args.stop_after_rounds:
+                        print(
+                            "Target run complete: finalized_rounds={} "
+                            "deleted_files={} freed={:.2f} MiB".format(
+                                len(completed),
+                                cumulative_deleted_files,
+                                cumulative_deleted_bytes / (1024.0 * 1024.0),
+                            ),
+                            flush=True,
+                        )
+                        return 0
                 time.sleep(args.interval)
         except KeyboardInterrupt:
             print("\nWatcher stopped: deleted_files={} freed={:.2f} MiB".format(

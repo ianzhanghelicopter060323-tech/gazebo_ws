@@ -2,6 +2,9 @@
 
 import math
 import unittest
+from unittest import mock
+
+from geometry_msgs.msg import PoseStamped
 
 from smart_factory_mission.delivery_entry_selector import (
     ChannelSelectorConfig,
@@ -29,6 +32,28 @@ class DeliveryEntrySelectorTest(unittest.TestCase):
         }
         values.update(overrides)
         return ClearanceEntrySelector(EntrySelectorConfig(**values))
+
+    def test_disabled_entry_selection_preserves_fixed_preparation_pose(self):
+        with mock.patch(
+            "smart_factory_mission.delivery_entry_selector.rospy.Subscriber"
+        ) as subscriber, mock.patch(
+            "smart_factory_mission.delivery_entry_selector.rospy.ServiceProxy"
+        ):
+            selector = RosDeliveryEntrySelector(
+                {
+                    "entry_selection_enabled": False,
+                    "channel_enabled": False,
+                },
+                tf_buffer=mock.Mock(),
+            )
+
+        preparation_pose = PoseStamped()
+
+        self.assertFalse(selector.requires_approach)
+        self.assertIs(preparation_pose, selector.resolve(preparation_pose))
+        subscriber.assert_not_called()
+        self.assertIsNone(selector._make_plan)
+        self.assertIsNotNone(selector._set_avoidance_lock)
 
     def test_nominal_pose_is_preserved_when_already_clear(self):
         selected = self._selector().select(0.0, 0.0, [(0.60, 0.0)])

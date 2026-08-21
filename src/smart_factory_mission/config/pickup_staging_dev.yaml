@@ -1,7 +1,8 @@
 # DEVELOPMENT-ONLY pickup staging route.
 #
-# Compliance-trimmed route (2026-08-19): only the thirteen waypoints below
-# are active (seqs 6, 9, 10, 16, 17, 18, 20, 21, 22, 29, 33, 34, 35). The
+# Compliance-trimmed route: the thirteen active waypoints are seqs 6, 9, 10,
+# 16, 17, 18, 20, 21, 22, 29, 33, 34, and 35. Seq21 is sent as a navigation
+# goal with position and heading acceptance. The
 # earlier and mid-route captures remain as commented records only for
 # traceability; they are NOT sent as navigation goals. The full 30-point
 # execution subset is gone: the regenerated fitted path now carries exactly
@@ -104,7 +105,6 @@ pickup_staging:
     #  y: -0.9227846264839172
     #  yaw: -2.376223087310791
     # seq 20
-    # Current manual experiment coordinates from docs/navi_pos.md.
     - x: 2.605
       y: -0.85530017888259888
       yaw: 3.1183266639709473
@@ -161,8 +161,8 @@ pickup_staging:
       y: -0.9595332050323486
       yaw: -3.1115407943725586
     # seq 34
-    - x: -1.5833954572677612
-      y: -0.8047531890869141
+    - x: -1.52
+      y: -0.80
       yaw: 1.6074262857437132
     # seq 345 (logical seq 34.5): guide the natural fit around the left side
     # of the close_navi region before turning toward seq 35.

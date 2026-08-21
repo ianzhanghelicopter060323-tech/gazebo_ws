@@ -10,6 +10,46 @@ import unittest
 import prune_successful_gazebo_recordings as cleanup
 
 
+class TargetedWatcherCompletionTest(unittest.TestCase):
+    def test_only_finalized_rows_count_toward_automatic_stop(self):
+        results = [
+            {
+                "run": "selected_run",
+                "round": 1,
+                "reason": "error_free_end_to_end_round",
+            },
+            {
+                "run": "selected_run",
+                "round": 2,
+                "reason": "trial_result_missing",
+            },
+            {
+                "run": "another_run",
+                "round": 3,
+                "reason": "task_not_successful",
+            },
+        ]
+
+        self.assertEqual(
+            cleanup.finalized_target_rounds(results, "selected_run"), {1}
+        )
+
+    def test_stop_after_rounds_arguments_are_parsed(self):
+        args = cleanup.parse_args(
+            [
+                "--watch",
+                "--run",
+                "selected_run",
+                "--stop-after-rounds",
+                "200",
+            ]
+        )
+
+        self.assertTrue(args.watch)
+        self.assertEqual(args.runs, ["selected_run"])
+        self.assertEqual(args.stop_after_rounds, 200)
+
+
 class RecordingCleanupTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -204,6 +244,22 @@ class ConeRecordingCleanupTest(unittest.TestCase):
             results[2]["reason"], "preceding_navigation_failed_or_unknown"
         )
         self.assertEqual(results[3]["reason"], "cone_monitor_incomplete")
+
+    def test_uses_result_table_mirrored_beside_normal_recordings(self):
+        (self.log_dir / "trials.csv").replace(self.run_dir / "trials.csv")
+
+        _root, results = cleanup.process(self.args(apply=False), emit=False)
+
+        self.assertEqual(len(results), 4)
+        self.assertTrue(results[0]["eligible_for_recording_deletion"])
+        self.assertEqual(results[1]["reason"], "cone_collision_or_unknown")
+
+    def test_normal_e2e_root_argument_alias(self):
+        args = cleanup.parse_args(
+            ["--normal-e2e-root", str(self.video_root)]
+        )
+
+        self.assertEqual(args.cone_video_root, self.video_root)
 
     def test_apply_deletes_only_clean_round_video_artifacts(self):
         _root, results = cleanup.process(self.args(apply=True), emit=False)

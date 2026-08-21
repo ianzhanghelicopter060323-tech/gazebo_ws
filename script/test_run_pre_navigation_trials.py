@@ -25,6 +25,16 @@ class PreNavigationTrialConfigurationTest(unittest.TestCase):
         self.assertEqual(args.seq35_position_tolerance, 0.15)
         self.assertEqual(metadata["formal_final_pass_radius_m"], 0.15)
         self.assertEqual(args.navigation_config, trials.DEFAULT_NAVIGATION_CONFIG)
+        self.assertEqual(
+            metadata["execution_sequences"],
+            [6, 9, 10, 16, 17, 18, 20, 21, 22, 29, 33, 34, 35],
+        )
+        self.assertEqual(
+            metadata["orientation_required_sequences"], [17, 18, 21]
+        )
+        self.assertEqual(
+            metadata["orientation_position_tolerance_overrides_m"], {21: 0.10}
+        )
 
     def test_master_environment_is_scoped_by_explicit_ports(self):
         args = trials.parse_args(

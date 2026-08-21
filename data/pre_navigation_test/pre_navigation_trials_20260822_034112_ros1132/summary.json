@@ -1,0 +1,63 @@
+{
+  "metadata": {
+    "created_at": "2026-08-22T03:41:12+08:00",
+    "run_name": "pre_navigation_trials_20260822_034112_ros1132",
+    "rounds": 40,
+    "headless": false,
+    "ros_master_uri": "http://127.0.0.1:1132",
+    "gazebo_master_uri": "http://127.0.0.1:1133",
+    "route_config": "/home/ianzhang/gazebo_ws/src/smart_factory_mission/config/pickup_staging_dev.yaml",
+    "fitted_path_config": "/home/ianzhang/gazebo_ws/src/smart_factory_navigation/config/pickup_staging_fitted_path.yaml",
+    "navigation_config": "/home/ianzhang/gazebo_ws/src/smart_factory_navigation/config/navigation.yaml",
+    "route": {
+      "frame_id": "map",
+      "source_waypoint_count": 13,
+      "execution_sequences": [
+        6,
+        9,
+        10,
+        16,
+        17,
+        18,
+        20,
+        21,
+        22,
+        29,
+        33,
+        34,
+        35
+      ],
+      "orientation_required_sequences": [
+        17,
+        18,
+        21
+      ],
+      "orientation_position_tolerance_overrides_m": {
+        "21": 0.08
+      },
+      "seq35_pose": {
+        "x": -1.26,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "formal_final_pass_radius_m": 0.15
+    },
+    "seq35_position_tolerance_m": 0.15,
+    "yaw_alignment_required": false,
+    "recording_root": "/home/ianzhang/gazebo_ws/data/pre_navigation_test",
+    "recording_run_dir": "/home/ianzhang/gazebo_ws/data/pre_navigation_test/pre_navigation_trials_20260822_034112_ros1132",
+    "recording_start": "immediately before navigation client",
+    "baseline_lock_service": "/move_base/AdaptiveTebLocalPlannerROS/set_baseline_lock"
+  },
+  "summary": {
+    "requested_rounds": 40,
+    "completed_rounds": 0,
+    "navigation_successes": 0,
+    "navigation_failures": 0,
+    "success_rate": null,
+    "position_tolerance_acceptances": 0,
+    "gazebo_recording_complete_rounds": 0,
+    "infrastructure_errors": 0
+  },
+  "trials": []
+}

@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Fit the active pickup route and draw it over the occupancy map.
+"""Render the original 35-point pickup route over the occupancy map.
 
-The implementation intentionally has no SciPy dependency.  It first applies a
-small, chord-length-aware second-difference regularization to the active route
-anchors, then interpolates the adjusted anchors with a parametric natural cubic
-spline.  Mission direct segments are exported as true line segments, and
-route-specific y floors prevent a spline from dipping below a measured safe
-corridor.  The resulting curve is sampled more densely where curvature is high.
+The default command is deliberately image-only: it reads the retained seq1-35
+coordinates, renders the diagnostic PNG, and never replaces the runtime fitted
+path YAML. ``capture_pickup_dataset.py`` imports the fitting helpers, and its
+explicit legacy CLI options continue to select the historical export-capable
+entry point. The focused workshop-goal view remains available explicitly.
 """
 
 import argparse
@@ -14,6 +13,7 @@ import ast
 import math
 import re
 import shutil
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -26,15 +26,19 @@ SEQ_LABEL_PATTERN = re.compile(r"\s*# seq\s+([^\s:]+)")
 X_PATTERN = re.compile(r"\s*- x:\s*([-+0-9.eE]+)")
 Y_PATTERN = re.compile(r"\s*y:\s*([-+0-9.eE]+)")
 YAW_PATTERN = re.compile(r"\s*yaw:\s*([-+0-9.eE]+)")
+FULL_X_PATTERN = re.compile(r"\s*#?\s*-\s*x:\s*([-+0-9.eE]+)")
+FULL_Y_PATTERN = re.compile(r"\s*#?\s*y:\s*([-+0-9.eE]+)")
+FULL_YAW_PATTERN = re.compile(r"\s*#?\s*yaw:\s*([-+0-9.eE]+)")
 DELIVERY_CLASS_COLORS = {
     0: (220, 65, 65),
     1: (45, 165, 95),
     2: (40, 115, 225),
 }
-DELIVERY_ENTRY_COLOR = (145, 45, 190)
 PICKUP_STATION_COLOR = (0, 125, 165)
 PICKUP_TRANSITION_COLOR = (225, 105, 20)
 PICKUP_APPROACH_COLOR = (115, 70, 185)
+PASS_RADIUS_COLOR = (245, 205, 20)
+PASS_RADIUS_OVERRIDE_COLOR = (0, 145, 235)
 
 
 def read_cube_spawn_areas(path):
@@ -84,7 +88,7 @@ def read_cube_spawn_areas(path):
 
 
 def read_delivery_navigation_goals(path):
-    """Read the shared cone-entry pose and three task-selected workshops."""
+    """Read exactly the three task-selected workshop navigation goals."""
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     delivery = data.get("delivery") if isinstance(data, dict) else None
     if not isinstance(delivery, dict) or delivery.get("configured") is not True:
@@ -105,13 +109,6 @@ def read_delivery_navigation_goals(path):
             raise ValueError("{} contains a non-finite value".format(label))
         return (label, values[0], values[1], values[2], color)
 
-    goals = [
-        pose(
-            delivery.get("entry_pose"),
-            "cone preparation pose",
-            DELIVERY_ENTRY_COLOR,
-        )
-    ]
     destinations = delivery.get("destinations")
     if not isinstance(destinations, list) or len(destinations) != 3:
         raise ValueError("delivery.destinations must contain exactly three goals")
@@ -136,8 +133,7 @@ def read_delivery_navigation_goals(path):
         raise ValueError(
             "delivery destinations must uniquely cover target classes 0, 1, 2"
         )
-    goals.extend(by_class[target_class] for target_class in sorted(by_class))
-    return goals
+    return [by_class[target_class] for target_class in sorted(by_class)]
 
 
 def read_pickup_navigation_goals(path):
@@ -227,6 +223,49 @@ def read_active_route(path):
     if len(records) < 4:
         raise ValueError("at least four active route points are required")
     return records
+
+
+def read_original_35_route(path):
+    """Read retained seq1-35 coordinates, including commented route points.
+
+    Disabled points remain in the development YAML as traceability records.
+    This reader is visualization-only and intentionally ignores logical seq345
+    and conditional seq36/37 poses.
+    """
+    lines = path.read_text(encoding="utf-8").splitlines()
+    sequence = None
+    records = {}
+    for index, line in enumerate(lines):
+        sequence_match = SEQ_PATTERN.match(line)
+        if sequence_match:
+            sequence = int(sequence_match.group(1))
+
+        x_match = FULL_X_PATTERN.match(line)
+        if not x_match or sequence is None or not 1 <= sequence <= 35:
+            continue
+        if sequence in records:
+            raise ValueError(
+                "route configuration contains duplicate seq {}".format(sequence)
+            )
+        if index + 2 >= len(lines):
+            raise ValueError("seq {} is missing y or yaw".format(sequence))
+        y_match = FULL_Y_PATTERN.match(lines[index + 1])
+        yaw_match = FULL_YAW_PATTERN.match(lines[index + 2])
+        if not y_match or not yaw_match:
+            raise ValueError(
+                "seq {} x is not followed by y and yaw".format(sequence)
+            )
+        records[sequence] = (
+            sequence,
+            float(x_match.group(1)),
+            float(y_match.group(1)),
+            float(yaw_match.group(1)),
+        )
+
+    missing = [sequence for sequence in range(1, 36) if sequence not in records]
+    if missing:
+        raise ValueError("route configuration is missing seq {}".format(missing))
+    return [records[sequence] for sequence in range(1, 36)]
 
 
 def read_documented_route(path, active_sequences):
@@ -360,6 +399,9 @@ def read_execution_waypoint_settings(path):
         "orientation_yaw_tolerance": float(
             settings.get("orientation_yaw_tolerance", 0.15)
         ),
+        "orientation_position_tolerance_overrides": settings.get(
+            "orientation_position_tolerance_overrides", {}
+        ),
         "pass_radius": float(
             navigation.get("intermediate_pass_radius", 0.15)
         ),
@@ -400,6 +442,35 @@ def read_execution_waypoint_settings(path):
         raise ValueError(
             "fitted_waypoints/orientation_yaw_tolerance must be in (0, pi]"
         )
+    raw_overrides = result["orientation_position_tolerance_overrides"]
+    if not isinstance(raw_overrides, dict):
+        raise ValueError(
+            "fitted_waypoints/orientation_position_tolerance_overrides "
+            "must be a mapping"
+        )
+    normalized_overrides = {}
+    for raw_sequence, raw_radius in raw_overrides.items():
+        try:
+            sequence = int(raw_sequence)
+            radius = float(raw_radius)
+        except (TypeError, ValueError):
+            raise ValueError(
+                "orientation position tolerance overrides must map positive "
+                "sequence IDs to positive radii"
+            )
+        if (
+            isinstance(raw_sequence, bool)
+            or sequence <= 0
+            or not math.isfinite(radius)
+            or radius <= 0.0
+            or sequence not in result["orientation_required_sequences"]
+        ):
+            raise ValueError(
+                "orientation position tolerance overrides must reference "
+                "orientation-required sequences and positive radii"
+            )
+        normalized_overrides[sequence] = radius
+    result["orientation_position_tolerance_overrides"] = normalized_overrides
     if result["pass_radius"] <= 0.0:
         raise ValueError("navigation/intermediate_pass_radius must be positive")
     if result["min_spacing"] <= result["pass_radius"]:
@@ -1008,6 +1079,201 @@ def load_font(size, bold=False):
         return ImageFont.load_default()
 
 
+def create_delivery_goal_figure(map_image, metadata, delivery_goals):
+    """Draw only the three workshop goals, headings, and exact coordinates."""
+    if len(delivery_goals) != 3:
+        raise ValueError("exactly three workshop navigation goals are required")
+
+    resolution = metadata["resolution"]
+    origin_x, origin_y = metadata["origin"]
+    heading_length = 0.40
+    crop_margin = 0.55
+    crop_points = np.asarray(
+        [
+            point
+            for _label, x, y, yaw, _color in delivery_goals
+            for point in (
+                (x, y),
+                (
+                    x + heading_length * math.cos(yaw),
+                    y + heading_length * math.sin(yaw),
+                ),
+            )
+        ],
+        dtype=float,
+    )
+    minimum = np.min(crop_points, axis=0) - crop_margin
+    maximum = np.max(crop_points, axis=0) + crop_margin
+    left = max(0, int(math.floor((minimum[0] - origin_x) / resolution)))
+    right = min(
+        map_image.width,
+        int(math.ceil((maximum[0] - origin_x) / resolution)) + 1,
+    )
+    top = max(
+        0,
+        map_image.height
+        - 1
+        - int(math.ceil((maximum[1] - origin_y) / resolution)),
+    )
+    bottom = min(
+        map_image.height,
+        map_image.height
+        - int(math.floor((minimum[1] - origin_y) / resolution))
+        + 1,
+    )
+    if left >= right or top >= bottom:
+        raise ValueError("workshop navigation goals are outside the occupancy map")
+
+    scale = 12
+    nearest = getattr(Image, "Resampling", Image).NEAREST
+    map_view = map_image.crop((left, top, right, bottom)).convert("RGB").resize(
+        ((right - left) * scale, (bottom - top) * scale),
+        nearest,
+    )
+
+    header_height = 78
+    panel_width = 500
+    margin = 24
+    canvas = Image.new(
+        "RGB",
+        (
+            margin + map_view.width + margin + panel_width + margin,
+            header_height + map_view.height + margin,
+        ),
+        "white",
+    )
+    map_x = margin
+    map_y = header_height
+    canvas.paste(map_view, (map_x, map_y))
+    draw = ImageDraw.Draw(canvas)
+    draw.text(
+        (margin, 18),
+        "Workshop navigation goals",
+        fill=(20, 20, 20),
+        font=load_font(28, bold=True),
+    )
+    draw.text(
+        (margin, 51),
+        "map frame / arrows show target yaw",
+        fill=(80, 80, 80),
+        font=load_font(16),
+    )
+
+    def transform(x, y):
+        column = (x - origin_x) / resolution
+        row = map_image.height - 1 - (y - origin_y) / resolution
+        return (
+            map_x + (column - left) * scale,
+            map_y + (row - top) * scale,
+        )
+
+    label_font = load_font(17, bold=True)
+    for target_class, (label, goal_x, goal_y, goal_yaw, color) in enumerate(
+        delivery_goals
+    ):
+        x, y = transform(goal_x, goal_y)
+        arrow_x, arrow_y = transform(
+            goal_x + heading_length * math.cos(goal_yaw),
+            goal_y + heading_length * math.sin(goal_yaw),
+        )
+        line_width = 6
+        draw.line((x, y, arrow_x, arrow_y), fill=color, width=line_width)
+
+        delta_x = arrow_x - x
+        delta_y = arrow_y - y
+        arrow_pixels = math.hypot(delta_x, delta_y)
+        if arrow_pixels > 0.0:
+            unit_x = delta_x / arrow_pixels
+            unit_y = delta_y / arrow_pixels
+            normal_x, normal_y = -unit_y, unit_x
+            head_length = 18
+            head_width = 10
+            base_x = arrow_x - head_length * unit_x
+            base_y = arrow_y - head_length * unit_y
+            draw.polygon(
+                (
+                    (arrow_x, arrow_y),
+                    (base_x + head_width * normal_x, base_y + head_width * normal_y),
+                    (base_x - head_width * normal_x, base_y - head_width * normal_y),
+                ),
+                fill=color,
+            )
+
+        radius = 10
+        draw.ellipse(
+            (x - radius, y - radius, x + radius, y + radius),
+            fill=color,
+            outline="white",
+            width=3,
+        )
+        point_label = "{}  [class {}]".format(label, target_class)
+        text_width, _text_height = draw.textsize(point_label, font=label_font)
+        label_x = x + radius + 8
+        if label_x + text_width > map_x + map_view.width - 6:
+            label_x = x - radius - text_width - 8
+        label_y = max(map_y + 4, y - 28)
+        draw.text(
+            (label_x, label_y),
+            point_label,
+            fill=color,
+            font=label_font,
+            stroke_width=3,
+            stroke_fill="white",
+        )
+
+    panel_x = map_x + map_view.width + margin
+    panel_y = header_height + 12
+    draw.rectangle(
+        (
+            panel_x,
+            panel_y,
+            panel_x + panel_width,
+            header_height + map_view.height,
+        ),
+        fill=(247, 248, 250),
+        outline=(215, 218, 223),
+        width=2,
+    )
+    draw.text(
+        (panel_x + 22, panel_y + 20),
+        "Configured coordinates",
+        fill=(30, 30, 30),
+        font=load_font(21, bold=True),
+    )
+    item_y = panel_y + 66
+    for target_class, (label, x, y, yaw, color) in enumerate(delivery_goals):
+        draw.ellipse(
+            (panel_x + 22, item_y + 5, panel_x + 40, item_y + 23),
+            fill=color,
+        )
+        draw.text(
+            (panel_x + 54, item_y),
+            "class {}  {}".format(target_class, label),
+            fill=(30, 30, 30),
+            font=load_font(18, bold=True),
+        )
+        draw.text(
+            (panel_x + 54, item_y + 31),
+            "x = {:.9f} m".format(x),
+            fill=(55, 55, 55),
+            font=load_font(17),
+        )
+        draw.text(
+            (panel_x + 54, item_y + 58),
+            "y = {:.9f} m".format(y),
+            fill=(55, 55, 55),
+            font=load_font(17),
+        )
+        draw.text(
+            (panel_x + 54, item_y + 85),
+            "yaw = {:.9f} rad ({:.2f} deg)".format(yaw, math.degrees(yaw)),
+            fill=(55, 55, 55),
+            font=load_font(17),
+        )
+        item_y += 138
+    return canvas
+
+
 def render_view(
     map_image,
     metadata,
@@ -1018,7 +1284,9 @@ def render_view(
     fitted_points,
     samples,
     execution_waypoints,
+    execution_waypoint_sequences,
     intermediate_pass_radius,
+    pass_radius_overrides,
     clearance_point,
     label_points,
     spawn_areas,
@@ -1102,10 +1370,20 @@ def render_view(
             outline=(0, 70, 85),
         )
 
-    pass_radius_pixels = intermediate_pass_radius / resolution * scale
     pass_overlay = Image.new("RGBA", view.size, (0, 0, 0, 0))
     pass_draw = ImageDraw.Draw(pass_overlay)
-    for x, y in execution_pixels[:-1]:
+    for sequence, (x, y) in zip(
+        execution_waypoint_sequences[:-1], execution_pixels[:-1]
+    ):
+        pass_radius = pass_radius_overrides.get(
+            sequence, intermediate_pass_radius
+        )
+        pass_radius_pixels = pass_radius / resolution * scale
+        color = (
+            PASS_RADIUS_OVERRIDE_COLOR
+            if sequence in pass_radius_overrides
+            else PASS_RADIUS_COLOR
+        )
         pass_draw.ellipse(
             (
                 x - pass_radius_pixels,
@@ -1113,9 +1391,19 @@ def render_view(
                 x + pass_radius_pixels,
                 y + pass_radius_pixels,
             ),
-            outline=(245, 205, 20, 115),
+            outline=color + (180,),
             width=max(1, scale // 3),
         )
+        if label_points and sequence in pass_radius_overrides:
+            label = "seq{} r={:.2f}m".format(sequence, pass_radius)
+            pass_draw.text(
+                (x + pass_radius_pixels + 5, y - pass_radius_pixels - 4),
+                label,
+                fill=color + (255,),
+                font=load_font(max(11, scale + 4), bold=True),
+                stroke_width=2,
+                stroke_fill=(255, 255, 255, 255),
+            )
     view = Image.alpha_composite(view.convert("RGBA"), pass_overlay).convert("RGB")
     draw = ImageDraw.Draw(view)
     point_radius = max(3, scale - 1)
@@ -1390,7 +1678,9 @@ def create_figure(
     fitted_points,
     samples,
     execution_waypoints,
+    execution_waypoint_sequences,
     intermediate_pass_radius,
+    pass_radius_overrides,
     clearance_point,
     diagnostics,
     spawn_areas,
@@ -1441,7 +1731,9 @@ def create_figure(
         fitted_points,
         samples,
         execution_waypoints,
+        execution_waypoint_sequences,
         intermediate_pass_radius,
+        pass_radius_overrides,
         clearance_point,
         True,
         [],
@@ -1529,7 +1821,9 @@ def create_figure(
         fitted_points,
         samples,
         execution_waypoints,
+        execution_waypoint_sequences,
         intermediate_pass_radius,
+        pass_radius_overrides,
         clearance_point,
         True,
         spawn_areas,
@@ -1568,7 +1862,9 @@ def create_figure(
         fitted_points,
         samples,
         execution_waypoints,
+        execution_waypoint_sequences,
         intermediate_pass_radius,
+        pass_radius_overrides,
         clearance_point,
         True,
         spawn_areas,
@@ -1637,11 +1933,19 @@ def create_figure(
         ("pickup observation pose / heading", PICKUP_STATION_COLOR),
         ("pickup turn-completion target", PICKUP_TRANSITION_COLOR),
         ("straight pickup approach leg", PICKUP_APPROACH_COLOR),
-        ("cone preparation pose / heading", DELIVERY_ENTRY_COLOR),
         ("food workshop goal / heading", DELIVERY_CLASS_COLORS[0]),
         ("daily workshop goal / heading", DELIVERY_CLASS_COLORS[1]),
         ("electronics workshop goal / heading", DELIVERY_CLASS_COLORS[2]),
     ]
+    for sequence, radius in sorted(pass_radius_overrides.items()):
+        legend.append(
+            (
+                "seq{} orientation pass radius / r={:.2f} m".format(
+                    sequence, radius
+                ),
+                PASS_RADIUS_OVERRIDE_COLOR,
+            )
+        )
     x = margin_px
     y = legend_y
     for index, (label, color) in enumerate(legend):
@@ -1675,7 +1979,7 @@ def create_figure(
     return canvas
 
 
-def main():
+def legacy_route_fit_main(default_full_35=False):
     workspace = Path(__file__).resolve().parents[3]
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -1683,6 +1987,15 @@ def main():
         type=Path,
         default=workspace
         / "src/smart_factory_mission/config/pickup_staging_dev.yaml",
+    )
+    parser.add_argument(
+        "--full-35-route",
+        action="store_true",
+        default=default_full_35,
+        help=(
+            "render retained seq1-35 coordinates; this mode is always "
+            "image-only and never replaces --path-output"
+        ),
     )
     parser.add_argument(
         "--map-yaml",
@@ -1710,9 +2023,7 @@ def main():
         type=Path,
         default=workspace
         / "src/smart_factory_mission/config/delivery_goals.yaml",
-        help=(
-            "render the cone preparation pose and three workshop goals"
-        ),
+        help="render the three workshop goals in legacy route diagnostics",
     )
     parser.add_argument(
         "--pickup-config",
@@ -1770,12 +2081,19 @@ def main():
     parser.add_argument("--min-sample-spacing", type=float, default=0.08)
     parser.add_argument("--max-sample-spacing", type=float, default=0.30)
     args = parser.parse_args()
+    if args.full_35_route:
+        args.render_only = True
+        args.allow_unsafe_render = True
     if args.allow_unsafe_render and not args.render_only:
         parser.error("--allow-unsafe-render requires --render-only")
     if args.allow_unsafe_path_output and args.render_only:
         parser.error("--allow-unsafe-path-output cannot be used with --render-only")
 
-    route_records = read_active_route(args.route)
+    route_records = (
+        read_original_35_route(args.route)
+        if args.full_35_route
+        else read_active_route(args.route)
+    )
     source_route = args.route
     if args.route_doc:
         records = read_documented_route(
@@ -1794,6 +2112,15 @@ def main():
     execution_settings = read_execution_waypoint_settings(
         args.mission_config
     )
+    if args.full_35_route:
+        # Display all original anchors as image annotations. These values are
+        # local visualization settings and never enter a runtime YAML.
+        execution_settings.update(
+            count=35,
+            min_spacing=1.0e-6,
+            required_sequences=sequences[1:-1],
+            orientation_required_sequences=[],
+        )
     sequence_indices = {
         sequence: index for index, sequence in enumerate(sequences)
     }
@@ -1817,6 +2144,19 @@ def main():
         raise ValueError(
             "orientation-required seq has no active route anchor: {}".format(
                 missing_orientation_sequences
+            )
+        )
+    missing_pass_radius_override_sequences = [
+        sequence
+        for sequence in execution_settings[
+            "orientation_position_tolerance_overrides"
+        ]
+        if sequence not in sequence_indices
+    ]
+    if missing_pass_radius_override_sequences:
+        raise ValueError(
+            "position-radius override seq has no route anchor: {}".format(
+                missing_pass_radius_override_sequences
             )
         )
     selectable_orientation_sequences = set(
@@ -1892,6 +2232,24 @@ def main():
         ],
     )
     execution_waypoints = samples[execution_waypoint_indices]
+    sequence_by_sample_index = {
+        int(
+            np.argmin(
+                np.abs(
+                    sample_parameter - parameter[sequence_indices[sequence]]
+                )
+            )
+        ): sequence
+        for sequence in sequences
+    }
+    execution_waypoint_sequences = [
+        sequence_by_sample_index.get(int(sample_index))
+        for sample_index in execution_waypoint_indices
+    ]
+    if any(sequence is None for sequence in execution_waypoint_sequences):
+        raise ValueError(
+            "every rendered execution waypoint must match a route sequence"
+        )
 
     metadata = map_metadata(args.map_yaml)
     map_image = Image.open(metadata["image"]).convert("L")
@@ -1945,7 +2303,9 @@ def main():
         fitted,
         samples,
         execution_waypoints,
+        execution_waypoint_sequences,
         execution_settings["pass_radius"],
+        execution_settings["orientation_position_tolerance_overrides"],
         fitted[clearance_index],
         (
             maximum_curvature,
@@ -2014,6 +2374,13 @@ def main():
         )
     )
     print(
+        "orientation_position_tolerance_overrides={}".format(
+            execution_settings[
+                "orientation_position_tolerance_overrides"
+            ]
+        )
+    )
+    print(
         "max_anchor_shift={:.4f} max_curvature={:.3f} "
         "min_radius={:.3f} min_speed_derivative={:.3f}".format(
             maximum_shift,
@@ -2026,6 +2393,96 @@ def main():
         f"occupied_samples={occupied} unknown_samples={unknown} "
         f"minimum_map_clearance={clearance:.3f}"
     )
+
+
+def workshop_goals_main():
+    workspace = Path(__file__).resolve().parents[3]
+    parser = argparse.ArgumentParser(
+        description=(
+            "Render only the three configured workshop navigation goals; "
+            "no preceding navigation route is drawn."
+        )
+    )
+    parser.add_argument(
+        "--workshop-goals-only",
+        action="store_true",
+        help="render only the three workshop coordinates",
+    )
+    parser.add_argument(
+        "--map-yaml",
+        type=Path,
+        default=workspace / "src/gazebo_map/maps/math_newest.yaml",
+    )
+    parser.add_argument(
+        "--delivery-goals",
+        type=Path,
+        default=workspace
+        / "src/smart_factory_mission/config/delivery_goals.yaml",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=workspace / "docs/workshop_navigation_goals_math_newest.png",
+    )
+    parser.add_argument("--copy-to", type=Path)
+    args = parser.parse_args()
+
+    metadata = map_metadata(args.map_yaml)
+    map_image = Image.open(metadata["image"]).convert("L")
+    delivery_goals = read_delivery_navigation_goals(args.delivery_goals)
+    figure = create_delivery_goal_figure(map_image, metadata, delivery_goals)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    figure.save(args.output)
+    if args.copy_to:
+        args.copy_to.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(args.output, args.copy_to / args.output.name)
+
+    print("output={}".format(args.output))
+    print(
+        "workshop_navigation_goals={}".format(
+            [
+                (label, x, y, yaw)
+                for label, x, y, yaw, _color in delivery_goals
+            ]
+        )
+    )
+    if args.copy_to:
+        print("copy={}".format(args.copy_to / args.output.name))
+
+
+def main():
+    # capture_pickup_dataset.py still invokes the historical fitter with
+    # explicit route-only options. Keep that workflow compatible. A plain
+    # invocation renders all retained seq1-35 coordinates without exporting a
+    # fitted path; the prior workshop-only view now requires an explicit flag.
+    legacy_options = {
+        "--route",
+        "--full-35-route",
+        "--mission-config",
+        "--cube-spawn-script",
+        "--pickup-config",
+        "--route-doc",
+        "--path-output",
+        "--render-only",
+        "--allow-unsafe-render",
+        "--allow-unsafe-path-output",
+        "--smoothing-lambda",
+        "--chord-error",
+        "--min-sample-spacing",
+        "--max-sample-spacing",
+    }
+    use_legacy_fitter = any(
+        argument == option or argument.startswith(option + "=")
+        for argument in sys.argv[1:]
+        for option in legacy_options
+    )
+    workshop_only = "--workshop-goals-only" in sys.argv[1:]
+    if workshop_only:
+        workshop_goals_main()
+    elif use_legacy_fitter:
+        legacy_route_fit_main()
+    else:
+        legacy_route_fit_main(default_full_35=True)
 
 
 if __name__ == "__main__":

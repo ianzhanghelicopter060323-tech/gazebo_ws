@@ -468,6 +468,67 @@ class MissionServerTest(unittest.TestCase):
         )
         self.assertIs(destination_pose, calls[2].args[0])
 
+    def test_direct_delivery_locks_avoidance_and_sends_only_destination(self):
+        server = self._server()
+        server._pipeline_stop_after = "TASK_COMPLETED"
+        server._continue_after_arrival = (
+            MissionServer._continue_after_arrival.__get__(server)
+        )
+        destination_pose = PoseStamped()
+        preparation_pose = PoseStamped()
+        server._goal_provider.get_delivery_destination.return_value = (
+            DeliveryDestination(
+                "daily workshop",
+                destination_pose,
+                preparation_pose,
+                entry_position_tolerance=0.04,
+                entry_yaw_tolerance=math.radians(10.0),
+                position_tolerance=0.04,
+                yaw_tolerance=math.radians(5.0),
+            )
+        )
+        server._delivery_entry_selector.resolve.side_effect = None
+        server._delivery_entry_selector.resolve.return_value = preparation_pose
+        server._delivery_entry_selector.channel_enabled = False
+        server._navigation.navigate_pose.return_value = NavigationResult(
+            True,
+            navigation_error_codes.SUCCESS,
+            "requested pose reached",
+            completed_waypoints=1,
+        )
+
+        def grasp(**kwargs):
+            kwargs["state_machine"].transition(
+                states.OBJECT_GRASPED, "target grasped"
+            )
+            return 35
+
+        server._pickup_pipeline.run.side_effect = grasp
+        context = TaskContext("direct-delivery-test", 1)
+        state_machine = MissionStateMachine(context, server._publish_state)
+
+        with mock.patch(
+            "smart_factory_mission.mission_server.rospy.Time.now",
+            return_value=rospy.Time(42, 0),
+        ):
+            server._continue_after_arrival(
+                context, state_machine, "arrived at pickup staging area"
+            )
+
+        calls = server._navigation.navigate_pose.call_args_list
+        self.assertEqual(2, len(calls))
+        self.assertIs(preparation_pose, calls[0].args[0])
+        self.assertIs(destination_pose, calls[1].args[0])
+        (
+            server._delivery_entry_selector.resolve_channel_waypoint
+            .assert_not_called()
+        )
+        self.assertEqual(
+            [mock.call(True), mock.call(False)],
+            server._delivery_entry_selector
+            .set_channel_avoidance_lock.call_args_list,
+        )
+
     def test_laser_channel_waypoint_is_inserted_before_destination(self):
         server = self._server()
         server._pipeline_stop_after = "TASK_COMPLETED"
@@ -687,6 +748,7 @@ class MissionServerTest(unittest.TestCase):
         selector.channel_waypoint_yaw_tolerance = math.pi
         selector.channel_handoff_position_tolerance = 0.15
         selector.channel_handoff_yaw_tolerance = math.pi
+        selector.channel_first_waypoint_rollback = False
         selector.resolve_channel_waypoint.side_effect = [
             timed_out_pose,
             alternate_pose,

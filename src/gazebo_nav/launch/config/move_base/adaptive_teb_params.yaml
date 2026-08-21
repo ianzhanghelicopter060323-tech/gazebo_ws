@@ -69,7 +69,7 @@ AdaptiveTebLocalPlannerROS:
     is_footprint_dynamic: false
     footprint_model: # footprint配置
       type: polygon
-      vertices: [[0.08, -0.08], [0.08, 0.08], [-0.08, 0.08], [-0.08, -0.08]] # 0.16m方形碰撞外形
+      vertices: [[0.08, -0.08], [0.08, 0.0], [-0.08, 0.08], [-0.08, -0.08]] # 0.16m方形碰撞外形
       # vertices: [[0.15, -0.15], [0.15, 0.15], [-0.15, 0.15], [-0.15, -0.15]]
 
     xy_goal_tolerance: 0.04 # 目标位置允许误差，单位m
@@ -167,12 +167,13 @@ AdaptiveTebLocalPlannerROS:
     footprint_model: # footprint改小以改善锥桶区窄口通过性(实验迭代1)
       type: polygon
       # 实验：验证减小footprint是否改善通过性。半边长0.15m(0.30m方形)在
-      # 最近40轮7个失败场景全部卡死(净距0.16~0.25m窄口)。此迭代缩小到
-      # 0.12m(0.24m方形)，仍大于local_costmap真实车体0.08m半边长。
+      # 最近40轮7个失败场景全部卡死(净距0.16~0.25m窄口)。当前保持横向
+      # y半宽0.11m，只将车体前后方向x半长设为0.12m，形成0.24m×0.22m矩形，
+      # 两个方向仍均大于local_costmap真实车体0.08m半边长。
       # 实验标签必须使用avoidfp_0p12。
       # 若仍卡死可继续缩至0.10(avoidfp_0p10)或0.08(真实车体下限avoidfp_0p08)。
       # 原0.30m: [[0.15,-0.15],[0.15,0.15],[-0.15,0.15],[-0.15,-0.15]]
-      vertices: [[0.12, -0.12], [0.12, 0.12], [-0.12, 0.12], [-0.12, -0.12]] # 0.24m方形外形
+      vertices: [[0.13, -0.17], [0.13, 0.17], [-0.13, 0.17], [-0.13, -0.17]] # 长0.24m×宽0.22m
 
     xy_goal_tolerance: 0.10 # 目标位置允许误差
     yaw_goal_tolerance: 0.12 # 锥桶区可以保持较大的方向tolerance
@@ -194,7 +195,7 @@ AdaptiveTebLocalPlannerROS:
     exact_arc_length: true
 
     # 原0.10m硬净距配合0.30m方形(净距需求~0.25m)在窄口卡死；footprint缩小
-    # 到0.12后净距需求~0.20m，对应selector hard_min_clearance 0.20m下限，
+    # x半长到0.12、y半宽到0.11后净距需求~0.20m，对应selector hard_min_clearance 0.20m下限，
     # 硬净距相应降到0.08m。实验迭代1。
     min_obstacle_dist: 0.08 # footprint外缘的最小硬净距
     inflation_dist: 0.16 # 软避障区保持已验证值，避免过远绕行和控制耗时

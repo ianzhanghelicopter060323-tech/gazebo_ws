@@ -1,0 +1,19 @@
+{
+  "round": 11,
+  "task_id": "pre_nav_011_1787339884",
+  "world_name": "default",
+  "state_topic": "/sim_task/state",
+  "start_condition": {
+    "type": "immediate"
+  },
+  "status": "complete",
+  "recording_file": "gazebo_world_state.log",
+  "encoding": "zlib",
+  "trigger_progress_m": null,
+  "started_at": "2026-08-22T03:18:28.455+08:00",
+  "started_sim_time": null,
+  "stopped_at": "2026-08-22T03:18:48.865+08:00",
+  "size_bytes": 857063,
+  "error": "",
+  "trigger_task_state": null
+}

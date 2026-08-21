@@ -3,7 +3,7 @@
 # rendered diagram are intentionally left untouched.
 #
 # Hand-trimmed 2026-08-19 (compliance waypoint reduction, fifth pass):
-# execution waypoints are exactly the thirteen active route anchors
+# execution waypoints are the thirteen active route anchors
 # 6/9/10/16/17/18/20/21/22/29/33/34/35, and the dense reference
 # points/anchors are trimmed to the seq6..seq35 section with s rebased to 0.
 # Keep navigation.yaml fitted_waypoints/count and required_sequences in sync;
@@ -108,7 +108,7 @@ fitted_path:
   - seq: 22
     s: 4.498499946152
     x: 0.7525417423248291
-    y: -0.995
+    y: -1.03
   - seq: 29
     s: 5.483232914637
     x: 0.1070808009325593
@@ -317,42 +317,42 @@ fitted_path:
     source_seq_end: 22
   - s: 3.162312977692
     x: 2.088810367412606
-    y: -0.995
+    y: -1.03
     yaw: 3.141592653589793
     curvature: -0.0
     source_seq_start: 21
     source_seq_end: 22
   - s: 3.462312977692
     x: 1.788810367412605
-    y: -0.995
+    y: -1.03
     yaw: 3.141592653589793
     curvature: -0.0
     source_seq_start: 21
     source_seq_end: 22
   - s: 3.762312977692
     x: 1.4888103674126052
-    y: -0.995
+    y: -1.03
     yaw: 3.141592653589793
     curvature: -0.0
     source_seq_start: 21
     source_seq_end: 22
   - s: 4.062312977692
     x: 1.1888103674126054
-    y: -0.995
+    y: -1.03
     yaw: 3.141592653589793
     curvature: -0.0
     source_seq_start: 21
     source_seq_end: 22
   - s: 4.362312977692
     x: 0.8888103674126056
-    y: -0.995
+    y: -1.03
     yaw: 3.141592653589793
     curvature: -0.0
     source_seq_start: 21
     source_seq_end: 22
   - s: 4.498499946152
     x: 0.7525417423248291
-    y: -0.995
+    y: -1.03
     yaw: 2.004144408606836
     curvature: -2.1286123909289256
     source_seq_start: 22
@@ -600,7 +600,7 @@ fitted_path:
     source_seq: 21
   - s: 4.498499946152
     x: 0.7525417423248291
-    y: -0.995
+    y: -1.03
     yaw: 2.004144408606836
     curvature: -2.1286123909289256
     source_seq_start: 22

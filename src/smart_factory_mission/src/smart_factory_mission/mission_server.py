@@ -603,17 +603,40 @@ class MissionServer:
                     self._delivery_entry_selector.set_channel_avoidance_lock(
                         False
                     )
-            self._navigate_pose(
-                context,
-                state_machine,
-                destination.pose,
-                states.NAVIGATE_TO_DELIVERY,
-                "entry heading reached; navigating through cone zone to {}".format(
-                    destination.name
-                ),
-                position_tolerance=destination.position_tolerance,
-                yaw_tolerance=destination.yaw_tolerance,
-            )
+                self._navigate_pose(
+                    context,
+                    state_machine,
+                    destination.pose,
+                    states.NAVIGATE_TO_DELIVERY,
+                    "entry heading reached; navigating through cone zone to {}".format(
+                        destination.name
+                    ),
+                    position_tolerance=destination.position_tolerance,
+                    yaw_tolerance=destination.yaw_tolerance,
+                )
+            else:
+                # With dynamic channel selection disabled, publish exactly one
+                # destination goal from preparation pose 2. GlobalPlanner owns
+                # the complete cone-zone path and avoidance HCP-TEB owns local
+                # planning for the entire action.
+                self._delivery_entry_selector.set_channel_avoidance_lock(True)
+                try:
+                    self._navigate_pose(
+                        context,
+                        state_machine,
+                        destination.pose,
+                        states.NAVIGATE_TO_DELIVERY,
+                        "navigating directly from preparation pose through "
+                        "cone zone to {} with avoidance local planning".format(
+                            destination.name
+                        ),
+                        position_tolerance=destination.position_tolerance,
+                        yaw_tolerance=destination.yaw_tolerance,
+                    )
+                finally:
+                    self._delivery_entry_selector.set_channel_avoidance_lock(
+                        False
+                    )
             state_machine.transition(
                 states.ARRIVED_DELIVERY,
                 "move_base reached {}".format(destination.name),

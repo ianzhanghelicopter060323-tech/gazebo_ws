@@ -1,0 +1,93 @@
+{
+  "metadata": {
+    "created_at": "2026-08-22T03:43:55+08:00",
+    "run_name": "pre_navigation_trials_20260822_034355_ros1132",
+    "rounds": 1,
+    "headless": false,
+    "ros_master_uri": "http://127.0.0.1:1132",
+    "gazebo_master_uri": "http://127.0.0.1:1133",
+    "route_config": "/home/ianzhang/gazebo_ws/src/smart_factory_mission/config/pickup_staging_dev.yaml",
+    "fitted_path_config": "/home/ianzhang/gazebo_ws/src/smart_factory_navigation/config/pickup_staging_fitted_path.yaml",
+    "navigation_config": "/home/ianzhang/gazebo_ws/src/smart_factory_navigation/config/navigation.yaml",
+    "route": {
+      "frame_id": "map",
+      "source_waypoint_count": 13,
+      "execution_sequences": [
+        6,
+        9,
+        10,
+        16,
+        17,
+        18,
+        20,
+        21,
+        22,
+        29,
+        33,
+        34,
+        35
+      ],
+      "orientation_required_sequences": [
+        17,
+        18,
+        21
+      ],
+      "orientation_position_tolerance_overrides_m": {
+        "21": 0.08
+      },
+      "seq35_pose": {
+        "x": -1.26,
+        "y": -0.525,
+        "yaw": 7.722691751649312e-05
+      },
+      "formal_final_pass_radius_m": 0.15
+    },
+    "seq35_position_tolerance_m": 0.15,
+    "yaw_alignment_required": false,
+    "recording_root": "/home/ianzhang/gazebo_ws/data/pre_navigation_test",
+    "recording_run_dir": "/home/ianzhang/gazebo_ws/data/pre_navigation_test/pre_navigation_trials_20260822_034355_ros1132",
+    "recording_start": "immediately before navigation client",
+    "baseline_lock_service": "/move_base/AdaptiveTebLocalPlannerROS/set_baseline_lock"
+  },
+  "summary": {
+    "requested_rounds": 1,
+    "completed_rounds": 1,
+    "navigation_successes": 1,
+    "navigation_failures": 0,
+    "success_rate": 1.0,
+    "position_tolerance_acceptances": 0,
+    "gazebo_recording_complete_rounds": 1,
+    "infrastructure_errors": 0
+  },
+  "trials": [
+    {
+      "round": 1,
+      "task_id": "pre_nav_001_1787341435",
+      "success": true,
+      "status": "navigation_completed",
+      "error_code": 0,
+      "server_error_code": 0,
+      "message": "all 13 waypoints reached; arrived at pickup staging area",
+      "acceptance_mode": "move_base_succeeded",
+      "yaw_alignment_required": false,
+      "completed_waypoints": 13,
+      "waypoint_count": 13,
+      "final_position_error_m": 0.0017599406227615964,
+      "final_position_tolerance_m": 0.15,
+      "final_yaw_error_rad": 0.057962733720084016,
+      "final_x": -1.258243056748749,
+      "final_y": -0.5248973286430881,
+      "final_yaw": -0.05788550680256752,
+      "gazebo_recording_status": "complete",
+      "gazebo_recording_path": "/home/ianzhang/gazebo_ws/data/pre_navigation_test/pre_navigation_trials_20260822_034355_ros1132/round_001/gazebo_world_state.log",
+      "gazebo_recording_size_bytes": 1742457,
+      "gazebo_recording_manifest": "/home/ianzhang/gazebo_ws/data/pre_navigation_test/pre_navigation_trials_20260822_034355_ros1132/round_001/gazebo_world_recording.json",
+      "ros_master_port": 1132,
+      "gazebo_master_port": 1133,
+      "duration_seconds": 69.909,
+      "started_at": "2026-08-22T03:43:55+08:00",
+      "round_dir": "/tmp/pre_navigation_gui_probe_fixed/round_001",
+      "log_file": "/tmp/pre_navigation_gui_probe_fixed/round_001/roslaunch.log"
+    }
+  ]
+}

@@ -285,6 +285,72 @@ class RouteExecutorTest(unittest.TestCase):
         )
         self.assertEqual({1}, executor._orientation_required_waypoint_indices)
 
+    def test_success_required_waypoint_does_not_use_intermediate_radius(self):
+        executor, navigation, *_ = self._executor(
+            [
+                (NavigationOutcome.PASSED, "seq1 passed"),
+                (NavigationOutcome.SUCCEEDED, "seq17 reached"),
+                (NavigationOutcome.SUCCEEDED, "final reached"),
+            ],
+            {
+                "~navigation/intermediate_pass_radius": 0.15,
+                "~navigation/fitted_waypoints/"
+                "orientation_required_sequences": [17],
+                "~navigation/fitted_waypoints/"
+                "move_base_success_required_sequences": [17],
+            },
+        )
+        executor._publish_fitted_reference_path = mock.Mock()
+        final_goal = self._pose(2.0, 3.0, yaw=0.4)
+        context = self._context([final_goal])
+
+        with mock.patch(
+            "smart_factory_navigation.route_executor.rospy.Time.now",
+            return_value=rospy.Time(1.0),
+        ):
+            executor.execute_staging_route(context, self._state(context))
+
+        self.assertIsNotNone(navigation.navigate_calls[0].pass_condition)
+        self.assertIsNone(navigation.navigate_calls[1].pass_condition)
+        self.assertEqual({1}, executor._orientation_required_waypoint_indices)
+        self.assertEqual(
+            {1}, executor._move_base_success_required_waypoint_indices
+        )
+
+    def test_orientation_waypoint_can_override_position_tolerance(self):
+        executor, navigation, *_ = self._executor(
+            [
+                (NavigationOutcome.PASSED, "seq1 passed"),
+                (NavigationOutcome.PASSED, "seq17 aligned"),
+                (NavigationOutcome.SUCCEEDED, "final reached"),
+            ],
+            {
+                "~navigation/intermediate_pass_radius": 0.15,
+                "~navigation/fitted_waypoints/"
+                "orientation_required_sequences": [17],
+                "~navigation/fitted_waypoints/"
+                "orientation_position_tolerance_overrides": {17: 0.10},
+                "~navigation/fitted_waypoints/"
+                "orientation_yaw_tolerance": 0.15,
+            },
+        )
+        executor._publish_fitted_reference_path = mock.Mock()
+        executor._pose_is_within_tolerances = mock.Mock(return_value=True)
+        final_goal = self._pose(2.0, 3.0, yaw=0.4)
+        context = self._context([final_goal])
+
+        with mock.patch(
+            "smart_factory_navigation.route_executor.rospy.Time.now",
+            return_value=rospy.Time(1.0),
+        ):
+            executor.execute_staging_route(context, self._state(context))
+
+        self.assertTrue(navigation.navigate_calls[1].pass_condition())
+        executor._pose_is_within_tolerances.assert_called_once_with(
+            navigation.navigate_calls[1].pose, 0.10, 0.15
+        )
+        self.assertEqual({1: 0.10}, executor._orientation_position_tolerances)
+
     def test_negative_final_pass_radius_is_rejected(self):
         with self.assertRaisesRegex(
             ValueError, "navigation/final_pass_radius must not be negative"

@@ -252,6 +252,108 @@ class RouteExecutor:
                 matching_indices[0]
             )
 
+        raw_orientation_position_tolerances = rospy.get_param(
+            "~navigation/fitted_waypoints/"
+            "orientation_position_tolerance_overrides",
+            {},
+        )
+        if not isinstance(raw_orientation_position_tolerances, dict):
+            raise ValueError(
+                "navigation/fitted_waypoints/"
+                "orientation_position_tolerance_overrides must be a mapping"
+            )
+        self._orientation_position_tolerances = {}
+        for raw_sequence, raw_tolerance in (
+            raw_orientation_position_tolerances.items()
+        ):
+            try:
+                sequence = int(raw_sequence)
+                tolerance = float(raw_tolerance)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    "orientation position tolerance overrides must map "
+                    "positive sequence IDs to positive finite tolerances"
+                )
+            if (
+                isinstance(raw_sequence, bool)
+                or sequence <= 0
+                or str(raw_sequence) not in (str(sequence), sequence)
+                or not math.isfinite(tolerance)
+                or tolerance <= 0.0
+            ):
+                raise ValueError(
+                    "orientation position tolerance overrides must map "
+                    "positive sequence IDs to positive finite tolerances"
+                )
+            if sequence not in orientation_required_sequences:
+                raise ValueError(
+                    "orientation position tolerance override seq {} must "
+                    "also be orientation-required".format(sequence)
+                )
+            matching_indices = [
+                index
+                for index, source_sequence in enumerate(source_sequences)
+                if source_sequence == sequence
+            ]
+            if len(matching_indices) != 1:
+                raise ValueError(
+                    "orientation position tolerance override seq {} must "
+                    "identify exactly one fitted execution waypoint".format(
+                        sequence
+                    )
+                )
+            self._orientation_position_tolerances[
+                matching_indices[0]
+            ] = tolerance
+
+        success_required_sequences = rospy.get_param(
+            "~navigation/fitted_waypoints/"
+            "move_base_success_required_sequences",
+            [],
+        )
+        if not isinstance(success_required_sequences, list) or any(
+            isinstance(sequence, bool)
+            or not isinstance(sequence, int)
+            or sequence <= 0
+            for sequence in success_required_sequences
+        ):
+            raise ValueError(
+                "navigation/fitted_waypoints/"
+                "move_base_success_required_sequences must contain positive "
+                "integers"
+            )
+        if len(set(success_required_sequences)) != len(
+            success_required_sequences
+        ):
+            raise ValueError(
+                "navigation/fitted_waypoints/"
+                "move_base_success_required_sequences must not contain "
+                "duplicates"
+            )
+        if not set(success_required_sequences).issubset(
+            set(orientation_required_sequences)
+        ):
+            raise ValueError(
+                "move_base-success-required sequences must also be "
+                "orientation-required"
+            )
+        self._move_base_success_required_waypoint_indices = set()
+        for sequence in success_required_sequences:
+            matching_indices = [
+                index
+                for index, source_sequence in enumerate(source_sequences)
+                if source_sequence == sequence
+            ]
+            if len(matching_indices) != 1:
+                raise ValueError(
+                    "move_base-success-required seq {} must identify exactly "
+                    "one fitted execution waypoint; regenerate the fitted "
+                    "path".format(sequence)
+                )
+            self._move_base_success_required_waypoint_indices.add(
+                matching_indices[0]
+            )
+
         self._base_alignment = BaseAlignmentController(
             localization=self._localization,
             publish_state=self._publish_state,
@@ -642,6 +744,7 @@ class RouteExecutor:
         rospy.loginfo(
             "task=%s executing %d fitted waypoints sequentially with %.2fm "
             "intermediate radius, orientation-required indices=%s at %.3frad, "
+            "move_base-success-required indices=%s, "
             "and %.2fm/%.3frad final tolerances",
             context.task_id,
             len(execution_goals),
@@ -651,6 +754,10 @@ class RouteExecutor:
                 for index in self._orientation_required_waypoint_indices
             ),
             self._orientation_yaw_tolerance,
+            sorted(
+                index + 1
+                for index in self._move_base_success_required_waypoint_indices
+            ),
             self._final_pass_radius,
             self._final_yaw_tolerance,
         )
@@ -668,6 +775,15 @@ class RouteExecutor:
             orientation_required = (
                 waypoint_index in self._orientation_required_waypoint_indices
             )
+            orientation_position_tolerance = (
+                self._orientation_position_tolerances.get(
+                    waypoint_index, self._intermediate_pass_radius
+                )
+            )
+            move_base_success_required = (
+                waypoint_index
+                in self._move_base_success_required_waypoint_indices
+            )
             recovery_attempts = 0
             while context.retry_count <= self._max_retries:
                 state_machine.transition(
@@ -682,11 +798,17 @@ class RouteExecutor:
                         lambda waypoint=waypoint:
                         self.final_waypoint_is_passed(waypoint)
                     )
+                elif move_base_success_required:
+                    # Keep the goal active until move_base confirms its own XY
+                    # and yaw tolerances.
+                    pass_condition = None
                 elif orientation_required:
                     pass_condition = (
-                        lambda waypoint=waypoint: self._pose_is_within_tolerances(
+                        lambda waypoint=waypoint,
+                        position_tolerance=orientation_position_tolerance:
+                        self._pose_is_within_tolerances(
                             waypoint,
-                            self._intermediate_pass_radius,
+                            position_tolerance,
                             self._orientation_yaw_tolerance,
                         )
                     )
@@ -741,7 +863,7 @@ class RouteExecutor:
                             "position and heading aligned within {:.2f} m and "
                             "{:.3f} rad"
                         ).format(
-                            self._intermediate_pass_radius,
+                            orientation_position_tolerance,
                             self._orientation_yaw_tolerance,
                         )
                     else:

@@ -1,6 +1,6 @@
-# Two sequential native move_base goals: the temporary shared "准备位姿2"
-# alignment pose, then one task-selected workshop destination. No path fitting
-# is used. Source: docs/锥桶区导航纪要.md (2026-08-10).
+# Two sequential native move_base goals: the fixed shared "准备位姿2" alignment
+# pose, then one task-selected workshop destination. GlobalPlanner owns the
+# complete path between them; avoidance HCP-TEB owns cone-zone local planning.
 delivery:
   configured: true
   frame_id: map
@@ -12,11 +12,13 @@ delivery:
     # preparation pose primarily prevents a dangerous scrape against the baffle.
     position_tolerance: 0.04
     yaw_tolerance_deg: 10.0
-  # Project the nominal preparation pose using only fresh /scan obstacle
-  # surfaces. The selected point remains an ordinary intermediate move_base
-  # goal; the official GlobalPlanner still owns the complete global path.
+  # Entry/channel selection remains available for later experiments, but both
+  # dynamic selectors are bypassed by the switches below for the current run.
   entry_selector:
     enabled: true
+    # Temporarily bypass laser projection of preparation pose 2. Keeping the
+    # selector component enabled preserves the baseline/avoidance lock services.
+    entry_selection_enabled: false
     scan_topic: /scan
     scan_timeout: 0.25
     scan_wait_timeout: 2.0
@@ -36,10 +38,10 @@ delivery:
     influence_radius: 0.80
     clearance_weight: 10.0
     shift_weight: 1.0
-    # After the entry heading is reached, keep the route in a laser-observed
-    # wide channel instead of immediately letting the distant workshop goal
-    # pull the official global path back through a narrow cone gap.
-    channel_enabled: true
+    # Temporarily disable rolling intermediate goals. From preparation pose 2,
+    # mission sends only the selected workshop goal; GlobalPlanner therefore
+    # produces one complete cone-zone path without mission-layer reselection.
+    channel_enabled: false
     # Source rounds 012 and 009 showed that a fixed two/three-goal chain can
     # still leave a narrow final convergence segment. Every additional check
     # is conditional: once the official path is wide, no goal is published.
@@ -92,8 +94,9 @@ delivery:
     channel_max_escapes: 3
     channel_make_plan_service: /move_base/make_plan
     channel_make_plan_wait_timeout: 1.0
-    # Lock the large-footprint multi-topology TEB only across rolling goals;
-    # release it before the precise workshop goal so baseline can converge.
+    # Lock the large-footprint multi-topology TEB across cone-zone delivery.
+    # In direct-goal mode the lock remains active for the complete move_base
+    # action from preparation pose 2 to the selected workshop.
     channel_avoidance_lock_service: /move_base/AdaptiveTebLocalPlannerROS/set_avoidance_lock
     channel_avoidance_lock_wait_timeout: 1.0
     # Before preparation pose 2, walls must not promote the large-footprint
@@ -166,20 +169,20 @@ delivery:
     - target_class: 0
       name: food workshop
       x: 1.045097827911377
-      y: -2.903428497314453
+      y: -3.03
       yaw: -1.5963127613067627
       position_tolerance: 0.04
       yaw_tolerance_deg: 5.0
     - target_class: 1
       name: daily workshop
       x: 0.9615546464920044
-      y: -1.5715368270874023
+      y: -1.4715368270874023
       yaw: 1.5825541019439697
       position_tolerance: 0.04
       yaw_tolerance_deg: 5.0
     - target_class: 2
       name: electronics workshop
-      x: 2.4891703128814697
+      x: 2.56
       y: -2.1998729705810547
       yaw: 0.0027615150902420282
       position_tolerance: 0.04

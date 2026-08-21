@@ -180,17 +180,92 @@ def finite_float(value, label):
     return result
 
 
-def validate_route_pair(route_path, fitted_path):
+def validate_route_pair(route_path, fitted_path, navigation_path):
     try:
         route_payload = yaml.safe_load(route_path.read_text(encoding="utf-8"))
         fitted_payload = yaml.safe_load(fitted_path.read_text(encoding="utf-8"))
+        navigation_payload = yaml.safe_load(
+            navigation_path.read_text(encoding="utf-8")
+        )
         route = route_payload["pickup_staging"]
         waypoints = route["waypoints"]
-        final_goal = fitted_payload["fitted_path"]["final_goal"]
+        fitted = fitted_payload["fitted_path"]
+        final_goal = fitted["final_goal"]
+        active_sequences = fitted["active_sequences"]
+        execution_waypoints = fitted["execution_waypoints"]
+        navigation = navigation_payload["navigation"]
+        fitted_settings = navigation["fitted_waypoints"]
     except (OSError, KeyError, TypeError, yaml.YAMLError) as exc:
         raise AutomationError("cannot load route/fitted path configuration: {}".format(exc))
     if not isinstance(waypoints, list) or len(waypoints) < 2:
         raise AutomationError("pickup route must contain at least two waypoints")
+    execution_sequences = [
+        waypoint.get("source_seq") for waypoint in execution_waypoints
+    ]
+    configured_count = fitted_settings.get("count")
+    required_sequences = fitted_settings.get("required_sequences")
+    orientation_sequences = fitted_settings.get(
+        "orientation_required_sequences", []
+    )
+    position_overrides = fitted_settings.get(
+        "orientation_position_tolerance_overrides", {}
+    )
+    if not (
+        isinstance(active_sequences, list)
+        and isinstance(execution_waypoints, list)
+        and isinstance(configured_count, int)
+        and not isinstance(configured_count, bool)
+        and isinstance(required_sequences, list)
+        and isinstance(orientation_sequences, list)
+        and isinstance(position_overrides, dict)
+    ):
+        raise AutomationError("invalid fitted waypoint execution policy")
+    if not (
+        len(waypoints)
+        == len(active_sequences)
+        == len(execution_waypoints)
+        == configured_count
+    ):
+        raise AutomationError(
+            "route, fitted path, and navigation waypoint counts disagree"
+        )
+    if execution_sequences != active_sequences:
+        raise AutomationError(
+            "fitted execution sequence does not match active route sequences"
+        )
+    if required_sequences + [active_sequences[-1]] != active_sequences:
+        raise AutomationError(
+            "navigation required sequences do not match the active route"
+        )
+    if not set(orientation_sequences).issubset(set(active_sequences)):
+        raise AutomationError(
+            "orientation-required sequence is not an active route point"
+        )
+    normalized_overrides = {}
+    for raw_sequence, raw_tolerance in position_overrides.items():
+        if not isinstance(raw_sequence, str):
+            raise AutomationError(
+                "orientation position tolerance override keys must be quoted "
+                "strings for ROS1 rosparam (for example, \"21\")"
+            )
+        try:
+            sequence = int(raw_sequence)
+        except (TypeError, ValueError) as exc:
+            raise AutomationError(
+                "orientation position tolerance override key must be a "
+                "sequence ID"
+            ) from exc
+        tolerance = finite_float(
+            raw_tolerance,
+            "orientation position tolerance override seq {}".format(sequence),
+        )
+        if sequence not in orientation_sequences or tolerance <= 0.0:
+            raise AutomationError(
+                "invalid orientation position tolerance override for seq {}".format(
+                    sequence
+                )
+            )
+        normalized_overrides[sequence] = tolerance
     final = waypoints[-1]
     final_values = tuple(
         finite_float(final.get(key), "route final {}".format(key))
@@ -216,6 +291,9 @@ def validate_route_pair(route_path, fitted_path):
     return {
         "frame_id": str(route.get("frame_id", "map")),
         "source_waypoint_count": len(waypoints),
+        "execution_sequences": execution_sequences,
+        "orientation_required_sequences": orientation_sequences,
+        "orientation_position_tolerance_overrides_m": normalized_overrides,
         "seq35_pose": {
             "x": final_values[0],
             "y": final_values[1],
@@ -290,7 +368,7 @@ def validate_args(args):
                 "--seq35-position-tolerance must be positive"
             )
     route_metadata = validate_route_pair(
-        args.route_config, args.fitted_path_config
+        args.route_config, args.fitted_path_config, args.navigation_config
     )
     route_metadata["formal_final_pass_radius_m"] = formal_final_pass_radius
     return route_metadata
@@ -695,6 +773,23 @@ def main(argv=None):
             print("route_config={}".format(args.route_config))
             print("fitted_path_config={}".format(args.fitted_path_config))
             print("navigation_config={}".format(args.navigation_config))
+            print(
+                "execution_sequences={}".format(
+                    route_metadata["execution_sequences"]
+                )
+            )
+            print(
+                "orientation_required_sequences={}".format(
+                    route_metadata["orientation_required_sequences"]
+                )
+            )
+            print(
+                "orientation_position_tolerance_overrides_m={}".format(
+                    route_metadata[
+                        "orientation_position_tolerance_overrides_m"
+                    ]
+                )
+            )
             print("recording_root={}".format(args.recording_root.expanduser().resolve()))
             return 0
 

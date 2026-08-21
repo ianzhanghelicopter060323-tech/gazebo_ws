@@ -1013,6 +1013,9 @@ class RosDeliveryEntrySelector:
     def __init__(self, raw_config=None, tf_buffer=None):
         raw = dict(raw_config or {})
         self.enabled = bool(raw.get("enabled", True))
+        self.entry_selection_enabled = bool(
+            raw.get("entry_selection_enabled", True)
+        )
         self.scan_topic = str(raw.get("scan_topic", "/scan"))
         self.scan_timeout = float(raw.get("scan_timeout", 0.25))
         self.scan_wait_timeout = float(raw.get("scan_wait_timeout", 2.0))
@@ -1215,19 +1218,22 @@ class RosDeliveryEntrySelector:
         self._set_avoidance_lock = None
         self._set_baseline_lock = None
         if self.enabled:
-            self._subscriber = rospy.Subscriber(
-                self.scan_topic,
-                LaserScan,
-                self._scan_callback,
-                queue_size=1,
-            )
+            if self.entry_selection_enabled or self.channel_enabled:
+                self._subscriber = rospy.Subscriber(
+                    self.scan_topic,
+                    LaserScan,
+                    self._scan_callback,
+                    queue_size=1,
+                )
             if self.channel_enabled:
                 self._make_plan = rospy.ServiceProxy(
                     self.channel_make_plan_service, GetPlan
                 )
-                self._set_avoidance_lock = rospy.ServiceProxy(
-                    self.channel_avoidance_lock_service, SetBool
-                )
+            # The avoidance lock is also used by direct-goal delivery when the
+            # rolling channel selector is disabled.
+            self._set_avoidance_lock = rospy.ServiceProxy(
+                self.channel_avoidance_lock_service, SetBool
+            )
             self._set_baseline_lock = rospy.ServiceProxy(
                 self.preparation_baseline_lock_service, SetBool
             )
@@ -1562,7 +1568,7 @@ class RosDeliveryEntrySelector:
         )
 
     def resolve(self, nominal_pose, preempt_requested=None):
-        if not self.enabled:
+        if not self.enabled or not self.entry_selection_enabled:
             return nominal_pose
         # A new delivery entry starts a new rolling-channel decision sequence.
         self._last_channel_selection = None
@@ -1937,8 +1943,8 @@ class RosDeliveryEntrySelector:
         )
 
     def set_channel_avoidance_lock(self, enabled):
-        """Pin the conservative TEB only while rolling goals are active."""
-        if not self.enabled or not self.channel_enabled:
+        """Pin the conservative TEB for cone-zone delivery navigation."""
+        if not self.enabled:
             return
         try:
             rospy.wait_for_service(
@@ -1997,4 +2003,4 @@ class RosDeliveryEntrySelector:
     @property
     def requires_approach(self):
         """Whether the mission should enter laser visibility before resolve."""
-        return self.enabled
+        return self.enabled and self.entry_selection_enabled
