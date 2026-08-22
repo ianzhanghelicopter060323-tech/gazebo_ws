@@ -33,7 +33,7 @@ class PreNavigationTrialConfigurationTest(unittest.TestCase):
             metadata["orientation_required_sequences"], [17, 18, 21]
         )
         self.assertEqual(
-            metadata["orientation_position_tolerance_overrides_m"], {21: 0.10}
+            metadata["orientation_position_tolerance_overrides_m"], {21: 0.08}
         )
 
     def test_master_environment_is_scoped_by_explicit_ports(self):

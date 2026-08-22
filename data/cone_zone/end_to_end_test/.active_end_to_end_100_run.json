@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "created_at": "2026-08-22T04:39:45+08:00",
+  "created_at": "2026-08-22T16:02:46+08:00",
   "rounds": 100,
-  "seed": 133213705765663932,
-  "gui": false,
-  "log_name": "end_to_end_cone_trials_20260822_043945",
-  "recording_name": "end_to_end_cone_trials_20260822_043945_seed133213705765663932",
+  "seed": 5559192371148458023,
+  "gui": true,
+  "log_name": "end_to_end_cone_trials_20260822_160246",
+  "recording_name": "end_to_end_cone_trials_20260822_160246_seed5559192371148458023",
   "recording_root": "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_test",
   "status": "running"
 }

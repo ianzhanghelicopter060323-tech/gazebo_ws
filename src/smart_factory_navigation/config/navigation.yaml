@@ -33,7 +33,7 @@ navigation:
     orientation_required_sequences: [17, 18, 21]
     orientation_yaw_tolerance: 0.15
     orientation_position_tolerance_overrides:
-      "21": 0.10
+      "21": 0.08
     # Offline-only geometry constraints used by the path/PNG generator.
     direct_segments:
       - [21, 22]

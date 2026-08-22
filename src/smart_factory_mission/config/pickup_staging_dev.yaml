@@ -162,7 +162,7 @@ pickup_staging:
       yaw: -3.1115407943725586
     # seq 34
     - x: -1.52
-      y: -0.80
+      y: -0.85
       yaw: 1.6074262857437132
     # seq 345 (logical seq 34.5): guide the natural fit around the left side
     # of the close_navi region before turning toward seq 35.
