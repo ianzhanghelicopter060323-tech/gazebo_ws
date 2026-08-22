@@ -18,14 +18,6 @@ navigation:
   # and seq35 additionally check yaw.
   fitted_waypoints:
     count: 13
-    chord_error: 0.05
-    # The route's tightest bend still needs 0.16 m so every next goal stays
-    # outside the 0.15 m intermediate pass radius.
-    min_spacing: 0.16
-    max_spacing: 0.50
-    # The execution subset equals the active route anchors; seq35 (the route
-    # end) is included automatically as the last fitted waypoint.
-    required_sequences: [6, 9, 10, 16, 17, 18, 20, 21, 22, 29, 33, 34]
     # These fitted-route anchors advance only after both position and heading
     # are correct. Seq17 and seq18 both require position and heading before
     # leaving the narrow outbound corridor. Seq21 must satisfy its tighter
@@ -34,11 +26,6 @@ navigation:
     orientation_yaw_tolerance: 0.15
     orientation_position_tolerance_overrides:
       "21": 0.08
-    # Offline-only geometry constraints used by the path/PNG generator.
-    direct_segments:
-      - [21, 22]
-    fit_y_floor_segments:
-      - [20, 21]
   intermediate_pass_radius: 0.15
   # Canonical global position radius for the final pickup staging goal (seq35).
   # Formal tasks still require final yaw alignment; the position-only bypass is
