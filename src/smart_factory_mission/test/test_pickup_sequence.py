@@ -54,14 +54,18 @@ class PickupSequenceTest(unittest.TestCase):
             state_machine,
             navigate,
             preempt,
+            allow_unclassified_fallback=False,
         ):
             observations.append((station.number, require_classification))
+            outcome = observed_classes[station.number]
+            if isinstance(outcome, BaseException):
+                raise outcome
             return types.SimpleNamespace(
-                detected_class=observed_classes[station.number]
+                detected_class=outcome
             )
 
         self.pipeline._observe = observe
-        with mock.patch("rospy.loginfo"), mock.patch(
+        with mock.patch("rospy.loginfo"), mock.patch("rospy.logwarn"), mock.patch(
             "rospy.Time.now", return_value=rospy.Time()
         ):
             station, _ = self.pipeline._choose_target(
@@ -92,7 +96,39 @@ class PickupSequenceTest(unittest.TestCase):
         self.assertEqual(observations, [(35, True), (36, True)])
         self.assertEqual(navigation, [35.5, 36.0])
 
-    def test_two_mismatches_select_37_without_class_comparison(self):
+    def test_unclassified_35_continues_and_target_at_36_is_selected(self):
+        selected, observations, navigation = self._run(
+            target_class=1,
+            observed_classes={
+                35: PickupFailure(
+                    error_codes.OBJECT_NOT_FOUND, "no stable classified OCR"
+                ),
+                36: 1,
+            },
+        )
+
+        self.assertEqual(selected, 36)
+        self.assertEqual(observations, [(35, True), (36, True)])
+        self.assertEqual(navigation, [35.5, 36.0])
+
+    def test_two_unclassified_candidates_continue_to_classified_37(self):
+        selected, observations, navigation = self._run(
+            target_class=1,
+            observed_classes={
+                35: PickupFailure(error_codes.OBJECT_NOT_FOUND, "no class"),
+                36: PickupFailure(error_codes.OBJECT_NOT_FOUND, "no class"),
+                37: 1,
+            },
+        )
+
+        self.assertEqual(selected, 37)
+        self.assertEqual(
+            observations,
+            [(35, True), (36, True), (37, True)],
+        )
+        self.assertEqual(navigation, [35.5, 36.0, 36.5, 37.0])
+
+    def test_two_mismatches_select_37_after_classification_attempt(self):
         selected, observations, navigation = self._run(
             target_class=1,
             observed_classes={35: 2, 36: 0, 37: 255},
@@ -100,9 +136,19 @@ class PickupSequenceTest(unittest.TestCase):
         self.assertEqual(selected, 37)
         self.assertEqual(
             observations,
-            [(35, True), (36, True), (37, False)],
+            [(35, True), (36, True), (37, True)],
         )
         self.assertEqual(navigation, [35.5, 36.0, 36.5, 37.0])
+
+    def test_non_perception_failure_at_35_is_not_skipped(self):
+        failure = PickupFailure(
+            error_codes.MANIPULATION_FAILED, "camera arm did not move"
+        )
+
+        with self.assertRaises(PickupFailure) as raised:
+            self._run(target_class=1, observed_classes={35: failure})
+
+        self.assertIs(raised.exception, failure)
 
     def test_transition_pose_is_loaded_from_station_configuration(self):
         stations = PickupPipeline._load_stations(
@@ -277,6 +323,55 @@ class PickupObservationPoseTest(unittest.TestCase):
         )
         pipeline._locate.assert_called_once()
         navigate.assert_not_called()
+
+    def test_final_candidate_class_failure_falls_back_to_depth_localization(self):
+        pipeline = PickupPipeline.__new__(PickupPipeline)
+        pipeline._frame_id = "map"
+        pipeline._recognition_retries = 0
+        pipeline._manipulation = mock.Mock()
+        pipeline._manipulation.move_arm.return_value = True
+        rejected = types.SimpleNamespace(
+            success=False,
+            message="no stable classified OCR",
+        )
+        localized = types.SimpleNamespace(
+            success=True,
+            message="stable unclassified RGB-D point",
+            detected_class=255,
+            text="物块",
+            confidence=0.7,
+        )
+        pipeline._locate = mock.Mock(side_effect=[rejected, localized])
+        scan_positions = (0.0, 0.1, 0.55, 2.1, 0.0)
+        station = CandidateStation(
+            37,
+            0.0,
+            0.0,
+            0.0,
+            scan_positions,
+        )
+
+        with mock.patch("rospy.loginfo"), mock.patch("rospy.logwarn"), mock.patch(
+            "rospy.Time.now", return_value=rospy.Time()
+        ):
+            result = pipeline._observe(
+                station,
+                require_classification=True,
+                state_machine=mock.Mock(),
+                navigate=mock.Mock(),
+                preempt=lambda: False,
+                allow_unclassified_fallback=True,
+            )
+
+        self.assertIs(result, localized)
+        pipeline._manipulation.move_arm.assert_called_once_with(
+            scan_positions, mock.ANY
+        )
+        self.assertEqual(pipeline._locate.call_count, 2)
+        classified_request = pipeline._locate.call_args_list[0].args[0]
+        fallback_request = pipeline._locate.call_args_list[1].args[0]
+        self.assertTrue(classified_request.require_classification)
+        self.assertFalse(fallback_request.require_classification)
 
 
 class PickupAlignmentTest(unittest.TestCase):

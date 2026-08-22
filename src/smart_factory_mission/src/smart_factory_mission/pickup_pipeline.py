@@ -18,6 +18,7 @@ STATION_AREA_BOUNDS = {
     36: (-1.56, -1.23, -0.01, 0.17),
     37: (-2.10, -1.92, -0.61, -0.28),
 }
+TASK_CUBE_CLASSES = frozenset((0, 1, 2))
 
 
 class PickupFailure(RuntimeError):
@@ -268,6 +269,7 @@ class PickupPipeline:
         state_machine,
         navigate,
         preempt,
+        allow_unclassified_fallback=False,
     ):
         if preempt():
             raise PickupPreempted("task preempted before cube observation")
@@ -346,6 +348,9 @@ class PickupPipeline:
                                 "recognition_confidence": float(
                                     response.confidence
                                 ),
+                                "classification_required": bool(
+                                    require_classification
+                                ),
                             },
                             ensure_ascii=False,
                             sort_keys=True,
@@ -354,6 +359,71 @@ class PickupPipeline:
                     return response
                 rospy.logwarn(
                     "seq%d %s observation rejected (attempt %d): %s",
+                    station.number,
+                    pose_name,
+                    attempt + 1,
+                    response.message,
+                )
+        if require_classification and allow_unclassified_fallback:
+            # The final candidate is still graspable by elimination when OCR
+            # cannot map its text to FOOD/DAILY/ELECTRONICS. Keep the last arm
+            # and base observation pose, but ask perception for a stable RGB-D
+            # point without requiring a class. Alignment and grasping must never
+            # proceed without this physical localization result.
+            pose_name = observation_poses[-1][0]
+            rospy.logwarn(
+                "seq%d exhausted classified observations; attempting final "
+                "candidate RGB-D localization without a class",
+                station.number,
+            )
+            for attempt in range(self._recognition_retries + 1):
+                if preempt():
+                    raise PickupPreempted(
+                        "task preempted during final candidate localization"
+                    )
+                state_machine.transition(
+                    states.LOCALIZE_TARGET,
+                    "seq{} {} unclassified fallback attempt {}/{}".format(
+                        station.number,
+                        pose_name,
+                        attempt + 1,
+                        self._recognition_retries + 1,
+                    ),
+                )
+                request = LocateCubeRequest()
+                request.station = station.number
+                request.require_classification = False
+                try:
+                    response = self._locate(request)
+                except rospy.ServiceException as exc:
+                    last_message = "perception service failed: {}".format(exc)
+                    continue
+                last_message = response.message
+                if response.success:
+                    rospy.loginfo(
+                        "PICKUP_OBSERVATION_RESULT=%s",
+                        json.dumps(
+                            {
+                                "station": station.number,
+                                "observation_pose": pose_name,
+                                "recognition_attempt": attempt + 1,
+                                "recognized_class_id": int(
+                                    response.detected_class
+                                ),
+                                "recognized_text": str(response.text),
+                                "recognition_confidence": float(
+                                    response.confidence
+                                ),
+                                "classification_required": False,
+                                "selection_fallback": "final_candidate",
+                            },
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        ),
+                    )
+                    return response
+                rospy.logwarn(
+                    "seq%d %s unclassified fallback rejected (attempt %d): %s",
                     station.number,
                     pose_name,
                     attempt + 1,
@@ -368,6 +438,7 @@ class PickupPipeline:
 
     def _choose_target(self, context, state_machine, navigate, preempt):
         for index, station in enumerate(self._stations):
+            final_candidate = index == len(self._stations) - 1
             if index > 0:
                 transition_goal = station.transition_goal(self._frame_id)
                 if transition_goal is not None:
@@ -385,27 +456,62 @@ class PickupPipeline:
                     states.NAVIGATE_TO_PICKUP_CANDIDATE,
                     "navigating conditionally to seq{}".format(station.number),
                 )
-            # Seq37 is selected by elimination.  OCR still supplies a visual
-            # box for depth localization, but its class is not compared.
-            response = self._observe(
-                station,
-                require_classification=(station.number != 37),
-                state_machine=state_machine,
-                navigate=navigate,
-                preempt=preempt,
-            )
-            if station.number == 37 or response.detected_class == context.target_class:
+            # Every station first gets an ordinary classified observation. A
+            # classless result at either of the first two stations advances to
+            # the next candidate instead of aborting the mission. Seq37 remains
+            # the elimination fallback, but it must still provide a stable RGB-D
+            # point before alignment and grasping.
+            try:
+                response = self._observe(
+                    station,
+                    require_classification=True,
+                    state_machine=state_machine,
+                    navigate=navigate,
+                    preempt=preempt,
+                    allow_unclassified_fallback=final_candidate,
+                )
+            except PickupFailure as exc:
+                if (
+                    not final_candidate
+                    and exc.error_code == error_codes.OBJECT_NOT_FOUND
+                ):
+                    rospy.logwarn(
+                        "seq%d did not identify FOOD/DAILY/ELECTRONICS; "
+                        "continuing to the next candidate: %s",
+                        station.number,
+                        exc,
+                    )
+                    continue
+                raise
+
+            detected_class = int(response.detected_class)
+            if detected_class not in TASK_CUBE_CLASSES and not final_candidate:
+                rospy.logwarn(
+                    "seq%d returned unknown class %d; continuing to the next "
+                    "candidate",
+                    station.number,
+                    detected_class,
+                )
+                continue
+
+            if final_candidate or detected_class == context.target_class:
+                selection_reason = (
+                    "final-candidate elimination"
+                    if final_candidate and detected_class != context.target_class
+                    else "class match"
+                )
                 rospy.loginfo(
-                    "selected seq%d for target class %d (observed class %d)",
+                    "selected seq%d for target class %d (observed class %d, %s)",
                     station.number,
                     context.target_class,
-                    response.detected_class,
+                    detected_class,
+                    selection_reason,
                 )
                 return station, response
             rospy.loginfo(
                 "seq%d is stable class %d, not target %d; continuing",
                 station.number,
-                response.detected_class,
+                detected_class,
                 context.target_class,
             )
         raise PickupFailure(error_codes.OBJECT_NOT_FOUND, "target cube was not selected")

@@ -28,8 +28,11 @@ The current milestone implements:
    points advance within a 0.15 m position-only radius.
 6. Accept the final staging pose within a 0.15 m position radius and 0.04 rad
    yaw tolerance, then enter `ARRIVED_PICKUP_STAGING`.
-7. Observe candidates in order 35, 36, 37. A stable non-target result advances
-   from 35 to 36; two stable non-target results select 37 by elimination.
+7. Observe candidates in order 35, 36, 37. A stable non-target result or a
+   class-recognition failure at 35/36 advances to the next candidate. Seq37 is
+   classified normally first; if all of its class attempts fail, acquire a
+   class-optional RGB-D position and select seq37 by elimination. The received
+   task class remains unchanged for delivery-goal selection.
 8. Use synchronized RGB-D observations to place the cube at the fixed arm TCP
    target, leaving a calibrated 0.356 m base-to-cube-center standoff. Small
    corrections use a heading-preserving, low-speed omnidirectional translation

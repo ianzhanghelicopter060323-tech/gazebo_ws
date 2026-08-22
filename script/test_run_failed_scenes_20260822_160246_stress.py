@@ -3,7 +3,10 @@
 from collections import Counter
 import datetime as dt
 from pathlib import Path
+import signal
+import subprocess
 import unittest
+from unittest import mock
 
 import run_failed_scenes_20260822_160246_stress as stress
 import run_fixed_cone_e2e_stress_trials as harness
@@ -62,6 +65,57 @@ class FailedSceneStressTest(unittest.TestCase):
         self.assertEqual(
             value.name,
             "failed_scenes_20260822_160246_stress_20260822_234506",
+        )
+
+    def test_harness_runs_in_its_own_session(self):
+        process = mock.Mock(pid=4321)
+        process.wait.return_value = 0
+        process.poll.return_value = 0
+
+        with mock.patch.object(
+            stress.subprocess, "Popen", return_value=process
+        ) as popen:
+            return_code = stress.run_harness(["fake-harness"])
+
+        self.assertEqual(return_code, 0)
+        popen.assert_called_once_with(
+            ["fake-harness"],
+            cwd=str(stress.WORKSPACE),
+            start_new_session=True,
+        )
+
+    def test_keyboard_interrupt_stops_owned_harness(self):
+        process = mock.Mock(pid=4321)
+        process.wait.side_effect = KeyboardInterrupt
+        process.poll.return_value = None
+
+        with mock.patch.object(
+            stress.subprocess, "Popen", return_value=process
+        ), mock.patch.object(stress, "stop_process_group") as stop:
+            return_code = stress.run_harness(["fake-harness"])
+
+        self.assertEqual(return_code, 130)
+        stop.assert_called_once_with(process)
+
+    def test_stop_process_group_escalates_after_timeouts(self):
+        process = mock.Mock(pid=4321)
+        process.poll.return_value = None
+        process.wait.side_effect = [
+            subprocess.TimeoutExpired("fake-harness", 60.0),
+            subprocess.TimeoutExpired("fake-harness", 10.0),
+            0,
+        ]
+
+        with mock.patch.object(stress.os, "killpg") as killpg:
+            stress.stop_process_group(process)
+
+        self.assertEqual(
+            killpg.call_args_list,
+            [
+                mock.call(4321, signal.SIGINT),
+                mock.call(4321, signal.SIGTERM),
+                mock.call(4321, signal.SIGKILL),
+            ],
         )
 
 

@@ -1,0 +1,366 @@
+{
+  "metadata": {
+    "created_at": "2026-08-22T23:03:42+08:00",
+    "test_type": "fixed cone layout, complete pickup-and-delivery pipeline",
+    "experiment_label": "source160246_failed_scenes_2each",
+    "template_manifest": "/home/ianzhang/gazebo_ws/script/config/fixed_failed_scenes_20260822_160246.json",
+    "template_manifest_sha256": "389391c75a0735dc8af244a9b711345623ca3e6ce5d71a316e47f0b2d0de69ec",
+    "source_rounds": [
+      11,
+      24,
+      37,
+      41,
+      50,
+      51,
+      55,
+      57,
+      58
+    ],
+    "schedule": [
+      {
+        "round": 1,
+        "scenario_id": "collision_round_011",
+        "source_round": 11,
+        "repetition": 1,
+        "target_class": "daily"
+      },
+      {
+        "round": 2,
+        "scenario_id": "collision_round_024",
+        "source_round": 24,
+        "repetition": 1,
+        "target_class": "electronics"
+      },
+      {
+        "round": 3,
+        "scenario_id": "collision_round_037",
+        "source_round": 37,
+        "repetition": 1,
+        "target_class": "food"
+      },
+      {
+        "round": 4,
+        "scenario_id": "failure_round_041_preceding_navigation_failure",
+        "source_round": 41,
+        "repetition": 1,
+        "target_class": "food"
+      },
+      {
+        "round": 5,
+        "scenario_id": "collision_round_050",
+        "source_round": 50,
+        "repetition": 1,
+        "target_class": "food"
+      },
+      {
+        "round": 6,
+        "scenario_id": "failure_round_051_delivery_navigation_failure",
+        "source_round": 51,
+        "repetition": 1,
+        "target_class": "electronics"
+      },
+      {
+        "round": 7,
+        "scenario_id": "collision_round_055",
+        "source_round": 55,
+        "repetition": 1,
+        "target_class": "food"
+      },
+      {
+        "round": 8,
+        "scenario_id": "collision_round_057",
+        "source_round": 57,
+        "repetition": 1,
+        "target_class": "food"
+      },
+      {
+        "round": 9,
+        "scenario_id": "collision_round_058",
+        "source_round": 58,
+        "repetition": 1,
+        "target_class": "daily"
+      },
+      {
+        "round": 10,
+        "scenario_id": "collision_round_011",
+        "source_round": 11,
+        "repetition": 2,
+        "target_class": "daily"
+      },
+      {
+        "round": 11,
+        "scenario_id": "collision_round_024",
+        "source_round": 24,
+        "repetition": 2,
+        "target_class": "electronics"
+      },
+      {
+        "round": 12,
+        "scenario_id": "collision_round_037",
+        "source_round": 37,
+        "repetition": 2,
+        "target_class": "food"
+      },
+      {
+        "round": 13,
+        "scenario_id": "failure_round_041_preceding_navigation_failure",
+        "source_round": 41,
+        "repetition": 2,
+        "target_class": "food"
+      },
+      {
+        "round": 14,
+        "scenario_id": "collision_round_050",
+        "source_round": 50,
+        "repetition": 2,
+        "target_class": "food"
+      },
+      {
+        "round": 15,
+        "scenario_id": "failure_round_051_delivery_navigation_failure",
+        "source_round": 51,
+        "repetition": 2,
+        "target_class": "electronics"
+      },
+      {
+        "round": 16,
+        "scenario_id": "collision_round_055",
+        "source_round": 55,
+        "repetition": 2,
+        "target_class": "food"
+      },
+      {
+        "round": 17,
+        "scenario_id": "collision_round_057",
+        "source_round": 57,
+        "repetition": 2,
+        "target_class": "food"
+      },
+      {
+        "round": 18,
+        "scenario_id": "collision_round_058",
+        "source_round": 58,
+        "repetition": 2,
+        "target_class": "daily"
+      }
+    ],
+    "scene_isolation": "only cones are restored; car3, AMCL, and pickup cubes are untouched",
+    "navigation_ready_timeout_seconds": 60.0,
+    "startup_dependency_timeout_seconds": 180.0,
+    "whole_task_timeout_seconds": 480.0,
+    "task_progress_timeout_seconds": 360.0,
+    "status_interval_seconds": 30.0,
+    "adaptive_monitor_ready_timeout_seconds": 15.0,
+    "adaptive_diagnostics": {
+      "mode_topic": "/move_base/AdaptiveTebLocalPlannerROS/adaptive_mode",
+      "diagnostics_topic": "/move_base/AdaptiveTebLocalPlannerROS/adaptive_diagnostics"
+    },
+    "startup_retries": 2,
+    "global_footprint_config": "/home/ianzhang/gazebo_ws/src/gazebo_nav/launch/config/move_base/global_costmap_params.yaml",
+    "global_footprint_config_sha256": "f5668a4fbef830ff1938938df18373865dbe6f6e7e5de0908644f38fbfd4506c",
+    "global_footprint": {
+      "type": "radius",
+      "radius": 0.05,
+      "padding": 0.0
+    },
+    "navigation_config_files": {
+      "/home/ianzhang/gazebo_ws/src/smart_factory_mission/config/mission.yaml": {
+        "sha256": "1dd1813422dbdc30e0425d58f5fce62047ca2311b330b7e59a39bc349a35156d"
+      },
+      "/home/ianzhang/gazebo_ws/src/smart_factory_mission/config/delivery_goals.yaml": {
+        "sha256": "f006da958ed001625b2880b748deaecc937086a2dad6ff1f101bcc17850174fb"
+      },
+      "/home/ianzhang/gazebo_ws/src/gazebo_nav/launch/config/move_base/global_costmap_params.yaml": {
+        "sha256": "f5668a4fbef830ff1938938df18373865dbe6f6e7e5de0908644f38fbfd4506c"
+      },
+      "/home/ianzhang/gazebo_ws/src/gazebo_nav/launch/config/move_base/global_planner_params.yaml": {
+        "sha256": "7f71297fe2ee7eb06f4e631c2e8c00512a6d7b72cf835b09630385afb5a40c0e"
+      },
+      "/home/ianzhang/gazebo_ws/src/gazebo_nav/launch/config/move_base/costmap_common_params.yaml": {
+        "sha256": "296b5d2f379fe90457275bf0dd3f148511a5677913f6e50e8a6ae84c8f14c557"
+      },
+      "/home/ianzhang/gazebo_ws/src/gazebo_nav/launch/config/move_base/local_costmap_params.yaml": {
+        "sha256": "5b853be426e1f801ed20c656a57cf4313c67e1ba28ffa4fc334f101422c610dd"
+      },
+      "/home/ianzhang/gazebo_ws/src/gazebo_nav/launch/config/move_base/move_base_params.yaml": {
+        "sha256": "d6dee146033a4ee6ad5888dc5b0680b6f0e682ad24271b0010031148853e31dc"
+      },
+      "/home/ianzhang/gazebo_ws/src/gazebo_nav/launch/config/move_base/teb_local_planner_params.yaml": {
+        "sha256": "bf10d8f870a37a246d90573ad72e1a7d4b875b7ed3714d5ef3fec28f53d3ac3d"
+      },
+      "/home/ianzhang/gazebo_ws/src/gazebo_nav/launch/config/move_base/adaptive_teb_params.yaml": {
+        "sha256": "6a2ef526f428c8c19875931677c0f177dbb470979464602ec179303372dcbfbd"
+      }
+    },
+    "mission_config": "/home/ianzhang/gazebo_ws/src/smart_factory_mission/config/mission.yaml",
+    "random_spawner": "/home/ianzhang/gazebo_ws/src/car3/scripts/spawn_cubes.py",
+    "random_spawner_sha256": "27c21cf4f31f3dad34176962abdb16d5be02122455e60e9d8320880a29780c92",
+    "gazebo_gui_enabled": true,
+    "gazebo_recording": {
+      "enabled": true,
+      "format": "Gazebo Classic replayable state.log (zlib)",
+      "start_stage": "NAVIGATE_TO_PICKUP_STAGING",
+      "root": "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_stress",
+      "run_dir": "/home/ianzhang/gazebo_ws/data/cone_zone/end_to_end_stress/failed_scenes_20260822_160246_stress_20260822_230342"
+    }
+  },
+  "summary": {
+    "requested_rounds": 18,
+    "completed_rounds": 0,
+    "task_successes": 0,
+    "task_failures": 0,
+    "success_rate": null,
+    "preceding_navigation_failures": 0,
+    "delivery_navigation_failures": 0,
+    "cone_collision_rounds": 0,
+    "adaptive_avoidance_rounds": 0,
+    "adaptive_avoidance_entries": 0,
+    "adaptive_baseline_fallback_events": 0,
+    "adaptive_avoidance_infeasible_samples": 0,
+    "adaptive_both_planners_infeasible_samples": 0,
+    "gazebo_recording_complete_rounds": 0,
+    "infrastructure_errors": 0,
+    "acceptance_rule": "every scenario must complete all repetitions without any preceding-navigation failure, delivery-navigation failure, or cone collision",
+    "acceptance_passed": false,
+    "requires_further_tuning": false,
+    "by_scenario": {
+      "collision_round_011": {
+        "source_round": 11,
+        "target_class": "daily",
+        "requested_rounds": 2,
+        "completed_rounds": 0,
+        "task_successes": 0,
+        "preceding_navigation_failures": 0,
+        "delivery_navigation_failures": 0,
+        "cone_collision_rounds": 0,
+        "adaptive_avoidance_rounds": 0,
+        "adaptive_avoidance_entries": 0,
+        "adaptive_baseline_fallback_events": 0,
+        "tuning_issue_rounds": 0,
+        "requires_further_tuning": false
+      },
+      "collision_round_024": {
+        "source_round": 24,
+        "target_class": "electronics",
+        "requested_rounds": 2,
+        "completed_rounds": 0,
+        "task_successes": 0,
+        "preceding_navigation_failures": 0,
+        "delivery_navigation_failures": 0,
+        "cone_collision_rounds": 0,
+        "adaptive_avoidance_rounds": 0,
+        "adaptive_avoidance_entries": 0,
+        "adaptive_baseline_fallback_events": 0,
+        "tuning_issue_rounds": 0,
+        "requires_further_tuning": false
+      },
+      "collision_round_037": {
+        "source_round": 37,
+        "target_class": "food",
+        "requested_rounds": 2,
+        "completed_rounds": 0,
+        "task_successes": 0,
+        "preceding_navigation_failures": 0,
+        "delivery_navigation_failures": 0,
+        "cone_collision_rounds": 0,
+        "adaptive_avoidance_rounds": 0,
+        "adaptive_avoidance_entries": 0,
+        "adaptive_baseline_fallback_events": 0,
+        "tuning_issue_rounds": 0,
+        "requires_further_tuning": false
+      },
+      "failure_round_041_preceding_navigation_failure": {
+        "source_round": 41,
+        "target_class": "food",
+        "requested_rounds": 2,
+        "completed_rounds": 0,
+        "task_successes": 0,
+        "preceding_navigation_failures": 0,
+        "delivery_navigation_failures": 0,
+        "cone_collision_rounds": 0,
+        "adaptive_avoidance_rounds": 0,
+        "adaptive_avoidance_entries": 0,
+        "adaptive_baseline_fallback_events": 0,
+        "tuning_issue_rounds": 0,
+        "requires_further_tuning": false
+      },
+      "collision_round_050": {
+        "source_round": 50,
+        "target_class": "food",
+        "requested_rounds": 2,
+        "completed_rounds": 0,
+        "task_successes": 0,
+        "preceding_navigation_failures": 0,
+        "delivery_navigation_failures": 0,
+        "cone_collision_rounds": 0,
+        "adaptive_avoidance_rounds": 0,
+        "adaptive_avoidance_entries": 0,
+        "adaptive_baseline_fallback_events": 0,
+        "tuning_issue_rounds": 0,
+        "requires_further_tuning": false
+      },
+      "failure_round_051_delivery_navigation_failure": {
+        "source_round": 51,
+        "target_class": "electronics",
+        "requested_rounds": 2,
+        "completed_rounds": 0,
+        "task_successes": 0,
+        "preceding_navigation_failures": 0,
+        "delivery_navigation_failures": 0,
+        "cone_collision_rounds": 0,
+        "adaptive_avoidance_rounds": 0,
+        "adaptive_avoidance_entries": 0,
+        "adaptive_baseline_fallback_events": 0,
+        "tuning_issue_rounds": 0,
+        "requires_further_tuning": false
+      },
+      "collision_round_055": {
+        "source_round": 55,
+        "target_class": "food",
+        "requested_rounds": 2,
+        "completed_rounds": 0,
+        "task_successes": 0,
+        "preceding_navigation_failures": 0,
+        "delivery_navigation_failures": 0,
+        "cone_collision_rounds": 0,
+        "adaptive_avoidance_rounds": 0,
+        "adaptive_avoidance_entries": 0,
+        "adaptive_baseline_fallback_events": 0,
+        "tuning_issue_rounds": 0,
+        "requires_further_tuning": false
+      },
+      "collision_round_057": {
+        "source_round": 57,
+        "target_class": "food",
+        "requested_rounds": 2,
+        "completed_rounds": 0,
+        "task_successes": 0,
+        "preceding_navigation_failures": 0,
+        "delivery_navigation_failures": 0,
+        "cone_collision_rounds": 0,
+        "adaptive_avoidance_rounds": 0,
+        "adaptive_avoidance_entries": 0,
+        "adaptive_baseline_fallback_events": 0,
+        "tuning_issue_rounds": 0,
+        "requires_further_tuning": false
+      },
+      "collision_round_058": {
+        "source_round": 58,
+        "target_class": "daily",
+        "requested_rounds": 2,
+        "completed_rounds": 0,
+        "task_successes": 0,
+        "preceding_navigation_failures": 0,
+        "delivery_navigation_failures": 0,
+        "cone_collision_rounds": 0,
+        "adaptive_avoidance_rounds": 0,
+        "adaptive_avoidance_entries": 0,
+        "adaptive_baseline_fallback_events": 0,
+        "tuning_issue_rounds": 0,
+        "requires_further_tuning": false
+      }
+    }
+  },
+  "trials": [],
+  "infrastructure_attempts": []
+}

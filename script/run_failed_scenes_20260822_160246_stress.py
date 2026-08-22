@@ -5,7 +5,9 @@ import argparse
 import csv
 from collections import Counter
 import datetime as dt
+import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 
@@ -28,6 +30,90 @@ DEFAULT_RECORDING_ROOT = (
     WORKSPACE / "data" / "cone_zone" / "end_to_end_stress"
 )
 DEFAULT_EXPERIMENT_LABEL = "source160246_failed_scenes_2each"
+TERMINATION_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+
+class TerminationRequested(BaseException):
+    def __init__(self, signum):
+        super().__init__(signum)
+        self.signum = signum
+
+
+def _request_termination(signum, _frame):
+    # Ignore repeated Ctrl-C/TERM/HUP while the child harness is unwinding its
+    # per-round finally blocks and flushing the Gazebo recorder.
+    for handled_signal in TERMINATION_SIGNALS:
+        signal.signal(handled_signal, signal.SIG_IGN)
+    raise TerminationRequested(signum)
+
+
+def _install_termination_handlers():
+    previous = {
+        signum: signal.getsignal(signum) for signum in TERMINATION_SIGNALS
+    }
+    for signum in TERMINATION_SIGNALS:
+        signal.signal(signum, _request_termination)
+    return previous
+
+
+def _restore_signal_handlers(previous):
+    for signum, handler in previous.items():
+        signal.signal(signum, handler)
+
+
+def stop_process_group(process, interrupt_timeout=60.0):
+    """Stop the owned harness session, escalating only when cleanup stalls."""
+    if process is None or process.poll() is not None:
+        return
+    for signum, timeout in (
+        (signal.SIGINT, interrupt_timeout),
+        (signal.SIGTERM, 10.0),
+        (signal.SIGKILL, 2.0),
+    ):
+        try:
+            os.killpg(process.pid, signum)
+        except ProcessLookupError:
+            return
+        try:
+            process.wait(timeout=timeout)
+            return
+        except subprocess.TimeoutExpired:
+            continue
+
+
+def run_harness(command):
+    """Run the fixed-scene harness in an owned session with signal forwarding."""
+    process = None
+    termination_signal = None
+    previous_handlers = _install_termination_handlers()
+    try:
+        process = subprocess.Popen(
+            command,
+            cwd=str(WORKSPACE),
+            start_new_session=True,
+        )
+        try:
+            return_code = process.wait()
+        except KeyboardInterrupt:
+            termination_signal = signal.SIGINT
+            return_code = 128 + signal.SIGINT
+        except TerminationRequested as exc:
+            termination_signal = exc.signum
+            return_code = 128 + exc.signum
+    finally:
+        try:
+            stop_process_group(process)
+        finally:
+            _restore_signal_handlers(previous_handlers)
+
+    if termination_signal is not None:
+        print(
+            "termination signal {}; stopped owned pressure-test process group".format(
+                termination_signal
+            ),
+            file=sys.stderr,
+        )
+    return return_code
 
 
 def parse_args(argv):
@@ -186,14 +272,20 @@ def main(argv=None):
         )
     )
     print("+ " + " ".join(str(part) for part in command))
-    result = subprocess.run(command)
+    return_code = run_harness(command)
+    if return_code in {
+        128 + signal.SIGHUP,
+        128 + signal.SIGINT,
+        128 + signal.SIGTERM,
+    }:
+        return return_code
     if args.dry_run:
-        return result.returncode
+        return return_code
     csv_path = run_dir / "trials.csv"
     if not csv_path.is_file():
-        return result.returncode if result.returncode else 1
+        return return_code if return_code else 1
     accepted = report(csv_path)
-    return 0 if result.returncode == 0 and accepted else 1
+    return 0 if return_code == 0 and accepted else 1
 
 
 if __name__ == "__main__":

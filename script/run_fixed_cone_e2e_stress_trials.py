@@ -9,6 +9,7 @@ import math
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -166,6 +167,29 @@ CSV_FIELDS = (
         "adaptive_minimum_plan_clearance_m",
     )
 )
+TERMINATION_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+
+def _interrupt_for_shutdown(_signum, _frame):
+    # Protect run_trial's nested cleanup from repeated terminal signals. Raising
+    # KeyboardInterrupt preserves the existing report-writing path in _main().
+    for handled_signal in TERMINATION_SIGNALS:
+        signal.signal(handled_signal, signal.SIG_IGN)
+    raise KeyboardInterrupt
+
+
+def _install_shutdown_handlers():
+    previous = {
+        signum: signal.getsignal(signum) for signum in TERMINATION_SIGNALS
+    }
+    for signum in TERMINATION_SIGNALS:
+        signal.signal(signum, _interrupt_for_shutdown)
+    return previous
+
+
+def _restore_shutdown_handlers(previous):
+    for signum, handler in previous.items():
+        signal.signal(signum, handler)
 
 
 def parse_args(argv):
@@ -1441,7 +1465,7 @@ def print_summary(summary, csv_path, report_path):
     print("json={}".format(report_path))
 
 
-def main(argv=None):
+def _main(argv=None):
     args = parse_args(sys.argv[1:] if argv is None else argv)
     results = []
     plans = []
@@ -1713,6 +1737,14 @@ def main(argv=None):
             )
             print_summary(paths[2], paths[0], paths[1])
         return 1
+
+
+def main(argv=None):
+    previous_handlers = _install_shutdown_handlers()
+    try:
+        return _main(argv)
+    finally:
+        _restore_shutdown_handlers(previous_handlers)
 
 
 if __name__ == "__main__":

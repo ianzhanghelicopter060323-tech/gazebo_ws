@@ -156,7 +156,7 @@ AdaptiveTebLocalPlannerROS:
     # 保留全向避障所需的横移能力，但低于0.55m/s纵向速度；避免车辆
     # 把横移当成主要运动方式，同时不锁死入口处的大侧向绕行。
     max_vel_y: 0.35
-    max_vel_x_backwards: 0.9
+    max_vel_x_backwards: 0.7
     max_vel_theta: 1.6 # 最大角速度
     acc_lim_x: 0.9 # 降低锥桶区纵向速度突变
     acc_lim_y: 0.70 # 平缓横向修正，优先沿全局路径切线前进
@@ -173,7 +173,7 @@ AdaptiveTebLocalPlannerROS:
       # 实验标签必须使用avoidfp_0p12。
       # 若仍卡死可继续缩至0.10(avoidfp_0p10)或0.08(真实车体下限avoidfp_0p08)。
       # 原0.30m: [[0.15,-0.15],[0.15,0.15],[-0.15,0.15],[-0.15,-0.15]]
-      vertices: [[0.125, -0.30], [0.125, 0.30], [-0.125, 0.30], [-0.125, -0.30]] # 长0.24m×宽0.22m
+      vertices: [[0.11, -0.20], [0.11, 0.20], [-0.11, 0.20], [-0.11, -0.20]] # 长0.24m×宽0.22m
 
     xy_goal_tolerance: 0.10 # 目标位置允许误差
     yaw_goal_tolerance: 0.12 # 锥桶区可以保持较大的方向tolerance
@@ -229,7 +229,7 @@ AdaptiveTebLocalPlannerROS:
     weight_shortest_path: 0.0 # 几何最短路径偏好保持关闭
     weight_obstacle: 100.0 # 硬障碍距离惩罚权重
     weight_inflation: 2.0 # stage25软膨胀权重，不扩大硬禁止区
-    weight_viapoint: 10.0 # 越小越允许局部轨迹远离全局路径
+    weight_viapoint: 8.0 # 越小越允许局部轨迹远离全局路径 原为10.0
     weight_adapt_factor: 2.0
 
     enable_homotopy_class_planning: true # 开启多拓扑

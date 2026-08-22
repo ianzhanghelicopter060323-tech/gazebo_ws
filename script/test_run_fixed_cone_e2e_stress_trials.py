@@ -4,6 +4,7 @@ from collections import Counter
 import importlib.util
 import json
 from pathlib import Path
+import signal
 import tempfile
 import unittest
 from unittest import mock
@@ -70,6 +71,20 @@ def runtime_config():
 
 
 class ArgumentDefaultsTest(unittest.TestCase):
+    def test_termination_handler_raises_keyboard_interrupt(self):
+        with mock.patch.object(trials.signal, "signal") as install:
+            with self.assertRaises(KeyboardInterrupt):
+                trials._interrupt_for_shutdown(signal.SIGTERM, None)
+
+        self.assertEqual(
+            install.call_args_list,
+            [
+                mock.call(signal.SIGINT, signal.SIG_IGN),
+                mock.call(signal.SIGTERM, signal.SIG_IGN),
+                mock.call(signal.SIGHUP, signal.SIG_IGN),
+            ],
+        )
+
     def test_navigation_snapshot_includes_dynamic_delivery_goal_config(self):
         self.assertIn(
             trials.DELIVERY_GOALS_CONFIG,

@@ -169,20 +169,20 @@ delivery:
     - target_class: 0
       name: food workshop
       x: 1.045097827911377
-      y: -3.03
+      y: -3.0
       yaw: -1.5963127613067627
       position_tolerance: 0.04
       yaw_tolerance_deg: 5.0
     - target_class: 1
       name: daily workshop
       x: 0.9615546464920044
-      y: -1.4715368270874023
+      y: -1.50
       yaw: 1.5825541019439697
       position_tolerance: 0.04
       yaw_tolerance_deg: 5.0
     - target_class: 2
       name: electronics workshop
-      x: 2.56
+      x: 2.55
       y: -2.1998729705810547
       yaw: 0.0027615150902420282
       position_tolerance: 0.04
